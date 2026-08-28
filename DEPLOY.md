@@ -51,9 +51,13 @@ enormemente sovradimensionati. Non pagherai mai niente.
    `NEXT_PUBLIC_SITE_URL` è l'indirizzo che Vercel ti assegna: puoi metterlo
    subito, lo conosci già dal nome del progetto.
 4. *Deploy*. In un minuto l'app è online.
-5. Torna su Supabase → **Authentication → URL Configuration** e metti
-   quell'indirizzo in *Site URL*, e `https://.../auth/callback` tra le
-   *Redirect URLs*.
+5. Torna su Supabase → **Authentication → URL Configuration**:
+   - *Site URL* = `https://iltuoprogetto.vercel.app` (senza barra finale)
+   - *Redirect URLs* = `https://iltuoprogetto.vercel.app/**` (con i due asterischi)
+
+   È il passaggio che più spesso si dimentica: se *Site URL* resta
+   `localhost:3000`, il magic link porta lì e dal telefono si vede solo
+   «Questa pagina non funziona».
 
 Il file `vercel.json` configura già il cron giornaliero: allinea le fasi delle
 aste, prepara i riepiloghi e tiene sveglio il database di Supabase.
@@ -129,6 +133,17 @@ Il cron serve solo a persistere lo stato e a preparare i riepiloghi.
 sicurezza: sta solo nelle variabili d'ambiente di Vercel, mai nel codice, mai
 nel browser. Se pensi che sia trapelata, rigenerala da Supabase e aggiornala
 su Vercel.
+
+**Le variabili `NEXT_PUBLIC_*` si fissano durante la build.** Cambiarle su
+Vercel non basta: serve un *Redeploy* perché il nuovo valore entri nel codice.
+Vale per `NEXT_PUBLIC_SITE_URL` e per le due chiavi di Supabase.
+
+**Se il magic link non funziona.** Guarda l'indirizzo su cui atterra: se dice
+`localhost` o `undefined`, il problema è la *Site URL* di Supabase o
+`NEXT_PUBLIC_SITE_URL`. L'app prova comunque a ricavare il proprio indirizzo
+dagli header della richiesta, quindi in genere si arrangia da sola — ma la
+whitelist dei *Redirect URLs* su Supabase deve comunque contenere il dominio,
+altrimenti è Supabase a rifiutare il salto.
 
 **Backup.** Supabase Free non fa backup automatici. Prima di ogni asta importante
 puoi scaricarti i dati con *Database → Backups → Download* oppure, più

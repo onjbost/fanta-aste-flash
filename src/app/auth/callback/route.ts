@@ -7,8 +7,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code');
   const next = searchParams.get('next') ?? '/';
 
-  // Supabase puo' rimandare qui anche con un errore esplicito (link scaduto,
-  // gia' usato, redirect non in whitelist): meglio dirlo che mostrare una
+  // Supabase può rimandare qui anche con un errore esplicito (link scaduto,
+  // già usato, redirect non in whitelist): meglio dirlo che mostrare una
   // pagina bianca.
   const errorDescription = searchParams.get('error_description');
   if (errorDescription) {
@@ -21,5 +21,5 @@ export async function GET(request: NextRequest) {
     if (!error) return NextResponse.redirect(`${origin}${next}`);
     return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent(error.message)}`);
   }
-  return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('Link non valido o gia\' usato. Chiedine un altro.')}`);
+  return NextResponse.redirect(`${origin}/login?error=${encodeURIComponent('Link non valido o già usato. Chiedine un altro.')}`);
 }

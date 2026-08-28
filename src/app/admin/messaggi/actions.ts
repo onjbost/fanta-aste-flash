@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { buildMessage } from '@/lib/messageBuilder';
+import { archiveMessage } from '@/lib/telegram';
 import type { MessageKind } from '@/lib/messages';
 
 export type MsgState = { ok: boolean; message: string; body?: string } | null;
@@ -31,8 +32,18 @@ export async function generateMessage(_prev: MsgState, form: FormData): Promise<
     league_id: team.league_id, session_id: sessionId, kind, body,
   });
 
+  const { data: session } = await db.from('auction_sessions')
+    .select('number').eq('id', sessionId).single();
+  const tg = await archiveMessage(kind, session?.number ?? 0, body);
+
   revalidatePath('/admin/messaggi');
-  return { ok: true, message: 'Testo aggiornato con i dati di adesso.', body };
+  return {
+    ok: true,
+    message: tg.sent
+      ? 'Testo aggiornato e mandato su Telegram.'
+      : 'Testo aggiornato con i dati di adesso.',
+    body,
+  };
 }
 
 /** Segna un messaggio come mandato, così sai a che punto sei. */

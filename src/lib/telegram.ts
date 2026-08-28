@@ -23,7 +23,38 @@ export function escapeMarkdown(text: string): string {
   return text.replace(/([_*[\]()~`>#+\-=|{}.!\\])/g, '\\$1');
 }
 
-export interface NotifyResult { sent: boolean; reason?: string }
+export interface NotifyResult { sent: boolean; reason?: string; parts?: number }
+
+/** Telegram taglia i messaggi oltre i 4096 caratteri: meglio spezzarli noi. */
+const LIMITE = 3900;
+
+/**
+ * Divide un testo lungo in pezzi, tagliando sulle righe vuote e poi sulle
+ * righe singole. Un riepilogo d'asta spezzato a metà di una parola sarebbe
+ * inutilizzabile proprio quando serve copiarlo.
+ */
+export function splitMessage(text: string, limite = LIMITE): string[] {
+  if (text.length <= limite) return [text];
+
+  const parti: string[] = [];
+  let corrente = '';
+  for (const blocco of text.split('\n')) {
+    if (corrente.length + blocco.length + 1 > limite) {
+      if (corrente) parti.push(corrente.trimEnd());
+      // una singola riga più lunga del limite: si taglia dove capita
+      if (blocco.length > limite) {
+        for (let i = 0; i < blocco.length; i += limite) parti.push(blocco.slice(i, i + limite));
+        corrente = '';
+        continue;
+      }
+      corrente = blocco + '\n';
+    } else {
+      corrente += blocco + '\n';
+    }
+  }
+  if (corrente.trim()) parti.push(corrente.trimEnd());
+  return parti;
+}
 
 /**
  * Manda un messaggio all'admin. Non lancia mai: restituisce l'esito e basta,
@@ -55,6 +86,65 @@ export async function notifyAdmin(text: string): Promise<NotifyResult> {
   } catch (e) {
     return { sent: false, reason: (e as Error).message };
   }
+}
+
+/**
+ * Manda un testo così com'è, senza formattazione.
+ *
+ * Serve per i messaggi del centro messaggi: sono già scritti per WhatsApp e
+ * devono arrivare identici, pronti da copiare. Passarli dal formattatore di
+ * Telegram li rovinerebbe — e con MarkdownV2 fallirebbe l'invio al primo
+ * punto o parentesi non protetta.
+ */
+export async function notifyAdminPlain(text: string): Promise<NotifyResult> {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_ADMIN_CHAT_ID;
+  if (!token || !chatId) return { sent: false, reason: 'Telegram non configurato' };
+
+  const parti = splitMessage(text);
+  for (const [i, parte] of parti.entries()) {
+    try {
+      const res = await fetch(`${API}/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: parti.length > 1 ? `${parte}\n\n— parte ${i + 1} di ${parti.length}` : parte,
+          disable_web_page_preview: true,
+        }),
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        return { sent: false, reason: `Telegram ha risposto ${res.status}: ${body.slice(0, 120)}` };
+      }
+    } catch (e) {
+      return { sent: false, reason: (e as Error).message };
+    }
+  }
+  return { sent: true, parts: parti.length };
+}
+
+const KIND_LABEL: Record<string, string> = {
+  call: 'Nuova chiamata',
+  calls_closed: 'Chiusura chiamate · T−5',
+  joins_closed: 'Chiusura adesioni · T−1',
+  room_open: 'Apertura sala',
+  results: 'Esiti e movimenti',
+};
+
+/**
+ * Archivia su Telegram un messaggio del centro messaggi, con una riga di
+ * intestazione che dice quale è e a che asta appartiene. Il testo sotto è
+ * quello esatto da incollare nel gruppo: si copia direttamente da Telegram.
+ */
+export async function archiveMessage(
+  kind: string, sessionNumber: number, body: string,
+): Promise<NotifyResult> {
+  const intestazione = `📋 CENTRO MESSAGGI · Asta flash #${sessionNumber}`
+    + `\n${KIND_LABEL[kind] ?? kind} · generato ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}`
+    + `\n${'─'.repeat(28)}\n\n`;
+  return notifyAdminPlain(intestazione + body);
 }
 
 // -------------------------------------------------------------- modelli

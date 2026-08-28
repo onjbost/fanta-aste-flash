@@ -1,7 +1,8 @@
 'use client';
 
-import { useActionState, Suspense } from 'react';
+import { useActionState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { Suspense } from 'react';
 import { sendMagicLink, type ActionState } from '../actions';
 
 function LoginForm() {

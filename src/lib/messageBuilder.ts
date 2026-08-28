@@ -1,5 +1,6 @@
 import 'server-only';
 import { supabaseAdmin } from './supabase';
+import { archiveMessage } from './telegram';
 import { cfgFromLeague, sessionInfo } from './market';
 import { callsCloseAt, joinsCloseAt, refundValue, type Role, type PlayerStatus } from './rules';
 import {
@@ -139,8 +140,12 @@ export async function queueSessionMessage(sessionId: string, kind: MessageKind):
     .select('id').eq('session_id', sessionId).eq('kind', kind).maybeSingle();
   if (existing) return;
 
-  const { data: session } = await db.from('auction_sessions').select('league_id').eq('id', sessionId).single();
+  const { data: session } = await db.from('auction_sessions')
+    .select('league_id, number').eq('id', sessionId).single();
   const body = await buildMessage(sessionId, kind);
   if (!body) return;
   await db.from('messages').insert({ league_id: session!.league_id, session_id: sessionId, kind, body });
+
+  // copia su Telegram: il centro messaggi diventa anche l'archivio
+  await archiveMessage(kind, session!.number, body);
 }

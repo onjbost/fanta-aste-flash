@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   escapeMarkdown, telegramConfigured, notifyAdmin,
   tgNewCall, tgFreeReleaseRequest, tgPhaseChange, tgLotSettled, tgSessionClosed,
+  splitMessage, archiveMessage,
 } from './telegram';
 
 const ENV = { ...process.env };
@@ -111,5 +112,59 @@ describe('i messaggi per l\'admin', () => {
     const m = tgNewCall('Montester United', 'KOLASINAC', 3);
     expect(m).not.toContain('](');
     expect(m).toContain('centro messaggi');
+  });
+});
+
+describe('archivio dei messaggi del centro messaggi', () => {
+  it('spezza i testi lunghi sulle righe, non a metà parola', () => {
+    const riga = 'KOLASINAC · D · Atalanta chiamato da Montester United';
+    const lungo = Array(200).fill(riga).join('\n');
+    const parti = splitMessage(lungo, 1000);
+
+    expect(parti.length).toBeGreaterThan(1);
+    parti.forEach((p) => expect(p.length).toBeLessThanOrEqual(1000));
+    // nessuna riga è stata tagliata a metà
+    parti.join('\n').split('\n').filter(Boolean).forEach((r) => expect(r).toBe(riga));
+  });
+
+  it('lascia intatto un testo che ci sta', () => {
+    expect(splitMessage('corto')).toEqual(['corto']);
+  });
+
+  it('regge una riga singola più lunga del limite', () => {
+    const parti = splitMessage('x'.repeat(2500), 1000);
+    expect(parti).toHaveLength(3);
+  });
+
+  it('manda il testo del centro messaggi senza formattazione, così arriva identico', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const corpo = '⚡ ASTA FLASH #3\n\n📢 Montester United ha chiamato KOLASINAC (D, Atalanta).';
+    const r = await archiveMessage('call', 3, corpo);
+
+    expect(r.sent).toBe(true);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body);
+    // niente parse_mode: i punti e le parentesi arriverebbero rotti
+    expect(body.parse_mode).toBeUndefined();
+    expect(body.text).toContain('CENTRO MESSAGGI · Asta flash #3');
+    expect(body.text).toContain('Nuova chiamata');
+    expect(body.text).toContain(corpo);
+  });
+
+  it('numera le parti quando il messaggio è spezzato', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await archiveMessage('results', 3, 'riga\n'.repeat(2000));
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    const primo = JSON.parse(fetchMock.mock.calls[0][1].body);
+    expect(primo.text).toMatch(/parte 1 di \d+/);
+  });
+
+  it('senza bot configurato non prova nemmeno a mandare', async () => {
+    delete process.env.TELEGRAM_BOT_TOKEN;
+    const r = await archiveMessage('call', 1, 'testo');
+    expect(r).toEqual({ sent: false, reason: 'Telegram non configurato' });
   });
 });

@@ -49,7 +49,7 @@ export default async function ListonePage({
 
       {error && (
         <div className="callout crit">
-          Il listone non si e' caricato: {error}. Se hai appena aggiornato il database,
+          Il listone non si è caricato: {error}. Se hai appena aggiornato il database,
           controlla di aver eseguito tutte le migrazioni.
         </div>
       )}

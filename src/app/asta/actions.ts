@@ -7,7 +7,7 @@ import {
   sessionInfo, runProxyBids, advanceSessions,
 } from '@/lib/market';
 import { openRoom, openLot, closeLot, closeSession } from '@/lib/settlement';
-import { notifyAdmin, tgNewCall, tgSessionClosed } from '@/lib/telegram';
+import { notifyAdmin, tgSessionClosed, archiveMessage } from '@/lib/telegram';
 import { validateCall, validateJoin, expectedStatus, type SessionInfo, type Role, type PlayerStatus } from '@/lib/rules';
 
 export type ActionState = { ok: boolean; message: string; warnings?: string[] } | null;
@@ -105,11 +105,10 @@ export async function callPlayer(_prev: ActionState, form: FormData): Promise<Ac
     return { ok: false, message: `Non è andata: ${pErr.message}` };
   }
 
-  // messaggio 1: pronto da copiare, subito
+  // messaggio 1: generato, salvato e mandato su Telegram pronto da incollare
   await queueMessage(team.league_id, sessionId, 'call', {
     callerTeam: team.name, playerId: targetId,
   });
-  await notifyAdmin(tgNewCall(team.name, target.name, session.number));
 
   revalidatePath('/asta');
   return {
@@ -372,4 +371,5 @@ async function queueMessage(
   );
 
   await db.from('messages').insert({ league_id: leagueId, session_id: sessionId, kind, body });
+  await archiveMessage(kind, s.number, body);
 }

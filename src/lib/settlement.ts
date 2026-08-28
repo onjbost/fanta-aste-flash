@@ -3,6 +3,7 @@ import { supabaseAdmin } from './supabase';
 import { loadMarketState, budgetForLot, cfgFromLeague } from './market';
 import { refundValue, changesLeft, ROLE_LABEL, type Role } from './rules';
 import { notifyAdmin, tgLotSettled } from './telegram';
+import { queueSessionMessage } from './messageBuilder';
 
 /**
  * Esecuzione del mercato: apertura della sala, apertura dei lotti, chiusura
@@ -68,6 +69,10 @@ export async function openRoom(sessionId: string): Promise<SettleResult> {
 
   await db.from('auction_sessions')
     .update({ status: 'live', room_opened_at: new Date().toISOString() }).eq('id', sessionId);
+
+  // il messaggio di svelamento si scrive da solo: adesso svincolandi e budget
+  // sono pubblici, quindi il testo per il gruppo e' finalmente componibile
+  await queueSessionMessage(sessionId, 'room_open');
 
   return {
     ok: true,
@@ -242,6 +247,10 @@ export async function closeSession(sessionId: string): Promise<SettleResult> {
     .select('id').eq('session_id', sessionId).in('status', ['live', 'called']);
   for (const l of openLots ?? []) await closeLot(l.id, true);
   await db.from('auction_sessions').update({ status: 'closed' }).eq('id', sessionId);
+
+  // e il riepilogo dei risultati, con i conti gia' chiusi
+  await queueSessionMessage(sessionId, 'results');
+
   return { ok: true, message: 'Asta chiusa.' };
 }
 

@@ -80,7 +80,7 @@ quotazioni, club e flag "fuori lista", lasciando intatto il mercato in corso.
 
 | Regola | Funzione |
 | --- | --- |
-| Rimborso 75% arrotondato per difetto, 100% nei casi straordinari | `refundValue` |
+| Rimborso 75% arrotondato per difetto con minimo 1 credito, 100% nei casi straordinari | `refundValue` |
 | Cambi 1-3-3-2, più 1 per ruolo dal 1° febbraio, cumulativi | `changesAllowance`, `changesLeft` |
 | Gli svincoli gratuiti non consumano il cambio | `refundValue` → `free` |
 | Budget = crediti residui + rimborso | `auctionBudget` |
@@ -92,7 +92,7 @@ quotazioni, club e flag "fuori lista", lasciando intatto il mercato in corso.
 | Richiesta di svincolo gratuito e i suoi due esiti | `freeReleaseEligibility`, `freeReleaseScenarios` |
 
 ```bash
-npm test          # 132 test
+npm test          # 141 test
 ```
 
 E per lo schema, una prova a freddo su un Postgres qualsiasi:

@@ -128,7 +128,8 @@ export default async function Dashboard() {
       </div>
 
       <div className="callout">
-        Il valore di svincolo è il 75% del prezzo pagato, arrotondato per difetto. Diventa il 100%
+        Il valore di svincolo è il 75% del prezzo pagato, arrotondato per difetto e
+        mai sotto 1 credito. Diventa il 100%
         — e non consuma un cambio — per chi ha lasciato la Serie A, è squalificato dalla Lega o ha
         un infortunio oltre 60 giorni approvato dall'admin.
       </div>

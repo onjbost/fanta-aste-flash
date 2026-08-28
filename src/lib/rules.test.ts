@@ -24,8 +24,18 @@ describe('rimborso dello svincolo', () => {
   it('rende il 75% arrotondato per difetto (decisione della lega)', () => {
     expect(refundValue(P({ price: 32 })).value).toBe(24);   // 24.0
     expect(refundValue(P({ price: 35 })).value).toBe(26);   // 26.25 → 26
-    expect(refundValue(P({ price: 1 })).value).toBe(0);     // 0.75 → 0
+    expect(refundValue(P({ price: 1 })).value).toBe(1);     // 0.75 → 0, ma il minimo è 1
     expect(refundValue(P({ price: 100 })).value).toBe(75);
+  });
+
+  it('non rende mai zero: sotto l\'unità si arrotonda a 1', () => {
+    expect(refundValue(P({ price: 1 })).value).toBe(1);   // 0.75
+    expect(refundValue(P({ price: 2 })).value).toBe(1);   // 1.5 → 1, già ok
+    expect(refundValue(P({ price: 3 })).value).toBe(2);   // 2.25 → 2
+  });
+
+  it('un giocatore costato zero resta a zero: nessun credito dal nulla', () => {
+    expect(refundValue(P({ price: 0 })).value).toBe(0);
   });
 
   it('consuma un cambio quando è ordinario', () => {
@@ -367,8 +377,16 @@ describe('validazione dell\'adesione', () => {
     expect(r.ok).toBe(false);
   });
 
-  it('rifiuta chi non avrebbe crediti nemmeno per la base', () => {
+  it('con zero crediti si partecipa lo stesso: lo svincolo rende almeno 1', () => {
+    // conseguenza del minimo di 1 credito sul rimborso: nessuno resta fuori
+    // da un lotto per mancanza di budget, può sempre offrire la base
     const r = validateJoin({ ...baseJoin(), credits: 0, release: P({ price: 1 }) });
+    expect(r.ok).toBe(true);
+    expect(r.budget).toBe(1);
+  });
+
+  it('resta il controllo per il caso impossibile di un budget a zero', () => {
+    const r = validateJoin({ ...baseJoin(), credits: 0, release: P({ price: 0 }) });
     expect(r.ok).toBe(false);
     expect(r.errors.join(' ')).toMatch(/base d'asta/);
   });

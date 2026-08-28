@@ -176,8 +176,14 @@ export function refundValue(p: RosterPlayer, cfg: LeagueConfig = DEFAULT_CONFIG)
   // Richiesta respinta o ancora pendente: vale lo svincolo ordinario.
   // Finché l'admin non decide, budget e contatori si calcolano al 75%:
   // meglio una sorpresa in meglio che una in meno il giorno dell'asta.
+  //
+  // Con l'arrotondamento per difetto un giocatore da 1 credito renderebbe
+  // zero: uno svincolo che non restituisce niente non ha senso, quindi il
+  // minimo è 1. Vale solo per chi è costato qualcosa — un giocatore entrato
+  // a costo zero non può generare crediti dal nulla.
+  const arrotondato = applyRounding(p.price * cfg.refundPct, cfg.refundRounding);
   return {
-    value: applyRounding(p.price * cfg.refundPct, cfg.refundRounding),
+    value: p.price > 0 ? Math.max(1, arrotondato) : 0,
     type: 'flash_75',
     free: false,
     reason: 'Svincolo ordinario',

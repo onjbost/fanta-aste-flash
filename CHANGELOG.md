@@ -51,7 +51,7 @@ dall'app: si continuano a fare come si è sempre fatto.
 2. Chi entra e chi esce sono dello stesso ruolo.
 3. Una chiamata o adesione per ogni svincolando: mai lo stesso due volte in una
    sessione.
-4. Il 75% si arrotonda per difetto.
+4. Il 75% si arrotonda per difetto, ma non scende mai sotto 1 credito.
 5. Chiamate modificabili o ritirabili fino a T−5.
 6. Gli svincoli gratuiti non consumano il cambio di ruolo.
 7. Chi non può essere in sala lascia un'offerta massima; senza, vale zero.

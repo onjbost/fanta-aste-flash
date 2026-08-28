@@ -137,7 +137,11 @@ export default async function RegolamentoPage() {
           <tbody>
             <tr>
               <td><b>Rimborso ordinario</b></td>
-              <td>75% del prezzo pagato, arrotondato per difetto. Consuma un cambio nel ruolo.</td>
+              <td>
+                75% del prezzo pagato, arrotondato per difetto, <b>ma mai meno di
+                1 credito</b>: uno svincolo non può rendere zero. Consuma un cambio
+                nel ruolo.
+              </td>
               <td className="num">art. 8.4</td>
             </tr>
             <tr>

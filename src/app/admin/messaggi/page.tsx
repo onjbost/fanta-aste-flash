@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { loadTeamContext } from '@/lib/queries';
+import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { MESSAGE_LABEL, type MessageKind } from '@/lib/messages';
 import { TopBar } from '../../TopBar';
@@ -10,8 +10,7 @@ export const dynamic = 'force-dynamic';
 const ORDER: MessageKind[] = ['call', 'calls_closed', 'joins_closed', 'room_open', 'results'];
 
 export default async function MessaggiPage() {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = await supabaseServer();

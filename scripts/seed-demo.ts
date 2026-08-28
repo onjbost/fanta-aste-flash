@@ -8,7 +8,10 @@
  * Non tocca niente se la lega esiste già con delle rose dentro.
  */
 import { createClient } from '@supabase/supabase-js';
+import { loadEnv } from './env';
 import { CALENDAR } from './calendar';
+
+loadEnv();
 
 const db = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,

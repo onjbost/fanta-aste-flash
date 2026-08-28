@@ -1,3 +1,4 @@
+import { redirect } from 'next/navigation';
 import { supabaseServer } from './supabase';
 import {
   DEFAULT_CONFIG, changesSummary, refundValue,
@@ -146,4 +147,21 @@ export async function loadFreeAgents(filter: { role?: Role; q?: string } = {}): 
     outOfList: !!p.out_of_list,
     lockedUntilNumber: p.locked_until_number ?? null,
   }));
+}
+
+/**
+ * Il contesto della squadra, o la pagina giusta dove mandare chi non ce l'ha.
+ *
+ * Distinguere i due casi e' essenziale: chi non ha una sessione va al login,
+ * ma chi ha appena fatto il primo accesso e non e' ancora collegato a una
+ * squadra va spiegato, non rimbalzato. Mandarlo al login creerebbe un giro
+ * infinito, perche' il middleware rimanda subito dentro chi e' autenticato.
+ */
+export async function requireTeamContext(): Promise<TeamContext> {
+  const ctx = await loadTeamContext();
+  if (ctx) return ctx;
+
+  const db = await supabaseServer();
+  const { data } = await db.auth.getUser();
+  redirect(data.user ? '/benvenuto' : '/login');
 }

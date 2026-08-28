@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { loadFreeAgents, loadTeamContext } from '@/lib/queries';
+import { loadFreeAgents, requireTeamContext } from '@/lib/queries';
 import { ROLE_LABEL, type Role } from '@/lib/rules';
 import { TopBar } from '../TopBar';
 
@@ -13,8 +13,7 @@ export default async function ListonePage({
 }: {
   searchParams: Promise<{ role?: string; q?: string }>;
 }) {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
 
   const sp = await searchParams;
   const role = ROLES.includes(sp.role as Role) ? (sp.role as Role) : undefined;

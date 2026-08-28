@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { loadTeamContext } from '@/lib/queries';
+import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { refundValue, ROLE_LABEL, type Role, type PlayerStatus } from '@/lib/rules';
 import { TopBar } from '../../TopBar';
@@ -14,8 +14,7 @@ export default async function RosePage({
 }: {
   searchParams: Promise<{ team?: string }>;
 }) {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = await supabaseServer();

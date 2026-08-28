@@ -1,10 +1,12 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { sendMagicLink, type ActionState } from '../actions';
 
-export default function LoginPage() {
+function LoginForm() {
   const [state, action, pending] = useActionState<ActionState, FormData>(sendMagicLink, null);
+  const error = useSearchParams().get('error');
 
   return (
     <div className="login">
@@ -26,9 +28,20 @@ export default function LoginPage() {
         </button>
       </form>
 
+      {error && !state && (
+        <div className="callout crit" role="status">{error}</div>
+      )}
       {state && (
         <div className={state.ok ? 'callout' : 'callout crit'} role="status">{state.message}</div>
       )}
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginForm />
+    </Suspense>
   );
 }

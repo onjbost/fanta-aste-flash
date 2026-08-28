@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase';
-import { loadTeamContext } from '@/lib/queries';
+import { requireTeamContext } from '@/lib/queries';
 import { refundValue, type Role, type PlayerStatus } from '@/lib/rules';
 import { TopBar } from '../../TopBar';
 import { AuctionRoom } from './AuctionRoom';
@@ -9,8 +9,7 @@ import { RoomControls } from './RoomControls';
 export const dynamic = 'force-dynamic';
 
 export default async function SalaPage() {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
 
   const db = await supabaseServer();
   const { data: sessionRow } = await db.from('auction_sessions')

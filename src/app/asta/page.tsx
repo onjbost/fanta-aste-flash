@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { supabaseServer } from '@/lib/supabase';
-import { loadTeamContext } from '@/lib/queries';
+import { requireTeamContext } from '@/lib/queries';
 import {
   callsCloseAt, joinsCloseAt, expectedStatus, refundValue,
   type Role, type SessionInfo,
@@ -23,8 +23,7 @@ const PHASE_LABEL: Record<string, string> = {
 };
 
 export default async function AstaPage() {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
   if (!ctx.nextSession) {
     return (
       <div className="shell">

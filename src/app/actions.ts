@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { headers } from 'next/headers';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { notifyAdmin, tgFreeReleaseRequest, telegramConfigured } from '@/lib/telegram';
 import { freeReleaseScenarios } from '@/lib/rules';
@@ -10,17 +11,46 @@ export type ActionState = { ok: boolean; message: string } | null;
 
 // ------------------------------------------------------------------ login
 
+/**
+ * L'indirizzo pubblico dell'app, ricavato dalla richiesta in corso.
+ *
+ * La variabile d'ambiente resta come preferenza esplicita, ma se manca o e'
+ * rimasta a localhost usiamo gli header: sono quelli veri del dominio da cui
+ * l'utente sta chiedendo il link. Cosi' il magic link non puo' puntare a un
+ * indirizzo dove il telefono non arriva.
+ */
+async function siteOrigin(): Promise<string> {
+  const configured = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '');
+  const h = await headers();
+  const host = h.get('x-forwarded-host') ?? h.get('host');
+
+  if (host) {
+    const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+    const fromRequest = `${proto}://${host}`;
+    if (!configured || (!host.startsWith('localhost') && configured.includes('localhost'))) {
+      return fromRequest;
+    }
+    return configured;
+  }
+  return configured ?? '';
+}
+
 export async function sendMagicLink(_prev: ActionState, form: FormData): Promise<ActionState> {
   const email = String(form.get('email') ?? '').trim().toLowerCase();
   if (!email) return { ok: false, message: 'Scrivi la tua email.' };
 
+  const origin = await siteOrigin();
+  if (!origin) {
+    return { ok: false, message: 'Non riesco a capire l\'indirizzo dell\'app: manca NEXT_PUBLIC_SITE_URL.' };
+  }
+
   const db = await supabaseServer();
   const { error } = await db.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback` },
+    options: { emailRedirectTo: `${origin}/auth/callback` },
   });
   if (error) return { ok: false, message: `Non sono riuscito a inviare il link: ${error.message}` };
-  return { ok: true, message: 'Link inviato. Aprilo dal telefono con cui userai l\'app.' };
+  return { ok: true, message: `Link inviato a ${email}. Aprilo dal telefono con cui userai l'app.` };
 }
 
 export async function signOut() {

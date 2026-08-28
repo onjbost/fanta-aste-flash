@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { loadTeamContext } from '@/lib/queries';
+import { requireTeamContext } from '@/lib/queries';
 import { freeReleaseEligibility, ROLE_LABEL, type Role } from '@/lib/rules';
 import { FreeReleaseButton } from './FreeReleaseButton';
 import { TopBar } from './TopBar';
@@ -20,8 +20,7 @@ function formatDate(iso: string) {
 }
 
 export default async function Dashboard() {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
 
   const { team, credits, roster, changes, nextSession } = ctx;
   const byRole = (r: Role) => roster.filter((p) => p.role === r);

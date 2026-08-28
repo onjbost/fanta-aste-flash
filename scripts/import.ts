@@ -23,10 +23,13 @@
 import { readFileSync } from 'node:fs';
 import { extname } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
+import { loadEnv } from './env';
 import ExcelJS from 'exceljs';
 import { parseCsv, nameKey } from '../src/lib/csv';
 import { parseListone, checkRosters, type ListonePlayer } from '../src/lib/listone';
 import { CALENDAR } from './calendar';
+
+loadEnv();
 
 const args = process.argv.slice(2);
 const arg = (name: string) => {

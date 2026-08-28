@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { loadTeamContext } from '@/lib/queries';
+import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { freeReleaseScenarios, type Role, type PlayerStatus } from '@/lib/rules';
 import { TopBar } from '../TopBar';
@@ -29,8 +29,7 @@ const STATUS_NOTE: Record<string, string> = {
 };
 
 export default async function AdminPage() {
-  const ctx = await loadTeamContext();
-  if (!ctx) redirect('/login');
+  const ctx = await requireTeamContext();
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = await supabaseServer();

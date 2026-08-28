@@ -1,0 +1,9 @@
+{
+  "name": "Aste Flash · Fanta Mansarda",
+  "short_name": "Aste Flash",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#101614",
+  "theme_color": "#101614",
+  "icons": []
+}

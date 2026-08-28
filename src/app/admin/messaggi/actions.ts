@@ -11,9 +11,9 @@ async function requireAdmin() {
   const db = await supabaseServer();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return null;
-  const { data: team } = await db.from('teams')
-    .select('id, is_admin, league_id').eq('user_id', auth.user.id).maybeSingle();
-  return team?.is_admin ? team : null;
+  const { data: m } = await db.from('team_members')
+    .select('is_admin, team_id, league_id').eq('user_id', auth.user.id).maybeSingle();
+  return m?.is_admin ? { id: m.team_id, league_id: m.league_id } : null;
 }
 
 /** Rigenera il testo dai dati attuali della sessione e lo salva come bozza. */

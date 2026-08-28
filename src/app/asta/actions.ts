@@ -17,9 +17,10 @@ async function me() {
   const db = await supabaseServer();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return null;
-  const { data: team } = await db.from('teams')
-    .select('id, name, is_admin, league_id').eq('user_id', auth.user.id).maybeSingle();
-  return team ?? null;
+  const { data: m } = await db.from('team_members')
+    .select('is_admin, teams(id, name, league_id)').eq('user_id', auth.user.id).maybeSingle();
+  const j = m as unknown as { is_admin: boolean; teams: { id: string; name: string; league_id: string } | null } | null;
+  return j?.teams ? { ...j.teams, is_admin: j.is_admin } : null;
 }
 
 /**

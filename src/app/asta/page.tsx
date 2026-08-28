@@ -68,7 +68,7 @@ export default async function AstaPage() {
       byLot.set(c.lot_id, list);
     });
 
-  const { data: freeAgents } = await db.from('v_free_agents')
+  const { data: freeAgents, error: freeAgentsError } = await db.from('v_free_agents')
     .select('id, name, role, club, quotation, signing_window, locked_until_number')
     .order('quotation', { ascending: false }).limit(600);
 
@@ -167,6 +167,12 @@ export default async function AstaPage() {
           </div>
         );
       })}
+
+      {freeAgentsError && (
+        <div className="callout crit">
+          Non riesco a leggere il listone degli svincolati: {freeAgentsError.message}.
+        </div>
+      )}
 
       {effective === 'calls_open' ? (
         <>

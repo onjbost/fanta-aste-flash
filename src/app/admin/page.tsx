@@ -64,6 +64,7 @@ export default async function AdminPage() {
       <TelegramCheck configured={telegramConfigured()} />
       <div className="filters" style={{ marginTop: 0 }}>
         <a className="btn" href="/admin/rose">Rose e import</a>
+        <a className="btn" href="/admin/allenatori">Allenatori</a>
         <a className="btn" href="/admin/messaggi">Centro messaggi</a>
         <a className="btn" href="/asta/sala">Sala d'asta</a>
       </div>

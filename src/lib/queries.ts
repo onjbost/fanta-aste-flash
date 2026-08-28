@@ -43,12 +43,19 @@ export async function loadTeamContext(): Promise<TeamContext | null> {
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return null;
 
-  const { data: team } = await db
-    .from('teams')
-    .select('id, name, manager_name, is_admin, league_id')
+  // il collegamento utente → squadra passa da team_members: una squadra
+  // può avere due allenatori, e per il mercato sono la stessa squadra
+  const { data: member } = await db
+    .from('team_members')
+    .select('is_admin, teams(id, name, manager_name, league_id)')
     .eq('user_id', auth.user.id)
     .maybeSingle();
-  if (!team) return null;
+  const joined = (member as unknown as {
+    is_admin: boolean;
+    teams: { id: string; name: string; manager_name: string; league_id: string } | null;
+  } | null);
+  if (!joined?.teams) return null;
+  const team = { ...joined.teams, is_admin: joined.is_admin };
 
   const [{ data: league }, { data: credits }, { data: contracts }, { data: requests }, { data: sessions }] =
     await Promise.all([
@@ -130,8 +137,16 @@ export interface FreeAgent {
   lockedUntilNumber: number | null;
 }
 
-/** Il listone degli svincolati, con il filtro applicato lato database. */
-export async function loadFreeAgents(filter: { role?: Role; q?: string } = {}): Promise<FreeAgent[]> {
+/**
+ * Il listone degli svincolati, con il filtro applicato lato database.
+ *
+ * Restituisce anche l'eventuale errore: una lista vuota per un problema di
+ * query e una lista vuota perche' non ci sono svincolati sono due cose
+ * diverse, e chi guarda la pagina deve poterle distinguere.
+ */
+export async function loadFreeAgents(
+  filter: { role?: Role; q?: string } = {},
+): Promise<{ players: FreeAgent[]; error: string | null }> {
   const db = await supabaseServer();
   let query = db.from('v_free_agents')
     .select('id, name, role, club, quotation, status, signing_window, out_of_list, locked_until_number')
@@ -139,23 +154,27 @@ export async function loadFreeAgents(filter: { role?: Role; q?: string } = {}): 
     .limit(400);
   if (filter.role) query = query.eq('role', filter.role);
   if (filter.q) query = query.ilike('name', `%${filter.q}%`);
-  const { data } = await query;
-  return (data ?? []).map((p) => ({
+  const { data, error } = await query;
+  if (error) {
+    console.error('[listone] query fallita:', error.message);
+    return { players: [], error: error.message };
+  }
+  return { players: (data ?? []).map((p) => ({
     id: p.id, name: p.name, role: p.role as Role, club: p.club,
     quotation: p.quotation, status: p.status as PlayerStatus,
     signingWindow: p.signing_window as 'summer' | 'winter',
     outOfList: !!p.out_of_list,
     lockedUntilNumber: p.locked_until_number ?? null,
-  }));
+  })), error: null };
 }
 
 /**
  * Il contesto della squadra, o la pagina giusta dove mandare chi non ce l'ha.
  *
- * Distinguere i due casi e' essenziale: chi non ha una sessione va al login,
- * ma chi ha appena fatto il primo accesso e non e' ancora collegato a una
+ * Distinguere i due casi è essenziale: chi non ha una sessione va al login,
+ * ma chi ha appena fatto il primo accesso e non è ancora collegato a una
  * squadra va spiegato, non rimbalzato. Mandarlo al login creerebbe un giro
- * infinito, perche' il middleware rimanda subito dentro chi e' autenticato.
+ * infinito, perché il middleware rimanda subito dentro chi è autenticato.
  */
 export async function requireTeamContext(): Promise<TeamContext> {
   const ctx = await loadTeamContext();

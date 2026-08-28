@@ -14,9 +14,9 @@ export type ActionState = { ok: boolean; message: string } | null;
 /**
  * L'indirizzo pubblico dell'app, ricavato dalla richiesta in corso.
  *
- * La variabile d'ambiente resta come preferenza esplicita, ma se manca o e'
+ * La variabile d'ambiente resta come preferenza esplicita, ma se manca o è
  * rimasta a localhost usiamo gli header: sono quelli veri del dominio da cui
- * l'utente sta chiedendo il link. Cosi' il magic link non puo' puntare a un
+ * l'utente sta chiedendo il link. Così il magic link non può puntare a un
  * indirizzo dove il telefono non arriva.
  */
 async function siteOrigin(): Promise<string> {
@@ -27,6 +27,7 @@ async function siteOrigin(): Promise<string> {
   if (host) {
     const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
     const fromRequest = `${proto}://${host}`;
+    // in produzione la richiesta ha sempre ragione su una variabile dimenticata
     if (!configured || (!host.startsWith('localhost') && configured.includes('localhost'))) {
       return fromRequest;
     }
@@ -50,7 +51,10 @@ export async function sendMagicLink(_prev: ActionState, form: FormData): Promise
     options: { emailRedirectTo: `${origin}/auth/callback` },
   });
   if (error) return { ok: false, message: `Non sono riuscito a inviare il link: ${error.message}` };
-  return { ok: true, message: `Link inviato a ${email}. Aprilo dal telefono con cui userai l'app.` };
+  return {
+    ok: true,
+    message: `Link inviato a ${email}. Aprilo dal telefono con cui userai l'app.`,
+  };
 }
 
 export async function signOut() {
@@ -74,8 +78,9 @@ export async function requestFreeRelease(_prev: ActionState, form: FormData): Pr
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return { ok: false, message: 'Sessione scaduta, rientra.' };
 
-  const { data: team } = await db.from('teams')
-    .select('id, name, league_id').eq('user_id', auth.user.id).maybeSingle();
+  const { data: m } = await db.from('team_members')
+    .select('teams(id, name, league_id)').eq('user_id', auth.user.id).maybeSingle();
+  const team = (m as unknown as { teams: { id: string; name: string; league_id: string } | null } | null)?.teams;
   if (!team) return { ok: false, message: 'Nessuna squadra collegata a questo account.' };
 
   const { data: contract } = await db.from('contracts')
@@ -141,13 +146,14 @@ export async function withdrawFreeRelease(_prev: ActionState, form: FormData): P
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return { ok: false, message: 'Sessione scaduta, rientra.' };
 
-  const { data: team } = await db.from('teams').select('id').eq('user_id', auth.user.id).maybeSingle();
+  const { data: team } = await db.from('team_members')
+    .select('team_id').eq('user_id', auth.user.id).maybeSingle();
   if (!team) return { ok: false, message: 'Nessuna squadra collegata.' };
 
   const admin = supabaseAdmin();
   const { data: req } = await admin.from('free_release_requests')
     .select('id, lot_participant_id')
-    .eq('team_id', team.id).eq('player_id', playerId).eq('status', 'pending').maybeSingle();
+    .eq('team_id', team.team_id).eq('player_id', playerId).eq('status', 'pending').maybeSingle();
   if (!req) return { ok: false, message: 'Nessuna richiesta in attesa su questo giocatore.' };
 
   await admin.from('free_release_requests').update({ status: 'cancelled' }).eq('id', req.id);
@@ -179,8 +185,8 @@ export async function decideFreeRelease(_prev: ActionState, form: FormData): Pro
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return { ok: false, message: 'Sessione scaduta, rientra.' };
 
-  const { data: me } = await db.from('teams')
-    .select('id, is_admin, league_id').eq('user_id', auth.user.id).maybeSingle();
+  const { data: me } = await db.from('team_members')
+    .select('is_admin, league_id').eq('user_id', auth.user.id).maybeSingle();
   if (!me?.is_admin) return { ok: false, message: 'Serve essere admin.' };
 
   const admin = supabaseAdmin();
@@ -241,7 +247,7 @@ export async function testTelegram(): Promise<ActionState> {
   const db = await supabaseServer();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return { ok: false, message: 'Sessione scaduta, rientra.' };
-  const { data: team } = await db.from('teams')
+  const { data: team } = await db.from('team_members')
     .select('is_admin').eq('user_id', auth.user.id).maybeSingle();
   if (!team?.is_admin) return { ok: false, message: 'Serve essere admin.' };
 

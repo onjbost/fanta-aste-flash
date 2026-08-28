@@ -19,20 +19,23 @@ export default async function BenvenutoPage() {
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) redirect('/login');
 
-  const { data: team } = await db.from('teams')
+  const { data: team } = await db.from('team_members')
     .select('id').eq('user_id', auth.user.id).maybeSingle();
   if (team) redirect('/');
 
   const email = auth.user.email ?? '';
-  const { data: teams } = await db.from('teams')
-    .select('name, user_id').order('name');
-  const libere = (teams ?? []).filter((t) => !t.user_id).map((t) => t.name);
+  // le squadre con meno di due allenatori: sono quelle dove c'è ancora posto
+  const { data: teams } = await db.from('teams').select('id, name').order('name');
+  const { data: members } = await db.from('team_members').select('team_id');
+  const conteggio = new Map<string, number>();
+  (members ?? []).forEach((m) => conteggio.set(m.team_id, (conteggio.get(m.team_id) ?? 0) + 1));
+  const libere = (teams ?? []).filter((t) => (conteggio.get(t.id) ?? 0) < 2).map((t) => t.name);
 
-  const sql = `update teams
-   set user_id  = (select id from auth.users where email = '${email}'),
-       email    = '${email}',
-       is_admin = true
- where name = '${libere[0] ?? 'Nome Squadra'}';`;
+  const sql = `insert into team_members (league_id, team_id, user_id, email, is_admin)
+select t.league_id, t.id, u.id, u.email, true
+  from teams t, auth.users u
+ where t.name = '${libere[0] ?? 'Nome Squadra'}'
+   and u.email = '${email}';`;
 
   return (
     <div className="shell">
@@ -58,12 +61,14 @@ export default async function BenvenutoPage() {
 
           <h2>Se l'admin sei tu</h2>
           <p style={{ fontSize: '.92rem', color: 'var(--muted)' }}>
-            Apri Supabase → <b>SQL Editor</b>, incolla questo, cambia il nome della
-            squadra con la tua e premi <i>Run</i>. Poi ricarica questa pagina.
+            La prima volta serve una query: apri Supabase → <b>SQL Editor</b>, incolla
+            questo, cambia il nome della squadra con la tua e premi <i>Run</i>. Poi
+            ricarica. Da lì in avanti gli altri allenatori li colleghi dal pannello
+            admin, senza più SQL.
           </p>
           <CopySql sql={sql} />
           <p style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
-            Per gli altri allenatori è lo stesso comando senza <code>is_admin = true</code>.
+            Squadre con un posto libero: ogni squadra può avere due allenatori.
           </p>
         </>
       ) : (

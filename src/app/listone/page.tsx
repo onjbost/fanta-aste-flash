@@ -18,7 +18,7 @@ export default async function ListonePage({
   const sp = await searchParams;
   const role = ROLES.includes(sp.role as Role) ? (sp.role as Role) : undefined;
   const q = sp.q?.trim() || undefined;
-  const players = await loadFreeAgents({ role, q });
+  const { players, error } = await loadFreeAgents({ role, q });
 
   return (
     <div className="shell">
@@ -46,6 +46,13 @@ export default async function ListonePage({
         <button type="submit" className="primary">Filtra</button>
         {(role || q) && <Link className="btn" href="/listone">Azzera</Link>}
       </form>
+
+      {error && (
+        <div className="callout crit">
+          Il listone non si e' caricato: {error}. Se hai appena aggiornato il database,
+          controlla di aver eseguito tutte le migrazioni.
+        </div>
+      )}
 
       <div className="panel">
         <div className="tablewrap">

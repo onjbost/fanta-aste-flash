@@ -109,3 +109,13 @@ dialog .foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;g
 .msgcard-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);font-weight:600;font-size:.86rem}
 .msgcard-body{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.79rem;line-height:1.65;white-space:pre-wrap;padding:16px;margin:0;overflow-x:auto;color:var(--ink)}
 .msgcard-foot{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface-2);flex-wrap:wrap}
+
+/* elenco numerato del regolamento */
+ol.rules{counter-reset:r;list-style:none;padding:0;margin:20px 0;display:grid;gap:14px}
+ol.rules li{counter-increment:r;position:relative;padding-left:44px;font-size:.95rem}
+ol.rules li::before{
+  content:counter(r);position:absolute;left:0;top:0;
+  width:28px;height:28px;display:flex;align-items:center;justify-content:center;
+  font-family:"JetBrains Mono",monospace;font-size:.85rem;font-weight:600;
+  color:var(--accent);border:1px solid var(--border);border-radius:2px;background:var(--surface);
+}

@@ -1,10 +1,14 @@
 -- =====================================================================
 -- Prova a freddo del motore d'asta.
 -- =====================================================================
--- Si esegue su un database appena migrato e verifica che i vincoli e la
--- funzione di rilancio si comportino come previsto. Non serve in
--- produzione: è la rete di sicurezza da far girare quando si tocca lo
--- schema.
+-- NON è una migrazione e non va eseguito su Supabase: le migrazioni sono
+-- solo i file NNNN_*.sql. Questo è il test dello schema, da far girare
+-- quando si tocca il database, su un'installazione qualsiasi di Postgres.
+--
+-- Gira dentro una transazione e finisce con rollback, quindi è innocuo,
+-- ma la riga "\set ON_ERROR_STOP on" qui sotto è un comando di psql: nel
+-- SQL Editor di Supabase darebbe errore di sintassi. Se proprio lo vuoi
+-- lanciare da lì, togli quella riga.
 --
 --   psql -f supabase/migrations/0001_schema.sql   (…e gli altri)
 --   psql -f supabase/smoke.sql

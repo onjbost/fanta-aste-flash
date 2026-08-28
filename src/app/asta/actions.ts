@@ -7,8 +7,11 @@ import {
   sessionInfo, runProxyBids, advanceSessions,
 } from '@/lib/market';
 import { openRoom, openLot, closeLot, closeSession } from '@/lib/settlement';
-import { notifyAdmin, tgSessionClosed, archiveMessage } from '@/lib/telegram';
-import { validateCall, validateJoin, expectedStatus, type SessionInfo, type Role, type PlayerStatus } from '@/lib/rules';
+import { notifyAdmin, tgSessionClosed, archiveMessage, tgParticipationCancelled } from '@/lib/telegram';
+import {
+  validateCall, validateJoin, expectedStatus, callsCloseAt, joinsCloseAt,
+  type SessionInfo, type Role, type PlayerStatus,
+} from '@/lib/rules';
 
 export type ActionState = { ok: boolean; message: string; warnings?: string[] } | null;
 
@@ -193,7 +196,107 @@ async function joinLotInternal(
   };
 }
 
-/** Ritiro di una chiamata o di un'adesione, possibile fino a T−5. */
+/**
+ * Fino a quando si può ancora mettere mano a una partecipazione.
+ *
+ * Chi ha chiamato ha tempo fino alla chiusura delle chiamate: dopo, il lotto
+ * esiste per tutti e ritirarlo cambierebbe le carte a chi ha aderito fidandosi.
+ * Chi ha aderito ha tempo fino alla chiusura delle adesioni, cioè finché
+ * avrebbe potuto aderire.
+ */
+function modificabileFino(isCaller: boolean, session: SessionInfo, cfg: Parameters<typeof expectedStatus>[2]) {
+  return isCaller ? callsCloseAt(session, cfg) : joinsCloseAt(session, cfg);
+}
+
+/**
+ * Cambia il giocatore messo sul piatto, lasciando la partecipazione al suo
+ * posto. Ricalcola budget e vincoli come se fosse una nuova adesione: il
+ * ruolo deve combaciare, lo svincolando non può essere già impegnato altrove
+ * e i cambi devono bastare.
+ */
+export async function updateParticipation(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const lotId = String(form.get('lotId') ?? '');
+  const releaseId = String(form.get('releaseId') ?? '');
+  const team = await me();
+  if (!team) return { ok: false, message: 'Sessione scaduta, rientra.' };
+  if (!releaseId) return { ok: false, message: 'Scegli il giocatore da svincolare.' };
+
+  const db = supabaseAdmin();
+  const { data: part } = await db.from('lot_participants')
+    .select('id, session_id, is_caller, release_player_id, status')
+    .eq('lot_id', lotId).eq('team_id', team.id).neq('status', 'cancelled').maybeSingle();
+  if (!part) return { ok: false, message: 'Non partecipi a questo lotto.' };
+  if (part.status === 'pending_approval') {
+    return { ok: false, message: 'C\'è una richiesta di svincolo gratuito in corso: aspetta la decisione o ritirala.' };
+  }
+  if (part.release_player_id === releaseId) return { ok: true, message: 'Era già quello.' };
+
+  const state = await loadMarketState(team.id, part.session_id);
+  const { data: sessionRow } = await db.from('auction_sessions').select('*').eq('id', part.session_id).single();
+  const session = effectiveSession(sessionRow!, state.cfg);
+
+  if (new Date() > modificabileFino(part.is_caller, session, state.cfg)) {
+    return {
+      ok: false,
+      message: part.is_caller
+        ? 'Le chiamate sono chiuse: da adesso il lotto è vincolante.'
+        : 'Le adesioni sono chiuse: non puoi più cambiare il giocatore da svincolare.',
+    };
+  }
+
+  const { data: lot } = await db.from('lots')
+    .select('caller_team_id, players(name, role)').eq('id', lotId).single();
+  const role = (lot as unknown as { players: { name: string; role: Role } | null }).players?.role ?? 'D';
+
+  const release = state.roster.find((r) => r.playerId === releaseId) ?? null;
+  const result = validateJoin({
+    now: new Date(), session, cfg: state.cfg,
+    lot: { playerId: lotId, role, callerTeamId: lot!.caller_team_id },
+    myTeamId: team.id,
+    // sto cambiando una partecipazione che esiste già: non è un doppione
+    alreadyJoined: false,
+    release,
+    credits: state.credits,
+    releases: state.releases,
+    // il mio svincolando attuale su QUESTO lotto non deve bloccarmi
+    committedReleaseIds: committedReleaseIds(state, lotId),
+    participationsByRole: { ...participationsByRole(state), [role]: participationsByRole(state)[role] - 1 },
+  });
+  if (!result.ok) return { ok: false, message: result.errors.join(' ') };
+
+  const { error } = await db.from('lot_participants').update({
+    release_player_id: releaseId,
+    budget: result.budget ?? 0,
+    status: result.pendingApproval ? 'pending_approval' : 'confirmed',
+  }).eq('id', part.id);
+  if (error) {
+    if (error.code === '23505') {
+      return { ok: false, message: 'Hai già messo questo giocatore sul piatto in un altro lotto di questa asta.' };
+    }
+    return { ok: false, message: `Non è andata: ${error.message}` };
+  }
+
+  // l'offerta massima era tarata sul budget vecchio: se ora sfora, la tolgo
+  const { data: proxy } = await db.from('proxy_bids')
+    .select('max_amount').eq('lot_id', lotId).eq('team_id', team.id).maybeSingle();
+  let nota = '';
+  if (proxy && result.budget != null && proxy.max_amount > result.budget) {
+    await db.from('proxy_bids').delete().eq('lot_id', lotId).eq('team_id', team.id);
+    nota = ' La tua offerta massima superava il nuovo budget: l\'ho tolta, rimettila se vuoi.';
+  }
+
+  revalidatePath('/asta');
+  return {
+    ok: true,
+    message: `Ora metti sul piatto ${release?.name}. Budget su questo lotto: ${result.budget} crediti.${nota}`,
+    warnings: result.warnings,
+  };
+}
+
+/**
+ * Ritiro della propria chiamata o adesione. Se il lotto resta senza nessuno,
+ * sparisce anche il lotto.
+ */
 export async function withdrawParticipation(_prev: ActionState, form: FormData): Promise<ActionState> {
   const lotId = String(form.get('lotId') ?? '');
   const team = await me();
@@ -208,19 +311,90 @@ export async function withdrawParticipation(_prev: ActionState, form: FormData):
   const state = await loadMarketState(team.id, part.session_id);
   const { data: sessionRow } = await db.from('auction_sessions').select('*').eq('id', part.session_id).single();
   const session = effectiveSession(sessionRow!, state.cfg);
-  if (session.status !== 'calls_open') {
-    return { ok: false, message: 'Le chiamate sono chiuse: da adesso il lotto è vincolante.' };
+
+  if (new Date() > modificabileFino(part.is_caller, session, state.cfg)) {
+    return {
+      ok: false,
+      message: part.is_caller
+        ? 'Le chiamate sono chiuse: da adesso il lotto è vincolante.'
+        : 'Le adesioni sono chiuse: non puoi più ritirarti.',
+    };
   }
 
-  await db.from('lot_participants').update({ status: 'cancelled' }).eq('id', part.id);
+  await db.from('lot_participants').update({
+    status: 'cancelled', cancelled_at: new Date().toISOString(),
+    cancelled_reason: 'Ritirata dalla squadra',
+  }).eq('id', part.id);
   await db.from('proxy_bids').delete().eq('lot_id', lotId).eq('team_id', team.id);
 
   const { count } = await db.from('lot_participants')
     .select('id', { count: 'exact', head: true }).eq('lot_id', lotId).neq('status', 'cancelled');
   if ((count ?? 0) === 0) await db.from('lots').update({ status: 'cancelled' }).eq('id', lotId);
 
+  const { data: lot } = await db.from('lots').select('players(name)').eq('id', lotId).single();
+  const nome = (lot as unknown as { players: { name: string } | null }).players?.name ?? '';
+  await notifyAdmin(tgParticipationCancelled(team.name, nome, part.is_caller, false));
+
   revalidatePath('/asta');
-  return { ok: true, message: 'Ritirato. Puoi rifare la chiamata con un altro giocatore.' };
+  return {
+    ok: true,
+    message: (count ?? 0) === 0
+      ? 'Ritirata. Nessun altro partecipava, quindi il lotto è stato annullato.'
+      : 'Ritirata. Puoi rifarla con un altro giocatore.',
+  };
+}
+
+/**
+ * L'admin annulla la chiamata o l'adesione di una squadra, con un motivo che
+ * l'allenatore legge dentro l'app. Serve quando qualcosa non torna e non c'è
+ * tempo per discuterne nel gruppo.
+ */
+export async function adminCancelParticipation(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
+
+  const participantId = String(form.get('participantId') ?? '');
+  const reason = String(form.get('reason') ?? '').trim();
+  if (!reason) return { ok: false, message: 'Scrivi il motivo: chi la subisce deve poterlo leggere.' };
+
+  const db = supabaseAdmin();
+  const { data: part } = await db.from('lot_participants')
+    .select('id, lot_id, team_id, is_caller, status, teams(name), lots(players(name))')
+    .eq('id', participantId).maybeSingle();
+  if (!part) return { ok: false, message: 'Partecipazione non trovata.' };
+  if (part.status === 'cancelled') return { ok: true, message: 'Era già annullata.' };
+
+  const j = part as unknown as {
+    teams: { name: string } | null;
+    lots: { players: { name: string } | null } | null;
+  };
+
+  await db.from('lot_participants').update({
+    status: 'cancelled',
+    cancelled_at: new Date().toISOString(),
+    cancelled_by: admin.userId,
+    cancelled_reason: reason,
+  }).eq('id', participantId);
+  await db.from('proxy_bids').delete().eq('lot_id', part.lot_id).eq('team_id', part.team_id);
+
+  const { count } = await db.from('lot_participants')
+    .select('id', { count: 'exact', head: true }).eq('lot_id', part.lot_id).neq('status', 'cancelled');
+  if ((count ?? 0) === 0) await db.from('lots').update({ status: 'cancelled' }).eq('id', part.lot_id);
+
+  await db.from('audit_log').insert({
+    league_id: admin.league_id, actor: admin.userId, action: 'participation_cancelled',
+    payload: {
+      team: j.teams?.name, player: j.lots?.players?.name,
+      is_caller: part.is_caller, reason,
+    },
+  });
+
+  revalidatePath('/asta');
+  return {
+    ok: true,
+    message: `${j.teams?.name}: ${part.is_caller ? 'chiamata' : 'adesione'} annullata.`
+      + ((count ?? 0) === 0 ? ' Il lotto è rimasto vuoto ed è stato annullato.' : ''),
+  };
 }
 
 /** Offerta massima: si può lasciare o cambiare fino alla chiusura delle adesioni. */
@@ -292,9 +466,14 @@ export async function settleExpiredLot(lotId: string): Promise<ActionState> {
 // ------------------------------------------------------------ regia admin
 
 async function requireAdmin() {
-  const team = await me();
-  if (!team?.is_admin) return null;
-  return team;
+  const db = await supabaseServer();
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return null;
+  const { data: m } = await db.from('team_members')
+    .select('is_admin, team_id, league_id').eq('user_id', auth.user.id).maybeSingle();
+  return m?.is_admin
+    ? { id: m.team_id, league_id: m.league_id, userId: auth.user.id }
+    : null;
 }
 
 export async function adminOpenRoom(_prev: ActionState, form: FormData): Promise<ActionState> {

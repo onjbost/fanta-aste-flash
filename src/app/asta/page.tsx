@@ -10,6 +10,7 @@ import { TopBar } from '../TopBar';
 import { CallForm } from './CallForm';
 import { JoinForm } from './JoinForm';
 import { Countdown } from './Countdown';
+import { MyParticipation, AdminCancel } from './MyParticipation';
 
 export const dynamic = 'force-dynamic';
 
@@ -54,19 +55,29 @@ export default async function AstaPage() {
 
   // le mie partecipazioni le vedo sempre; quelle altrui solo da 'live' in poi
   const { data: myParts } = await db.from('lot_participants')
-    .select('lot_id, is_caller, release_player_id, status, budget')
-    .eq('team_id', ctx.team.id).eq('session_id', s.id).neq('status', 'cancelled');
-  const mine = new Map((myParts ?? []).map((p) => [p.lot_id, p]));
+    .select('lot_id, is_caller, release_player_id, status, budget, cancelled_reason')
+    .eq('team_id', ctx.team.id).eq('session_id', s.id);
+  const mine = new Map(
+    (myParts ?? []).filter((p) => p.status !== 'cancelled').map((p) => [p.lot_id, p]),
+  );
+  const annullate = (myParts ?? []).filter((p) => p.status === 'cancelled');
 
-  const { data: counts } = await db.from('lot_participants')
-    .select('lot_id, team_id, teams(name)').eq('session_id', s.id).eq('status', 'confirmed');
-  const byLot = new Map<string, string[]>();
-  ((counts ?? []) as unknown as { lot_id: string; teams: { name: string } | null }[])
-    .forEach((c) => {
-      const list = byLot.get(c.lot_id) ?? [];
-      list.push(c.teams?.name ?? '?');
-      byLot.set(c.lot_id, list);
+  const { data: counts } = await db.from('v_lot_participants')
+    .select('id, lot_id, team_id, is_caller, status').eq('session_id', s.id)
+    .neq('status', 'cancelled');
+  const { data: allTeams } = await db.from('teams')
+    .select('id, name').eq('league_id', ctx.team.leagueId);
+  const teamName = new Map((allTeams ?? []).map((t) => [t.id, t.name]));
+
+  const byLot = new Map<string, { id: string; teamId: string; name: string; isCaller: boolean }[]>();
+  (counts ?? []).forEach((c) => {
+    const list = byLot.get(c.lot_id) ?? [];
+    list.push({
+      id: c.id, teamId: c.team_id,
+      name: teamName.get(c.team_id) ?? '?', isCaller: c.is_caller,
     });
+    byLot.set(c.lot_id, list);
+  });
 
   const { data: freeAgents, error: freeAgentsError } = await db.from('v_free_agents')
     .select('id, name, role, club, quotation, signing_window, locked_until_number')
@@ -122,6 +133,21 @@ export default async function AstaPage() {
         </div>
       )}
 
+      {annullate.length > 0 && (
+        <div className="callout crit">
+          <b>Annullate:</b>
+          <ul style={{ margin: '8px 0 0' }}>
+            {annullate.map((a) => (
+              <li key={a.lot_id}>
+                La tua {a.is_caller ? 'chiamata' : 'adesione'} è stata annullata
+                {a.cancelled_reason ? ` — ${a.cancelled_reason}` : ''}.
+                {effective === 'calls_open' && ' Puoi rifarla con un altro giocatore.'}
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <h2>Lotti chiamati</h2>
       {lots.length === 0 && (
         <div className="panel"><div className="empty">Nessuno ha ancora chiamato. Puoi essere il primo.</div></div>
@@ -129,7 +155,13 @@ export default async function AstaPage() {
 
       {lots.map((l) => {
         const my = mine.get(l.id);
-        const others = byLot.get(l.id) ?? [];
+        const partecipanti = byLot.get(l.id) ?? [];
+        const altri = partecipanti.filter((p) => p.teamId !== ctx.team.id);
+        const scadenza = my?.is_caller
+          ? callsCloseAt(s, ctx.cfg)
+          : joinsCloseAt(s, ctx.cfg);
+        const modificabile = new Date() < scadenza;
+
         return (
           <div className="panel" key={l.id} style={{ padding: 16, marginBottom: 12 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -138,41 +170,55 @@ export default async function AstaPage() {
                 <b style={{ fontSize: '1.05rem' }}>{l.players?.name}</b>{' '}
                 <span style={{ color: 'var(--muted)' }}>{l.players?.club}</span>
                 <div style={{ color: 'var(--muted)', fontSize: '.88rem', marginTop: 2 }}>
-                  Chiamato da {l.teams?.name} · {others.length} {others.length === 1 ? 'partecipante' : 'partecipanti'}
-                  {effective !== 'calls_open' && others.length > 0 && `: ${others.join(', ')}`}
+                  Chiamato da {l.teams?.name} · {partecipanti.length}{' '}
+                  {partecipanti.length === 1 ? 'partecipante' : 'partecipanti'}
+                  {altri.length > 0 && `: ${altri.map((p) => p.name).join(', ')}`}
                 </div>
-              </div>
-              <div style={{ textAlign: 'right' }}>
-                {my ? (
-                  <>
-                    <span className={`tag ${my.status === 'pending_approval' ? 'warn' : 'ok'}`}>
-                      {my.status === 'pending_approval' ? 'Congelata' : my.is_caller ? 'Tua chiamata' : 'Aderito'}
+
+                {ctx.team.isAdmin && (
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
+                    <span style={{ fontSize: '.72rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
+                      admin
                     </span>
-                    <div className="mono" style={{ fontSize: '.8rem', color: 'var(--muted)', marginTop: 4 }}>
-                      budget {my.budget} cr
-                    </div>
-                  </>
-                ) : (
-                  ['calls_open', 'calls_closed'].includes(effective) && (
-                    <JoinForm
-                      lotId={l.id}
-                      role={l.players?.role ?? 'D'}
-                      roster={rosterOptions.filter((r) => r.role === l.players?.role && !r.committed)}
-                      credits={ctx.credits}
-                    />
-                  )
+                    {partecipanti.map((p) => (
+                      <span key={p.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: '.8rem' }}>
+                        {p.name}
+                        <AdminCancel participantId={p.id} teamName={p.name} isCaller={p.isCaller} />
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
+
+              {my ? (
+                <MyParticipation
+                  lotId={l.id}
+                  isCaller={my.is_caller}
+                  status={my.status}
+                  budget={my.budget}
+                  credits={ctx.credits}
+                  currentReleaseId={my.release_player_id}
+                  roster={rosterOptions.filter((r) =>
+                    r.role === l.players?.role && (!r.committed || r.id === my.release_player_id))}
+                  editable={modificabile && my.status !== 'pending_approval'}
+                  deadlineLabel={my.status === 'pending_approval'
+                    ? 'in attesa dell\'admin'
+                    : my.is_caller ? 'chiamate chiuse' : 'adesioni chiuse'}
+                />
+              ) : (
+                ['calls_open', 'calls_closed'].includes(effective) && (
+                  <JoinForm
+                    lotId={l.id}
+                    role={l.players?.role ?? 'D'}
+                    roster={rosterOptions.filter((r) => r.role === l.players?.role && !r.committed)}
+                    credits={ctx.credits}
+                  />
+                )
+              )}
             </div>
           </div>
         );
       })}
-
-      {freeAgentsError && (
-        <div className="callout crit">
-          Non riesco a leggere il listone degli svincolati: {freeAgentsError.message}.
-        </div>
-      )}
 
       {effective === 'calls_open' ? (
         <>

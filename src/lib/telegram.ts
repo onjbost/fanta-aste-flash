@@ -222,3 +222,36 @@ export function tgSessionClosed(sessionNumber: number, assigned: number): string
     link('Centro messaggi', '/admin/messaggi'),
   ].join('\n');
 }
+
+/**
+ * Qualcuno ha aperto l'app per la prima volta: c'è un account da collegare
+ * a una squadra. È il momento in cui l'admin deve fare qualcosa, quindi vale
+ * una notifica invece di lasciarla scoprire per caso.
+ */
+export function tgFirstLogin(email: string, alreadyLinked: boolean): string {
+  return [
+    '🔑 *Primo accesso*',
+    '',
+    `${escapeMarkdown(email)} è entrato nell'app per la prima volta\\.`,
+    alreadyLinked
+      ? 'È già collegato a una squadra: non devi fare niente\\.'
+      : '*Non è ancora collegato a nessuna squadra\\.*',
+    '',
+    link(alreadyLinked ? 'Pannello allenatori' : 'Collegalo a una squadra', '/admin/allenatori'),
+  ].join('\n');
+}
+
+/** Una chiamata o un'adesione annullata: cambia i lotti della serata. */
+export function tgParticipationCancelled(
+  teamName: string, playerName: string, isCaller: boolean, byAdmin: boolean, reason?: string,
+): string {
+  return [
+    `🚫 *${isCaller ? 'Chiamata' : 'Adesione'} annullata*`,
+    '',
+    `${escapeMarkdown(teamName)} su *${escapeMarkdown(playerName)}*`,
+    byAdmin ? 'Annullata dall\'admin\\.' : 'Ritirata dalla squadra\\.',
+    reason ? `Motivo: ${escapeMarkdown(reason)}` : '',
+    '',
+    link('Vedi i lotti', '/asta'),
+  ].filter(Boolean).join('\n');
+}

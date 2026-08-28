@@ -71,7 +71,7 @@ export async function openRoom(sessionId: string): Promise<SettleResult> {
     .update({ status: 'live', room_opened_at: new Date().toISOString() }).eq('id', sessionId);
 
   // il messaggio di svelamento si scrive da solo: adesso svincolandi e budget
-  // sono pubblici, quindi il testo per il gruppo e' finalmente componibile
+  // sono pubblici, quindi il testo per il gruppo è finalmente componibile
   await queueSessionMessage(sessionId, 'room_open');
 
   return {
@@ -248,7 +248,7 @@ export async function closeSession(sessionId: string): Promise<SettleResult> {
   for (const l of openLots ?? []) await closeLot(l.id, true);
   await db.from('auction_sessions').update({ status: 'closed' }).eq('id', sessionId);
 
-  // e il riepilogo dei risultati, con i conti gia' chiusi
+  // e il riepilogo dei risultati, con i conti già chiusi
   await queueSessionMessage(sessionId, 'results');
 
   return { ok: true, message: 'Asta chiusa.' };

@@ -38,6 +38,42 @@ function effectiveSession(row: Record<string, unknown>, cfg: Parameters<typeof e
   return { ...s, status: derived === 'live' ? 'joins_closed' : derived };
 }
 
+
+/**
+ * Crea la partecipazione, oppure fa rivivere quella annullata in precedenza.
+ *
+ * Il vincolo (lotto, squadra) è unico: una squadra che si era ritirata e ci
+ * ripensa non può inserire una riga nuova. Riusiamo la sua, ripulendo le
+ * tracce dell'annullamento — altrimenti "ritirati e rifallo" sarebbe un
+ * vicolo cieco.
+ */
+async function upsertParticipation(
+  db: ReturnType<typeof supabaseAdmin>,
+  p: {
+    sessionId: string; lotId: string; teamId: string; isCaller: boolean;
+    releaseId: string; budget: number; pending: boolean;
+  },
+) {
+  const { data: existing } = await db.from('lot_participants')
+    .select('id').eq('lot_id', p.lotId).eq('team_id', p.teamId).maybeSingle();
+
+  const valori = {
+    is_caller: p.isCaller,
+    release_player_id: p.releaseId,
+    budget: p.budget,
+    status: p.pending ? 'pending_approval' : 'confirmed',
+    withdrawn: false,
+    cancelled_reason: null,
+    cancelled_at: null,
+    cancelled_by: null,
+  };
+
+  if (existing) return db.from('lot_participants').update(valori).eq('id', existing.id);
+  return db.from('lot_participants').insert({
+    session_id: p.sessionId, lot_id: p.lotId, team_id: p.teamId, ...valori,
+  });
+}
+
 // -------------------------------------------------------------- chiamata
 
 export async function callPlayer(_prev: ActionState, form: FormData): Promise<ActionState> {
@@ -62,8 +98,11 @@ export async function callPlayer(_prev: ActionState, form: FormData): Promise<Ac
   const { data: openContract } = await db.from('contracts')
     .select('id').eq('player_id', targetId).is('released_at', null).maybeSingle();
 
-  const { data: existingLots } = await db.from('lots')
-    .select('id, player_id, caller_team_id').eq('session_id', sessionId).neq('status', 'cancelled');
+  // tutti i lotti, annullati compresi: quelli vivi bloccano una seconda
+  // chiamata sullo stesso giocatore, quelli annullati invece si riaprono
+  const { data: allLots } = await db.from('lots')
+    .select('id, player_id, caller_team_id, status, order_index').eq('session_id', sessionId);
+  const existingLots = (allLots ?? []).filter((l) => l.status !== 'cancelled');
 
   const release = state.roster.find((r) => r.playerId === releaseId) ?? null;
 
@@ -82,29 +121,47 @@ export async function callPlayer(_prev: ActionState, form: FormData): Promise<Ac
     releases: state.releases,
     committedReleaseIds: committedReleaseIds(state),
     participationsByRole: participationsByRole(state),
-    calledPlayerIds: (existingLots ?? []).map((l) => l.player_id),
+    calledPlayerIds: existingLots.map((l) => l.player_id),
   });
   if (!result.ok) return { ok: false, message: result.errors.join(' ') };
 
   // se qualcuno l'ha già chiamato, la richiesta diventa un'adesione al lotto
-  const existing = (existingLots ?? []).find((l) => l.player_id === targetId);
+  const existing = existingLots.find((l) => l.player_id === targetId);
   if (existing) {
     return joinLotInternal(team.id, existing.id, releaseId, null, sessionId);
   }
 
-  const order = (existingLots ?? []).length + 1;
-  const { data: lot, error } = await db.from('lots').insert({
-    session_id: sessionId, player_id: targetId, caller_team_id: team.id, order_index: order,
-  }).select('id').single();
-  if (error) return { ok: false, message: `Non è andata: ${error.message}` };
+  // un lotto annullato sullo stesso giocatore si riapre invece di crearne uno
+  // nuovo: la coppia (sessione, giocatore) è unica nel database, e comunque
+  // riaprirlo è esattamente quello che l'allenatore si aspetta
+  const annullato = (allLots ?? []).find(
+    (l) => l.player_id === targetId && l.status === 'cancelled',
+  );
 
-  const { error: pErr } = await db.from('lot_participants').insert({
-    session_id: sessionId, lot_id: lot.id, team_id: team.id, is_caller: true,
-    release_player_id: releaseId, budget: result.budget ?? 0,
-    status: result.pendingApproval ? 'pending_approval' : 'confirmed',
+  let lotId: string;
+  if (annullato) {
+    await db.from('lots').update({
+      status: 'called', caller_team_id: team.id,
+      winner_team_id: null, final_price: null,
+      current_price: null, current_leader: null, timer_ends_at: null,
+      opened_at: null, closed_at: null,
+    }).eq('id', annullato.id);
+    lotId = annullato.id;
+  } else {
+    const order = existingLots.length + 1;
+    const { data: lot, error } = await db.from('lots').insert({
+      session_id: sessionId, player_id: targetId, caller_team_id: team.id, order_index: order,
+    }).select('id').single();
+    if (error) return { ok: false, message: `Non è andata: ${error.message}` };
+    lotId = lot.id;
+  }
+
+  const { error: pErr } = await upsertParticipation(db, {
+    sessionId, lotId, teamId: team.id, isCaller: true,
+    releaseId, budget: result.budget ?? 0, pending: !!result.pendingApproval,
   });
   if (pErr) {
-    await db.from('lots').delete().eq('id', lot.id);
+    if (!annullato) await db.from('lots').delete().eq('id', lotId);
     return { ok: false, message: `Non è andata: ${pErr.message}` };
   }
 
@@ -176,10 +233,9 @@ async function joinLotInternal(
     return { ok: false, message: `L'offerta massima non può superare il tuo budget di ${result.budget} crediti.` };
   }
 
-  const { error } = await db.from('lot_participants').insert({
-    session_id: sessionId, lot_id: lotId, team_id: teamId, is_caller: false,
-    release_player_id: releaseId, budget: result.budget ?? 0,
-    status: result.pendingApproval ? 'pending_approval' : 'confirmed',
+  const { error } = await upsertParticipation(db, {
+    sessionId, lotId, teamId, isCaller: false,
+    releaseId, budget: result.budget ?? 0, pending: !!result.pendingApproval,
   });
   if (error) return { ok: false, message: `Non è andata: ${error.message}` };
 
@@ -194,6 +250,26 @@ async function joinLotInternal(
       + (maxBid != null ? ` Offerta massima ${maxBid} lasciata al sistema.` : ''),
     warnings: result.warnings,
   };
+}
+
+
+/**
+ * Se chi esce era il chiamante e qualcun altro resta, il lotto passa a lui.
+ *
+ * Il regolamento dice che il lotto va comunque all'asta tra gli aderenti:
+ * lasciare "chiamato da" con il nome di chi si è ritirato sarebbe solo
+ * confusione, e chi resta diventa a tutti gli effetti il chiamante.
+ */
+async function promuoviChiamante(db: ReturnType<typeof supabaseAdmin>, lotId: string) {
+  const { data: rimasti } = await db.from('lot_participants')
+    .select('id, team_id, is_caller').eq('lot_id', lotId)
+    .neq('status', 'cancelled').order('created_at');
+  if (!rimasti || rimasti.length === 0) return 0;
+  if (rimasti.some((r) => r.is_caller)) return rimasti.length;
+
+  await db.from('lot_participants').update({ is_caller: true }).eq('id', rimasti[0].id);
+  await db.from('lots').update({ caller_team_id: rimasti[0].team_id }).eq('id', lotId);
+  return rimasti.length;
 }
 
 /**
@@ -327,9 +403,8 @@ export async function withdrawParticipation(_prev: ActionState, form: FormData):
   }).eq('id', part.id);
   await db.from('proxy_bids').delete().eq('lot_id', lotId).eq('team_id', team.id);
 
-  const { count } = await db.from('lot_participants')
-    .select('id', { count: 'exact', head: true }).eq('lot_id', lotId).neq('status', 'cancelled');
-  if ((count ?? 0) === 0) await db.from('lots').update({ status: 'cancelled' }).eq('id', lotId);
+  const rimasti = await promuoviChiamante(db, lotId);
+  if (rimasti === 0) await db.from('lots').update({ status: 'cancelled' }).eq('id', lotId);
 
   const { data: lot } = await db.from('lots').select('players(name)').eq('id', lotId).single();
   const nome = (lot as unknown as { players: { name: string } | null }).players?.name ?? '';
@@ -338,9 +413,9 @@ export async function withdrawParticipation(_prev: ActionState, form: FormData):
   revalidatePath('/asta');
   return {
     ok: true,
-    message: (count ?? 0) === 0
-      ? 'Ritirata. Nessun altro partecipava, quindi il lotto è stato annullato.'
-      : 'Ritirata. Puoi rifarla con un altro giocatore.',
+    message: rimasti === 0
+      ? 'Ritirata: nessun altro partecipava, il lotto è stato annullato. Puoi rifare la stessa chiamata quando vuoi.'
+      : 'Ritirata. Il lotto resta agli altri partecipanti, e tu puoi rientrarci.',
   };
 }
 
@@ -377,9 +452,8 @@ export async function adminCancelParticipation(_prev: ActionState, form: FormDat
   }).eq('id', participantId);
   await db.from('proxy_bids').delete().eq('lot_id', part.lot_id).eq('team_id', part.team_id);
 
-  const { count } = await db.from('lot_participants')
-    .select('id', { count: 'exact', head: true }).eq('lot_id', part.lot_id).neq('status', 'cancelled');
-  if ((count ?? 0) === 0) await db.from('lots').update({ status: 'cancelled' }).eq('id', part.lot_id);
+  const rimasti = await promuoviChiamante(db, part.lot_id);
+  if (rimasti === 0) await db.from('lots').update({ status: 'cancelled' }).eq('id', part.lot_id);
 
   await db.from('audit_log').insert({
     league_id: admin.league_id, actor: admin.userId, action: 'participation_cancelled',
@@ -393,7 +467,7 @@ export async function adminCancelParticipation(_prev: ActionState, form: FormDat
   return {
     ok: true,
     message: `${j.teams?.name}: ${part.is_caller ? 'chiamata' : 'adesione'} annullata.`
-      + ((count ?? 0) === 0 ? ' Il lotto è rimasto vuoto ed è stato annullato.' : ''),
+      + (rimasti === 0 ? ' Il lotto è rimasto vuoto ed è stato annullato.' : ''),
   };
 }
 

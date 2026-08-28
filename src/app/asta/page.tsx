@@ -93,7 +93,11 @@ export default async function AstaPage() {
     free: refundValue(p, ctx.cfg).free,
     committed: mine.has(''), // sostituito sotto
   }));
-  const committedIds = new Set((myParts ?? []).map((p) => p.release_player_id));
+  // solo le partecipazioni vive impegnano un giocatore: una annullata lo
+  // rimette a disposizione, così la stessa chiamata si può rifare
+  const committedIds = new Set(
+    (myParts ?? []).filter((p) => p.status !== 'cancelled').map((p) => p.release_player_id),
+  );
   rosterOptions.forEach((r) => { r.committed = committedIds.has(r.id); });
 
   return (

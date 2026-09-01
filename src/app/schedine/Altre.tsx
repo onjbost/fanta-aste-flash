@@ -6,7 +6,17 @@ import { ElencoGiocate } from './giocate';
  * giornata → squadra → giocate. Chi non condivide non compare.
  */
 export async function Altre({ teamId, leagueId }: { teamId: string; leagueId: string }) {
-  const giornate = await schedineCondivise(leagueId, teamId);
+  const { giornate, errore } = await schedineCondivise(leagueId, teamId);
+
+  if (errore) {
+    return (
+      <div className="callout crit">
+        <b>Non riesco a leggere le schedine condivise.</b><br />
+        {errore}<br />
+        Se parla di una colonna che non esiste, manca una migrazione su Supabase.
+      </div>
+    );
+  }
 
   if (!giornate.length) {
     return (

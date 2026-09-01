@@ -306,10 +306,18 @@ export interface SchedinaStorico {
   giocate: GiocataStorico[];
 }
 
-/** Tutte le schedine di una squadra, dalla più recente, con dentro le giocate. */
-export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]> {
+/**
+ * Tutte le schedine di una squadra, dalla più recente, con dentro le giocate.
+ *
+ * Se la lettura fallisce lo dice, invece di restituire una lista vuota: una
+ * schedina che non c'è e una schedina che non si riesce a leggere sono due
+ * cose diverse, e confonderle costa un pomeriggio.
+ */
+export async function storicoSchedine(
+  teamId: string,
+): Promise<{ schedine: SchedinaStorico[]; errore: string | null }> {
   const db = supabaseAdmin();
-  const { data: slips } = await db.from('slips')
+  const { data: slips, error } = await db.from('slips')
     .select('id, submitted_at, points, shared, matchdays(id, fanta, serie_a, match_date, status)')
     .eq('team_id', teamId)
     .order('submitted_at', { ascending: false });
@@ -318,12 +326,13 @@ export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]
     id: string; submitted_at: string; points: number | null; shared: boolean;
     matchdays: { id: string; fanta: number | null; serie_a: number; match_date: string; status: string } | null;
   };
+  if (error) return { schedine: [], errore: error.message };
   const righe = (slips ?? []) as unknown as SlipRow[];
-  if (!righe.length) return [];
+  if (!righe.length) return { schedine: [], errore: null };
 
   const perSlip = await giocateDiSlips(righe.map((s) => s.id));
 
-  return righe.map((s) => ({
+  const schedine = righe.map((s) => ({
     slipId: s.id,
     giornata: s.matchdays?.fanta ?? null,
     serieA: Number(s.matchdays?.serie_a ?? 0),
@@ -334,6 +343,7 @@ export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]
     condivisa: !!s.shared,
     giocate: perSlip.get(s.id) ?? [],
   }));
+  return { schedine, errore: null };
 }
 
 /** Le giocate di un gruppo di schedine, con nomi delle sfide e risultati. */
@@ -393,9 +403,11 @@ export interface GiornataAltrui {
  * Le schedine che gli altri hanno deciso di condividere, raggruppate per
  * giornata. Chi non condivide non compare: è una scelta sua, non un buco.
  */
-export async function schedineCondivise(leagueId: string, escludiTeamId: string): Promise<GiornataAltrui[]> {
+export async function schedineCondivise(
+  leagueId: string, escludiTeamId: string,
+): Promise<{ giornate: GiornataAltrui[]; errore: string | null }> {
   const db = supabaseAdmin();
-  const { data: slips } = await db.from('slips')
+  const { data: slips, error } = await db.from('slips')
     .select('id, team_id, points, teams(name), matchdays(fanta, serie_a, match_date, status)')
     .eq('league_id', leagueId).eq('shared', true).neq('team_id', escludiTeamId);
 
@@ -404,8 +416,9 @@ export async function schedineCondivise(leagueId: string, escludiTeamId: string)
     teams: { name: string } | null;
     matchdays: { fanta: number | null; serie_a: number; match_date: string; status: string } | null;
   };
+  if (error) return { giornate: [], errore: error.message };
   const righe = (slips ?? []) as unknown as Row[];
-  if (!righe.length) return [];
+  if (!righe.length) return { giornate: [], errore: null };
 
   const perSlip = await giocateDiSlips(righe.map((r) => r.id));
 
@@ -428,7 +441,8 @@ export async function schedineCondivise(leagueId: string, escludiTeamId: string)
     perGiornata.set(sa, g);
   });
 
-  return [...perGiornata.values()]
+  const giornate = [...perGiornata.values()]
     .sort((a, b) => b.serieA - a.serieA)
     .map((g) => ({ ...g, squadre: g.squadre.sort((a, b) => Number(b.punti ?? 0) - Number(a.punti ?? 0)) }));
+  return { giornate, errore: null };
 }

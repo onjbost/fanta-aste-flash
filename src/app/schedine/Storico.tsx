@@ -3,7 +3,17 @@ import { ElencoGiocate } from './giocate';
 import { Condividi } from './Condividi';
 
 export async function Storico({ teamId }: { teamId: string }) {
-  const schedine = await storicoSchedine(teamId);
+  const { schedine, errore } = await storicoSchedine(teamId);
+
+  if (errore) {
+    return (
+      <div className="callout crit">
+        <b>Non riesco a leggere le schedine.</b><br />
+        {errore}<br />
+        Se parla di una colonna che non esiste, manca una migrazione su Supabase.
+      </div>
+    );
+  }
 
   if (!schedine.length) {
     return (

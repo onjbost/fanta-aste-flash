@@ -8,11 +8,7 @@ const SELEZIONE: Record<string, string> = {
   'over_1.5': 'Over 1.5', 'under_1.5': 'Under 1.5',
   'over_2.5': 'Over 2.5', 'under_2.5': 'Under 2.5',
   'over_3.5': 'Over 3.5', 'under_3.5': 'Under 3.5',
-<<<<<<< HEAD
   gg: 'Goal', ng: 'NoGoal', altro: 'Altro',
-=======
-  gg: 'Goal', ng: 'NoGoal',
->>>>>>> 59bd0f6b2cb654de49646c4a8945d1b5cc513f1d
 };
 
 function Giocata({ g }: { g: GiocataStorico }) {

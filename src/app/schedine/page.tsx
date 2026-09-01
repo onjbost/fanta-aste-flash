@@ -4,14 +4,16 @@ import { TopBar } from '../TopBar';
 import { Gioca } from './Gioca';
 import { Storico } from './Storico';
 import { Classifica } from './Classifica';
+import { Altre } from './Altre';
 
 export const dynamic = 'force-dynamic';
 
-type Tab = 'gioca' | 'storico' | 'classifica';
+type Tab = 'gioca' | 'storico' | 'altre' | 'classifica';
 
 const TAB: { key: Tab; label: string; href: string }[] = [
   { key: 'gioca', label: 'Gioca', href: '/schedine' },
   { key: 'storico', label: 'Le mie schedine', href: '/schedine?tab=storico' },
+  { key: 'altre', label: 'Giocate degli altri', href: '/schedine?tab=altre' },
   { key: 'classifica', label: 'Classifica', href: '/schedine?tab=classifica' },
 ];
 
@@ -20,7 +22,7 @@ export default async function SchedinePage({
 }: { searchParams: Promise<{ tab?: string }> }) {
   const ctx = await requireTeamContext();
   const { tab } = await searchParams;
-  const attiva: Tab = tab === 'storico' || tab === 'classifica' ? tab : 'gioca';
+  const attiva: Tab = tab === 'storico' || tab === 'altre' || tab === 'classifica' ? tab : 'gioca';
 
   return (
     <div className="shell">
@@ -40,6 +42,7 @@ export default async function SchedinePage({
 
       {attiva === 'gioca' && <Gioca teamId={ctx.team.id} leagueId={ctx.team.leagueId} />}
       {attiva === 'storico' && <Storico teamId={ctx.team.id} />}
+      {attiva === 'altre' && <Altre teamId={ctx.team.id} leagueId={ctx.team.leagueId} />}
       {attiva === 'classifica' && <Classifica teamId={ctx.team.id} leagueId={ctx.team.leagueId} />}
     </div>
   );

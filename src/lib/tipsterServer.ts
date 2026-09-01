@@ -302,6 +302,7 @@ export interface SchedinaStorico {
   inviataIl: string;
   punti: number | null;
   conclusa: boolean;
+  condivisa: boolean;
   giocate: GiocataStorico[];
 }
 
@@ -309,20 +310,41 @@ export interface SchedinaStorico {
 export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]> {
   const db = supabaseAdmin();
   const { data: slips } = await db.from('slips')
-    .select('id, submitted_at, points, matchdays(id, fanta, serie_a, match_date, status)')
+    .select('id, submitted_at, points, shared, matchdays(id, fanta, serie_a, match_date, status)')
     .eq('team_id', teamId)
     .order('submitted_at', { ascending: false });
 
   type SlipRow = {
-    id: string; submitted_at: string; points: number | null;
+    id: string; submitted_at: string; points: number | null; shared: boolean;
     matchdays: { id: string; fanta: number | null; serie_a: number; match_date: string; status: string } | null;
   };
   const righe = (slips ?? []) as unknown as SlipRow[];
   if (!righe.length) return [];
 
+  const perSlip = await giocateDiSlips(righe.map((s) => s.id));
+
+  return righe.map((s) => ({
+    slipId: s.id,
+    giornata: s.matchdays?.fanta ?? null,
+    serieA: Number(s.matchdays?.serie_a ?? 0),
+    dataGiornata: String(s.matchdays?.match_date ?? ''),
+    inviataIl: s.submitted_at,
+    punti: s.points == null ? null : Number(s.points),
+    conclusa: s.matchdays?.status === 'settled',
+    condivisa: !!s.shared,
+    giocate: perSlip.get(s.id) ?? [],
+  }));
+}
+
+/** Le giocate di un gruppo di schedine, con nomi delle sfide e risultati. */
+async function giocateDiSlips(slipIds: string[]): Promise<Map<string, GiocataStorico[]>> {
+  const perSlip = new Map<string, GiocataStorico[]>();
+  if (!slipIds.length) return perSlip;
+
+  const db = supabaseAdmin();
   const { data: picks } = await db.from('picks')
     .select('slip_id, fixture_id, market, selection, price, outcome, points')
-    .in('slip_id', righe.map((s) => s.id));
+    .in('slip_id', slipIds);
 
   const fixtureIds = [...new Set((picks ?? []).map((p) => p.fixture_id as string))];
   const { data: sfide } = await db.from('fixtures')
@@ -335,7 +357,6 @@ export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]
   };
   const perId = new Map(((sfide ?? []) as unknown as FixRow[]).map((f) => [f.id, f]));
 
-  const perSlip = new Map<string, GiocataStorico[]>();
   (picks ?? []).forEach((p) => {
     const f = perId.get(p.fixture_id as string);
     const l = perSlip.get(p.slip_id as string) ?? [];
@@ -351,15 +372,63 @@ export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]
     });
     perSlip.set(p.slip_id as string, l);
   });
+  return perSlip;
+}
 
-  return righe.map((s) => ({
-    slipId: s.id,
-    giornata: s.matchdays?.fanta ?? null,
-    serieA: Number(s.matchdays?.serie_a ?? 0),
-    dataGiornata: String(s.matchdays?.match_date ?? ''),
-    inviataIl: s.submitted_at,
-    punti: s.points == null ? null : Number(s.points),
-    conclusa: s.matchdays?.status === 'settled',
-    giocate: perSlip.get(s.id) ?? [],
-  }));
+export interface SchedinaAltrui {
+  slipId: string;
+  squadra: string;
+  punti: number | null;
+  giocate: GiocataStorico[];
+}
+export interface GiornataAltrui {
+  giornata: number | null;
+  serieA: number;
+  data: string;
+  conclusa: boolean;
+  squadre: SchedinaAltrui[];
+}
+
+/**
+ * Le schedine che gli altri hanno deciso di condividere, raggruppate per
+ * giornata. Chi non condivide non compare: è una scelta sua, non un buco.
+ */
+export async function schedineCondivise(leagueId: string, escludiTeamId: string): Promise<GiornataAltrui[]> {
+  const db = supabaseAdmin();
+  const { data: slips } = await db.from('slips')
+    .select('id, team_id, points, teams(name), matchdays(fanta, serie_a, match_date, status)')
+    .eq('league_id', leagueId).eq('shared', true).neq('team_id', escludiTeamId);
+
+  type Row = {
+    id: string; team_id: string; points: number | null;
+    teams: { name: string } | null;
+    matchdays: { fanta: number | null; serie_a: number; match_date: string; status: string } | null;
+  };
+  const righe = (slips ?? []) as unknown as Row[];
+  if (!righe.length) return [];
+
+  const perSlip = await giocateDiSlips(righe.map((r) => r.id));
+
+  const perGiornata = new Map<number, GiornataAltrui>();
+  righe.forEach((r) => {
+    const sa = Number(r.matchdays?.serie_a ?? 0);
+    const g = perGiornata.get(sa) ?? {
+      giornata: r.matchdays?.fanta ?? null,
+      serieA: sa,
+      data: String(r.matchdays?.match_date ?? ''),
+      conclusa: r.matchdays?.status === 'settled',
+      squadre: [],
+    };
+    g.squadre.push({
+      slipId: r.id,
+      squadra: r.teams?.name ?? '?',
+      punti: r.points == null ? null : Number(r.points),
+      giocate: perSlip.get(r.id) ?? [],
+    });
+    perGiornata.set(sa, g);
+  });
+
+  return [...perGiornata.values()]
+    .sort((a, b) => b.serieA - a.serieA)
+    .map((g) => ({ ...g, squadre: g.squadre.sort((a, b) => Number(b.punti ?? 0) - Number(a.punti ?? 0)) }));
 }

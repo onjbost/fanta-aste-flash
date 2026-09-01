@@ -288,3 +288,21 @@ ol.rules li::before{
   .gio{grid-template-columns:1fr auto;row-gap:4px}
   .gio-q,.gio-pt{text-align:left}
 }
+
+/* condivisione di una schedina */
+.condividi{display:inline-flex;align-items:center;gap:6px}
+.condividi button{
+  font-size:.72rem;font-weight:600;padding:4px 10px;border-radius:99px;
+  border:1px solid var(--border);background:var(--surface);color:var(--muted);
+}
+.condividi button:hover{border-color:var(--accent);color:var(--accent)}
+.condividi button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+.condividi-err{font-size:.72rem;color:var(--crit)}
+
+/* schedine degli altri: tendina dentro tendina */
+.squadra{border:1px solid var(--border);border-radius:var(--r);margin-top:8px;background:var(--bg)}
+.squadra summary{list-style:none;cursor:pointer;padding:10px 12px;font-size:.9rem}
+.squadra summary::-webkit-details-marker{display:none}
+.squadra summary:hover{background:var(--surface-2)}
+.squadra[open] summary{border-bottom:1px solid var(--border)}
+.squadra-corpo{padding:4px 12px 12px}

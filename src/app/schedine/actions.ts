@@ -99,3 +99,29 @@ export async function salvaSchedina(_prev: ActionState, form: FormData): Promise
       : `Schedina salvata: ${quante} ${quante === 1 ? 'giocata' : 'giocate'}. Puoi cambiarla fino alla chiusura.`,
   };
 }
+
+/**
+ * Condivide (o nasconde) una schedina. Passa dal client con la sessione
+ * dell'utente, quindi il database lascia toccare solo le proprie.
+ */
+export async function condividiSchedina(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const team = await me();
+  if (!team) return { ok: false, message: 'Non risulti collegato a nessuna squadra.' };
+
+  const slipId = String(form.get('slipId') ?? '');
+  const condividi = String(form.get('condividi') ?? '') === 'si';
+
+  const db = await supabaseServer();
+  const { data, error } = await db.from('slips')
+    .update({ shared: condividi })
+    .eq('id', slipId).eq('team_id', team.id)
+    .select('id');
+  if (error) return { ok: false, message: error.message };
+  if (!data?.length) return { ok: false, message: 'Questa schedina non è tua.' };
+
+  revalidatePath('/schedine');
+  return {
+    ok: true,
+    message: condividi ? 'Schedina condivisa con la lega.' : 'Schedina di nuovo privata.',
+  };
+}

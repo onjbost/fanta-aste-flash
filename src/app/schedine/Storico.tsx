@@ -1,36 +1,6 @@
-import { storicoSchedine, type GiocataStorico } from '@/lib/tipsterServer';
-
-const MERCATO: Record<string, string> = {
-  '1x2': 'Esito', ou: 'Gol', gg: 'Entrambe', exact: 'Esatto',
-};
-const SELEZIONE: Record<string, string> = {
-  '1': '1', X: 'X', '2': '2',
-  'over_1.5': 'Over 1.5', 'under_1.5': 'Under 1.5',
-  'over_2.5': 'Over 2.5', 'under_2.5': 'Under 2.5',
-  'over_3.5': 'Over 3.5', 'under_3.5': 'Under 3.5',
-  gg: 'Goal', ng: 'NoGoal', altro: 'Altro',
-};
-
-function Giocata({ g }: { g: GiocataStorico }) {
-  const stato = g.outcome === 'won' ? 'presa' : g.outcome === 'lost' ? 'persa' : 'aperta';
-  return (
-    <div className={`gio ${stato}`}>
-      <span className="gio-sfida">
-        {g.competizione === 'coppa' && <span className="tag warn" style={{ marginRight: 6 }}>coppa</span>}
-        {g.sfida}
-        {g.risultato && <b className="gio-ris">{g.risultato}</b>}
-      </span>
-      <span className="gio-scelta">
-        <span className="gio-mk">{MERCATO[g.market] ?? g.market}</span>
-        {SELEZIONE[g.selection] ?? g.selection}
-      </span>
-      <span className="num gio-q">{g.price.toFixed(2)}</span>
-      <span className="num gio-pt">
-        {g.outcome === 'won' ? `+${(g.points ?? 0).toFixed(1)}` : g.outcome === 'lost' ? '0' : '—'}
-      </span>
-    </div>
-  );
-}
+import { storicoSchedine } from '@/lib/tipsterServer';
+import { ElencoGiocate } from './giocate';
+import { Condividi } from './Condividi';
 
 export async function Storico({ teamId }: { teamId: string }) {
   const schedine = await storicoSchedine(teamId);
@@ -49,7 +19,8 @@ export async function Storico({ teamId }: { teamId: string }) {
     <>
       <p className="sub" style={{ marginBottom: 12 }}>
         {schedine.length} {schedine.length === 1 ? 'schedina giocata' : 'schedine giocate'}.
-        Tocca una riga per vedere cosa avevi giocato.
+        Tocca una riga per vedere cosa avevi giocato. «Condividi» la mostra agli altri
+        allenatori nella loro tab; finché non lo fai la vedi solo tu.
       </p>
 
       {schedine.map((s) => {
@@ -68,6 +39,7 @@ export async function Storico({ teamId }: { teamId: string }) {
                   </span>
                 </div>
                 <div className="storico-esito">
+                  <Condividi slipId={s.slipId} condivisa={s.condivisa} />
                   <span className="storico-n">
                     {s.giocate.length} {s.giocate.length === 1 ? 'giocata' : 'giocate'}
                   </span>
@@ -84,9 +56,7 @@ export async function Storico({ teamId }: { teamId: string }) {
             </summary>
 
             <div className="storico-corpo">
-              {s.giocate.length === 0
-                ? <div className="empty">Schedina vuota.</div>
-                : s.giocate.map((g, i) => <Giocata key={i} g={g} />)}
+              <ElencoGiocate giocate={s.giocate} />
             </div>
           </details>
         );

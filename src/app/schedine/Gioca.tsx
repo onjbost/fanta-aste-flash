@@ -45,7 +45,11 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
   const ui: SfidaUI[] = conSquadre.map((s) => ({
     id: s.id, competition: s.competition, fase: FASE[s.phase] ?? s.phase,
     casa: s.homeName, ospite: s.awayName,
+<<<<<<< HEAD
     quote: perSfida.get(s.id) ?? [],
+=======
+    quote: (perSfida.get(s.id) ?? []).sort((a, b) => a.price - b.price),
+>>>>>>> 59bd0f6b2cb654de49646c4a8945d1b5cc513f1d
   }));
 
   const iniziali = (miePicks ?? []).map((p) => ({

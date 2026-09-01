@@ -9,7 +9,9 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "import": "tsx scripts/import.ts"
+    "import": "tsx scripts/import.ts",
+    "calendari": "tsx scripts/import-calendari.ts",
+    "quote": "tsx scripts/quote-prova.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.5.2",

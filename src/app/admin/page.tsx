@@ -66,6 +66,7 @@ export default async function AdminPage() {
         <a className="btn" href="/admin/rose">Rose e import</a>
         <a className="btn" href="/admin/allenatori">Allenatori</a>
         <a className="btn" href="/admin/messaggi">Centro messaggi</a>
+        <a className="btn" href="/admin/schedine">Tipster</a>
         <a className="btn" href="/asta/sala">Sala d'asta</a>
       </div>
       <p className="sub">

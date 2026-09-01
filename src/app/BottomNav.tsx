@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export type NavKey = 'rosa' | 'asta' | 'listone' | 'regolamento' | 'admin';
+export type NavKey = 'rosa' | 'asta' | 'schedine' | 'listone' | 'regolamento' | 'admin';
 
 // Icone in linea: niente libreria, niente richieste di rete, e il tratto
 // prende il colore della voce (currentColor) senza altro lavoro.
@@ -18,6 +18,12 @@ const ICONS: Record<NavKey, ReactNode> = {
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="m14 4 6 6" /><path d="m17 7-8.5 8.5" /><path d="m11.5 4.5 4 4" />
       <path d="m9 12 3 3" /><path d="M3 21h9" /><path d="m5.5 18.5 5-5" />
+    </svg>
+  ),
+  schedine: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 7a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v3a2 2 0 0 0 0 4v3a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1v-3a2 2 0 0 0 0-4z" />
+      <path d="M9.5 9.5h5" /><path d="M9.5 13.5h3" />
     </svg>
   ),
   listone: (
@@ -44,6 +50,7 @@ const ICONS: Record<NavKey, ReactNode> = {
 const VOCI: { key: NavKey; href: string; label: string }[] = [
   { key: 'rosa', href: '/', label: 'Rosa' },
   { key: 'asta', href: '/asta', label: 'Asta' },
+  { key: 'schedine', href: '/schedine', label: 'Schedine' },
   { key: 'listone', href: '/listone', label: 'Listone' },
   { key: 'regolamento', href: '/regolamento', label: 'Regole' },
 ];

@@ -194,3 +194,44 @@ ol.rules li::before{
 @media (max-width:400px){
   .dock .tab{min-width:52px;padding:8px 6px 7px}
 }
+
+/* =====================================================================
+   Torneo dei tipster: la schedina e le righe operative dell'admin
+   ===================================================================== */
+.sfida{padding:14px 16px;margin-bottom:12px}
+.sfida-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.sfida-nomi{font-weight:800;margin-top:5px;letter-spacing:-.01em}
+.sfida-nomi span{color:var(--muted);font-weight:400}
+.sfida-n{font-family:"JetBrains Mono",monospace;font-size:1.05rem;color:var(--muted)}
+.sfida-n small{font-size:.75rem}
+.sfida-n.vuota{color:var(--warn)}
+
+.mercato{margin-top:12px}
+.mercato-k{font-size:.66rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.quote{display:flex;flex-wrap:wrap;gap:8px}
+.quota{
+  display:flex;flex-direction:column;align-items:center;gap:1px;min-width:76px;
+  padding:8px 10px;border:1px solid var(--border);border-radius:var(--r);
+  background:var(--surface);color:var(--ink);cursor:pointer;font-size:.76rem;
+  transition:border-color .15s ease,background .15s ease;
+}
+.quota .sel{font-weight:600}
+.quota .num{font-family:"JetBrains Mono",monospace;font-size:.94rem;font-weight:600}
+.quota .pt{font-size:.64rem;color:var(--accent);font-weight:600}
+.quota:hover:not(:disabled){border-color:var(--accent);color:var(--ink)}
+.quota.on{border-color:var(--accent);background:var(--accent-soft)}
+.quota:disabled{opacity:.4;cursor:not-allowed}
+
+.barra-schedina{
+  position:sticky;bottom:calc(96px + env(safe-area-inset-bottom));z-index:20;
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+  padding:12px 16px;box-shadow:var(--shadow);font-size:.9rem;margin-top:16px;
+}
+.barra-schedina .avviso{color:var(--warn)}
+
+.riga-admin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--border);font-size:.88rem}
+.riga-admin:last-of-type{border-bottom:none}
+.riga-admin select,.riga-admin input{width:auto;min-width:130px}
+.riga-admin input.mini{width:72px;min-width:0;text-align:center}
+.riga-admin label{margin:0;text-transform:none;letter-spacing:0;font-size:.82rem;color:var(--muted)}

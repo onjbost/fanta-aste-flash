@@ -278,3 +278,88 @@ export async function chiudiGiornata(matchdayId: string): Promise<EsitoChiusura>
 
   return { schedine: (slips ?? []).length, giocate, azzeccate, inAttesa };
 }
+
+// =====================================================================
+// Storico delle schedine di una squadra
+// =====================================================================
+
+export interface GiocataStorico {
+  sfida: string;
+  competizione: 'campionato' | 'coppa';
+  market: Mercato;
+  selection: string;
+  price: number;
+  outcome: 'won' | 'lost' | 'void' | null;
+  points: number | null;
+  risultato: string | null;
+}
+
+export interface SchedinaStorico {
+  slipId: string;
+  giornata: number | null;
+  serieA: number;
+  dataGiornata: string;
+  inviataIl: string;
+  punti: number | null;
+  conclusa: boolean;
+  giocate: GiocataStorico[];
+}
+
+/** Tutte le schedine di una squadra, dalla più recente, con dentro le giocate. */
+export async function storicoSchedine(teamId: string): Promise<SchedinaStorico[]> {
+  const db = supabaseAdmin();
+  const { data: slips } = await db.from('slips')
+    .select('id, submitted_at, points, matchdays(id, fanta, serie_a, match_date, status)')
+    .eq('team_id', teamId)
+    .order('submitted_at', { ascending: false });
+
+  type SlipRow = {
+    id: string; submitted_at: string; points: number | null;
+    matchdays: { id: string; fanta: number | null; serie_a: number; match_date: string; status: string } | null;
+  };
+  const righe = (slips ?? []) as unknown as SlipRow[];
+  if (!righe.length) return [];
+
+  const { data: picks } = await db.from('picks')
+    .select('slip_id, fixture_id, market, selection, price, outcome, points')
+    .in('slip_id', righe.map((s) => s.id));
+
+  const fixtureIds = [...new Set((picks ?? []).map((p) => p.fixture_id as string))];
+  const { data: sfide } = await db.from('fixtures')
+    .select('id, competition, home_goals, away_goals, casa:home_team_id(name), ospite:away_team_id(name)')
+    .in('id', fixtureIds.length ? fixtureIds : ['00000000-0000-0000-0000-000000000000']);
+
+  type FixRow = {
+    id: string; competition: string; home_goals: number | null; away_goals: number | null;
+    casa: { name: string } | null; ospite: { name: string } | null;
+  };
+  const perId = new Map(((sfide ?? []) as unknown as FixRow[]).map((f) => [f.id, f]));
+
+  const perSlip = new Map<string, GiocataStorico[]>();
+  (picks ?? []).forEach((p) => {
+    const f = perId.get(p.fixture_id as string);
+    const l = perSlip.get(p.slip_id as string) ?? [];
+    l.push({
+      sfida: f ? `${f.casa?.name ?? '?'} – ${f.ospite?.name ?? '?'}` : 'sfida rimossa',
+      competizione: (f?.competition as 'campionato' | 'coppa') ?? 'campionato',
+      market: p.market as Mercato,
+      selection: String(p.selection),
+      price: Number(p.price),
+      outcome: (p.outcome as GiocataStorico['outcome']) ?? null,
+      points: p.points == null ? null : Number(p.points),
+      risultato: f && f.home_goals != null ? `${f.home_goals}-${f.away_goals}` : null,
+    });
+    perSlip.set(p.slip_id as string, l);
+  });
+
+  return righe.map((s) => ({
+    slipId: s.id,
+    giornata: s.matchdays?.fanta ?? null,
+    serieA: Number(s.matchdays?.serie_a ?? 0),
+    dataGiornata: String(s.matchdays?.match_date ?? ''),
+    inviataIl: s.submitted_at,
+    punti: s.points == null ? null : Number(s.points),
+    conclusa: s.matchdays?.status === 'settled',
+    giocate: perSlip.get(s.id) ?? [],
+  }));
+}

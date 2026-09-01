@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { salvaSchedina, type ActionState } from './actions';
-import type { Mercato } from '@/lib/tipster';
+import { ESATTI_FISSI, ALTRO, type Mercato } from '@/lib/tipster';
 
 export interface QuotaUI { market: Mercato; selection: string; price: number }
 export interface SfidaUI {
@@ -14,8 +14,24 @@ export interface SfidaUI {
   quote: QuotaUI[];
 }
 
+/**
+ * L'ordine in lavagna è fisso e non dipende dalle quote: chi gioca deve
+ * trovare la casella sempre nello stesso posto, sfida dopo sfida.
+ */
+const ORDINE: Record<Mercato, readonly string[]> = {
+  '1x2': ['1', 'X', '2'],
+  ou: ['over_1.5', 'over_2.5', 'over_3.5', 'under_1.5', 'under_2.5', 'under_3.5'],
+  gg: ['gg', 'ng'],
+  exact: [...ESATTI_FISSI, ALTRO],
+};
+
+function inOrdine(mercato: Mercato, quote: QuotaUI[]): QuotaUI[] {
+  const pos = ORDINE[mercato];
+  return [...quote].sort((a, b) => pos.indexOf(a.selection) - pos.indexOf(b.selection));
+}
+
 const ETICHETTA: Record<string, string> = {
-  '1': '1', X: 'X', '2': '2',
+  '1': '1', X: 'X', '2': '2', altro: 'Altro',
   'over_1.5': 'Over 1.5', 'under_1.5': 'Under 1.5',
   'over_2.5': 'Over 2.5', 'under_2.5': 'Under 2.5',
   'over_3.5': 'Over 3.5', 'under_3.5': 'Under 3.5',
@@ -80,10 +96,10 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
       {sfide.map((s) => {
         const n = perSfida.get(s.id) ?? 0;
         const gruppi: [string, QuotaUI[]][] = [
-          ['Esito', s.quote.filter((q) => q.market === '1x2')],
-          ['Gol totali', s.quote.filter((q) => q.market === 'ou')],
-          ['Segnano entrambe', s.quote.filter((q) => q.market === 'gg')],
-          ['Risultato esatto', s.quote.filter((q) => q.market === 'exact')],
+          ['Esito', inOrdine('1x2', s.quote.filter((q) => q.market === '1x2'))],
+          ['Gol totali', inOrdine('ou', s.quote.filter((q) => q.market === 'ou'))],
+          ['Segnano entrambe', inOrdine('gg', s.quote.filter((q) => q.market === 'gg'))],
+          ['Risultato esatto', inOrdine('exact', s.quote.filter((q) => q.market === 'exact'))],
         ];
 
         return (
@@ -103,7 +119,8 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
             {gruppi.filter(([, q]) => q.length > 0).map(([titolo, quote]) => (
               <div className="mercato" key={titolo}>
                 <div className="mercato-k">{titolo}</div>
-                <div className="quote">
+                <div className={titolo === 'Risultato esatto' ? 'quote griglia3'
+                  : titolo === 'Gol totali' ? 'quote griglia3' : 'quote'}>
                   {quote.map((q) => {
                     const attiva = scelte.has(chiave(s.id, q.market, q.selection));
                     return (

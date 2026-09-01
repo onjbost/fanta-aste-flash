@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   golDaFantapunti, distribuzioneGol, griglia, mercatiDaGriglia, quoteSfida,
   quotaDaProbabilita, risolvi, puntiGiocata, risolviSchedina,
-  fantamediaAttesa, forzaClub, stimaSquadra, MOLTIPLICATORE,
+  fantamediaAttesa, forzaClub, stimaSquadra, MOLTIPLICATORE, ESATTI_FISSI, ALTRO,
   type GiocatoreTipster, type ContestoClub,
 } from './tipster';
 
@@ -334,5 +334,36 @@ describe('taratura', () => {
       { ...forte, mu: forte.mu - 5 }, { ...debole, mu: debole.mu - 5 },
     ).find((e) => e.selection === '1')!.probability;
     expect(Math.abs(senza - con)).toBeLessThan(0.06);
+  });
+});
+
+describe('lavagna fissa dei risultati esatti', () => {
+  const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 71, sd: 9 });
+  const esatti = esiti.filter((e) => e.market === 'exact');
+
+  it('ci sono sempre gli stessi sedici punteggi, più «altro»', () => {
+    expect(esatti.map((e) => e.selection)).toEqual([...ESATTI_FISSI, ALTRO]);
+  });
+
+  it('l\'ordine non dipende dalle quote: è quello della lavagna', () => {
+    const squilibrata = quoteSfida({ mu: 82, sd: 9 }, { mu: 60, sd: 9 })
+      .filter((e) => e.market === 'exact').map((e) => e.selection);
+    expect(squilibrata).toEqual(esatti.map((e) => e.selection));
+  });
+
+  it('coprono tutto: le probabilità sommano a 1', () => {
+    expect(somma(esatti.map((e) => e.probability))).toBeCloseTo(1, 9);
+  });
+
+  it('«altro» vince quando il risultato non è in lavagna', () => {
+    expect(risolvi('exact', 'altro', 4, 1)).toBe(true);
+    expect(risolvi('exact', 'altro', 2, 5)).toBe(true);
+    expect(risolvi('exact', 'altro', 2, 1)).toBe(false);
+    expect(risolvi('exact', 'altro', 3, 3)).toBe(false);
+  });
+
+  it('anche «altro» vale dieci punti attesi', () => {
+    const a = esatti.find((e) => e.selection === ALTRO)!;
+    expect(a.probability * puntiGiocata(a.price, 1)).toBeCloseTo(MOLTIPLICATORE, 1);
   });
 });

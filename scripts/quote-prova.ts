@@ -85,7 +85,7 @@ async function main() {
   for (const [comp, casa, ospite] of sfide) {
     const a = stime.get(casa); const b = stime.get(ospite);
     if (!a || !b) { console.log(`\n  ⚠ rosa mancante per ${!a ? casa : ospite}`); continue; }
-    const esiti = quoteSfida(a, b, { maxEsatti: 4 });
+    const esiti = quoteSfida(a, b);
     const q = (m: string, s: string) => {
       const e = esiti.find((x) => x.market === m && x.selection === s);
       return e ? e.price.toFixed(2) : '—';
@@ -95,7 +95,8 @@ async function main() {
       + `   ·   Over 2.5 ${q('ou', 'over_2.5')}  Under 2.5 ${q('ou', 'under_2.5')}`
       + `   ·   GG ${q('gg', 'gg')}  NG ${q('gg', 'ng')}`);
     console.log('  esatti: ' + esiti.filter((e) => e.market === 'exact')
-      .map((e) => `${e.selection} @ ${e.price.toFixed(2)}`).join('  '));
+      .sort((x, y) => x.price - y.price).slice(0, 5)
+      .map((e) => `${e.selection} @ ${e.price.toFixed(2)}`).join('  ') + '  …');
   }
   console.log();
 }

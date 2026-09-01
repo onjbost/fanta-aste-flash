@@ -87,13 +87,27 @@ export interface Esito {
 
 export const SOGLIE_OU = [1.5, 2.5, 3.5] as const;
 
+/**
+ * La lavagna dei risultati esatti è **fissa**: sempre gli stessi sedici
+ * punteggi, più «altro» che raccoglie tutto il resto.
+ *
+ * Due motivi. Uno di sostanza: così ogni risultato possibile è giocabile e la
+ * somma delle probabilità fa esattamente 1, quindi il valore atteso resta
+ * dieci punti anche per chi punta sul 5-2. Uno pratico: la lavagna non cambia
+ * forma da una sfida all'altra, e l'occhio trova sempre la casella dov'era.
+ */
+export const ESATTI_FISSI = [
+  '1-0', '2-0', '3-0',
+  '2-1', '3-1', '3-2',
+  '0-1', '0-2', '0-3',
+  '1-3', '1-2', '2-3',
+  '0-0', '1-1', '2-2', '3-3',
+] as const;
+export const ALTRO = 'altro';
+
 export interface OpzioniQuote {
   /** soglie Over/Under da quotare */
   soglie?: readonly number[];
-  /** probabilità minima perché un risultato esatto venga messo in lavagna */
-  minProbEsatto?: number;
-  /** quante caselle di risultato esatto al massimo */
-  maxEsatti?: number;
 }
 
 /** Quota equa, senza margine: nessun banco deve guadagnarci. */
@@ -104,8 +118,6 @@ export function quotaDaProbabilita(p: number): number {
 
 export function mercatiDaGriglia(g: number[][], opt: OpzioniQuote = {}): Esito[] {
   const soglie = opt.soglie ?? SOGLIE_OU;
-  const minProb = opt.minProbEsatto ?? 0.01;
-  const maxEsatti = opt.maxEsatti ?? 12;
 
   const somma = (test: (c: number, o: number) => boolean) => {
     let s = 0;
@@ -135,12 +147,14 @@ export function mercatiDaGriglia(g: number[][], opt: OpzioniQuote = {}): Esito[]
   aggiungi('gg', 'gg', gg);
   aggiungi('gg', 'ng', 1 - gg);
 
-  const esatti: { sel: string; p: number }[] = [];
-  for (let c = 0; c < g.length; c++) for (let o = 0; o < g[c].length; o++) {
-    if (g[c][o] >= minProb) esatti.push({ sel: `${c}-${o}`, p: g[c][o] });
+  let coperto = 0;
+  for (const sel of ESATTI_FISSI) {
+    const [c, o] = sel.split('-').map(Number);
+    const p = g[c]?.[o] ?? 0;
+    coperto += p;
+    aggiungi('exact', sel, p);
   }
-  esatti.sort((x, y) => y.p - x.p);
-  esatti.slice(0, maxEsatti).forEach((e) => aggiungi('exact', e.sel, e.p));
+  aggiungi('exact', ALTRO, 1 - coperto);
 
   return esiti;
 }
@@ -174,6 +188,10 @@ export function risolvi(market: Mercato, selection: string, golCasa: number, gol
       if (selection === 'ng') return golCasa === 0 || golOspite === 0;
       throw new Error(`esito goal/nogoal sconosciuto: ${selection}`);
     case 'exact': {
+      // «altro» vince quando il risultato non è nessuno dei sedici in lavagna
+      if (selection === ALTRO) {
+        return !(ESATTI_FISSI as readonly string[]).includes(`${golCasa}-${golOspite}`);
+      }
       const m = /^(\d+)-(\d+)$/.exec(selection);
       if (!m) throw new Error(`risultato esatto malformato: ${selection}`);
       return Number(m[1]) === golCasa && Number(m[2]) === golOspite;

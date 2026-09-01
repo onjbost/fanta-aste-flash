@@ -27,16 +27,15 @@ a{color:var(--accent);text-decoration:none}
 a:hover{text-decoration:underline}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 
-.shell{max-width:940px;margin:0 auto;padding:0 16px 80px}
+.shell{max-width:940px;margin:0 auto;padding:0 16px calc(116px + env(safe-area-inset-bottom))}
 .topbar{
   display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;
   padding:16px 0;border-bottom:2px solid var(--ink);margin-bottom:24px;
 }
 .topbar .brand{font-weight:800;letter-spacing:-.01em;font-size:1.05rem}
 .topbar .brand span{color:var(--accent)}
-.topbar nav{display:flex;gap:16px;font-size:.9rem;font-weight:600}
-.topbar nav a{color:var(--muted)}
-.topbar nav a.active{color:var(--ink);box-shadow:inset 0 -2px 0 var(--accent)}
+.topbar-right{display:flex;align-items:center;gap:14px;font-size:.86rem}
+.topbar .who{color:var(--muted);font-weight:600}
 
 h1{font-size:1.7rem;font-weight:800;letter-spacing:-.02em;margin:0 0 4px;text-wrap:balance}
 h2{font-size:1.05rem;font-weight:800;margin:32px 0 12px;letter-spacing:-.01em}
@@ -118,4 +117,80 @@ ol.rules li::before{
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   font-family:"JetBrains Mono",monospace;font-size:.85rem;font-weight:600;
   color:var(--accent);border:1px solid var(--border);border-radius:2px;background:var(--surface);
+}
+
+/* =====================================================================
+   Barra di navigazione in basso, vetro liquido.
+   I colori sono gli stessi dell'app: il vetro e' la superficie resa
+   traslucida, il bordo chiaro e il riflesso in alto fanno il resto.
+   ===================================================================== */
+:root{
+  --glass:rgba(255,255,255,.58);
+  --glass-edge:rgba(255,255,255,.85);
+  --glass-edge-2:rgba(20,28,24,.10);
+  --glass-shadow:0 10px 34px -12px rgba(20,28,24,.42),0 2px 8px -4px rgba(20,28,24,.24);
+  --spec:rgba(255,255,255,.9);
+  --pill:rgba(138,106,21,.14);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --glass:rgba(30,39,36,.55);
+    --glass-edge:rgba(255,255,255,.16);
+    --glass-edge-2:rgba(0,0,0,.5);
+    --glass-shadow:0 10px 34px -12px rgba(0,0,0,.75),0 2px 8px -4px rgba(0,0,0,.5);
+    --spec:rgba(255,255,255,.22);
+    --pill:rgba(226,180,78,.18);
+  }
+}
+
+.dock{
+  position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));z-index:50;
+  display:flex;align-items:center;
+  transform:translateX(-50%) scale(1);transform-origin:bottom center;
+  will-change:transform,opacity;
+  transition:transform .42s cubic-bezier(.22,1,.36,1),opacity .32s ease;
+}
+.dock.shrunk{transform:translateX(-50%) scale(.82);opacity:.5}
+@media (prefers-reduced-motion:reduce){
+  .dock{transition:opacity .2s linear}
+  .dock.shrunk{transform:translateX(-50%) scale(1);opacity:.6}
+}
+
+.capsule{
+  position:relative;display:flex;align-items:center;gap:2px;padding:6px;border-radius:26px;
+  background:var(--glass);
+  -webkit-backdrop-filter:blur(22px) saturate(190%);
+  backdrop-filter:blur(22px) saturate(190%);
+  border:1px solid var(--glass-edge);
+  box-shadow:var(--glass-shadow),inset 0 1px 0 var(--spec),inset 0 -1px 0 var(--glass-edge-2);
+  overflow:hidden;
+}
+/* il riflesso in alto: e' quello che la fa leggere come vetro e non come velo */
+.capsule::before{
+  content:"";position:absolute;inset:0 0 auto;height:52%;
+  background:linear-gradient(to bottom,var(--spec),transparent);
+  opacity:.55;pointer-events:none;
+  border-radius:26px 26px 40% 40%/26px 26px 100% 100%;
+}
+/* dove il vetro non c'e' (browser vecchi), la barra resta opaca e leggibile */
+@supports not ((backdrop-filter:blur(1px)) or (-webkit-backdrop-filter:blur(1px))){
+  .capsule{background:var(--surface);border-color:var(--border)}
+}
+
+.dock .tab{
+  position:relative;z-index:1;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+  min-width:58px;padding:8px 10px 7px;border-radius:20px;
+  color:var(--muted);font-size:.62rem;font-weight:600;letter-spacing:.04em;
+  text-decoration:none;-webkit-tap-highlight-color:transparent;
+  transition:color .2s ease,background .28s ease,transform .12s ease;
+}
+.dock .tab:hover{color:var(--ink);text-decoration:none}
+.dock .tab svg{width:22px;height:22px;display:block;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.dock .tab .lbl{line-height:1}
+.dock .tab[aria-current="page"]{color:var(--accent);background:var(--pill)}
+.dock .tab:active{transform:scale(.94)}
+
+@media (max-width:400px){
+  .dock .tab{min-width:52px;padding:8px 6px 7px}
 }

@@ -1,5 +1,49 @@
 # Aste Flash · Fanta Mansarda
 
+## v3.0 — 2 settembre 2026
+
+La Redazione. A giornata conclusa il tabellino entra nell'app, i risultati e le
+schedine si chiudono da soli, e il pezzo della giornata arriva scritto.
+
+### Per l'admin
+- Un preferito del browser importa la giornata dalla pagina della lega: legge
+  le quattro sfide, mostra cosa ha trovato, e aspetta che sia tu a premere
+  invio. Nessuna credenziale della lega custodita da nessuna parte.
+- Da quel momento i risultati delle sfide e la risoluzione delle schedine
+  avvengono da soli: l'inserimento a mano dei risultati non serve più.
+- «Scrivi il pezzo», con «più cattivo» e «più morbido» accanto. Ogni pressione
+  è una versione nuova: quella di prima resta e si può sempre mandare quella.
+- Bozza su Telegram, da copiare nel gruppo — lo stesso patto del centro
+  messaggi: l'app propone, tu approvi.
+- Schede delle squadre: soprannomi, tormentoni, cosa rinfacciare, e un campo
+  per dire di cosa **non** si scherza, che finisce nel prompt come divieto.
+- Tono di base da 1 a 5, parole minime per sfida, elenco di parole vietate.
+
+### Sotto il cofano
+- La pagina della lega non si legge come testo, si legge come componenti: id
+  del listone, ruolo, voto, fantavoto, fascia di capitano ed eventi tipizzati
+  vengono dagli attributi. L'aggancio ai nostri giocatori è per id, non per
+  somiglianza di nome.
+- I subentri li ricava applicando le regole del Classico — primo pari ruolo
+  della panchina che ha preso voto, tre sostituzioni al massimo, altrimenti si
+  gioca in dieci — e la somma dei fantavoti deve tornare col totale scritto
+  dalla lega. Se non torna, non si scrive niente.
+- Gli spunti della giornata li calcola il codice, non il modello: le strisce di
+  risultati, il digiuno, la nemesi e la panchina beffarda si vedono solo
+  contando fra le giornate, e a un modello lasciato solo verrebbe da
+  inventarle.
+- Prima di partire, ogni numero del pezzo dev'essere uno di quelli che gli
+  abbiamo dato. Se ne compare uno inventato si rigenera dicendogli cosa non
+  andava; al secondo fallimento parte la versione con i template — asciutta,
+  ma corretta e puntuale.
+- Il grezzo di ogni import resta salvato: quando l'estrattore migliora si
+  rifà l'import con un pulsante, senza ricopiare la giornata.
+- 278 test automatici.
+
+### Fuori scopo, per scelta
+Le notizie non si pubblicano da sole in app e non finiscono su WhatsApp senza
+passare da te. Il canale ufficiale della lega resta il gruppo.
+
 ## v2.0 — 1 settembre 2026
 
 Il Torneo dei Tipster entra nell'app. Stessa autenticazione, stesse squadre,

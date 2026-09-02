@@ -111,6 +111,11 @@ const SOGLIA_GOL = 66;
 const PASSO_GOL = 6;
 const SOGLIA_BIG_MONEY = 30;
 
+const RUOLI: Ruolo[] = ['P', 'D', 'C', 'A'];
+const NOME_RUOLO: Record<Ruolo, string> = {
+  P: 'portiere', D: 'difensore', C: 'centrocampista', A: 'attaccante',
+};
+
 // =====================================================================
 // Il catalogo
 // =====================================================================
@@ -356,24 +361,41 @@ function suiSingoli(ctx: ContestoGiornata): Spunto[] {
     }
   }
 
-  // la panchina che avrebbe fatto meglio
+  // ---- la panchina che avrebbe fatto meglio, ma ruolo per ruolo
+  //
+  // Il confronto regge solo fra pari ruolo: un difensore non prende il posto
+  // di un portiere, quindi «avevi Tizio in panchina» è una critica che sta in
+  // piedi solo se Tizio poteva davvero giocarci, in quel ruolo.
+  //
+  // La prima versione confrontava il peggiore in campo col migliore in
+  // panchina senza guardare il ruolo, e il pezzo accostava un portiere da 2 a
+  // un difensore da 6,5 — una frase che suona bene e non vuol dire niente.
   for (const s of ctx.sfide) {
     for (const t of [s.casa, s.ospite]) {
-      const titolariInCampo = t.giocatori.filter((g) => g.titolare && g.counted && g.fantavoto != null);
-      const inutilizzati = t.giocatori.filter((g) => !g.titolare && !g.entered && g.fantavoto != null);
-      if (!titolariInCampo.length || !inutilizzati.length) continue;
+      for (const ruolo of RUOLI) {
+        const inCampoRuolo = t.giocatori.filter(
+          (g) => g.ruolo === ruolo && g.titolare && g.counted && g.fantavoto != null,
+        );
+        const fuoriRuolo = t.giocatori.filter(
+          (g) => g.ruolo === ruolo && !g.titolare && !g.entered && g.fantavoto != null,
+        );
+        if (!inCampoRuolo.length || !fuoriRuolo.length) continue;
 
-      const peggior = titolariInCampo.reduce((a, b) => (b.fantavoto! < a.fantavoto! ? b : a));
-      const miglior = inutilizzati.reduce((a, b) => (b.fantavoto! > a.fantavoto! ? b : a));
-      const delta = arrotonda(miglior.fantavoto! - peggior.fantavoto!);
-      if (delta >= 3) {
+        const peggior = inCampoRuolo.reduce((a, b) => (b.fantavoto! < a.fantavoto! ? b : a));
+        const miglior = fuoriRuolo.reduce((a, b) => (b.fantavoto! > a.fantavoto! ? b : a));
+        const delta = arrotonda(miglior.fantavoto! - peggior.fantavoto!);
+        if (delta < 3) continue;
+
         out.push({
           codice: 'panchina_beffarda', fixtureId: s.fixtureId, soggetto: t.nome, peso: 85,
           dati: {
-            squadra: t.nome, panchinaro: miglior.nome, fantavotoPanchina: miglior.fantavoto!,
+            squadra: t.nome, ruolo,
+            panchinaro: miglior.nome, fantavotoPanchina: miglior.fantavoto!,
             titolare: peggior.nome, fantavotoTitolare: peggior.fantavoto!, differenza: delta,
           },
-          frase: `${miglior.nome} guardava da fuori con ${miglior.fantavoto}, mentre ${peggior.nome} in campo ne faceva ${peggior.fantavoto}: ${delta} punti lasciati in panchina.`,
+          frase: `${t.nome} lasciava fuori ${miglior.nome} (${NOME_RUOLO[ruolo]}, ${miglior.fantavoto}) `
+            + `per schierare ${peggior.nome} nello stesso ruolo, che ne ha fatti ${peggior.fantavoto}: `
+            + `${delta} punti rimasti in panchina.`,
         });
       }
     }

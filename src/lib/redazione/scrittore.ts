@@ -138,7 +138,8 @@ Ogni sfida ha il suo tono indicato sotto: dove non è successo niente, non forza
 3. Non inventare episodi, gol, parate o dichiarazioni: hai solo i voti e gli spunti.
 4. Italiano parlato, vivo, niente burocratese sportivo. Niente elenchi puntati dentro i pezzi.
 5. Usa i soprannomi delle squadre quando ci stanno.
-${r.paroleVietate.length ? `6. Parole vietate, non usarle mai: ${r.paroleVietate.join(', ')}.\n` : ''}
+6. Non mettere mai a confronto due giocatori di ruolo diverso come se uno potesse prendere il posto dell'altro: al fantacalcio si sostituisce solo fra pari ruolo. Un portiere non toglie il posto a un difensore. Dove uno spunto ti dà un ruolo, resta dentro quel ruolo.
+${r.paroleVietate.length ? `7. Parole vietate, non usarle mai: ${r.paroleVietate.join(', ')}.\n` : ''}
 ## Le squadre
 ${schede}
 

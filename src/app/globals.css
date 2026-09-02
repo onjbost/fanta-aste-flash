@@ -241,17 +241,36 @@ ol.rules li::before{
 
 /* tab della vista schedine */
 .tabs{display:flex;gap:4px;margin:14px 0 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
-.tabs a{
+/* i tab sono link dove la sezione ha un indirizzo suo, e bottoni dove cambia
+   solo la vista senza cambiare pagina: stesso aspetto, comportamento diverso */
+.tabs a,.tabs button{
   padding:8px 14px;font-size:.88rem;font-weight:600;color:var(--muted);
   border:1px solid transparent;border-bottom:none;border-radius:var(--r) var(--r) 0 0;
-  margin-bottom:-1px;text-decoration:none;
+  margin-bottom:-1px;text-decoration:none;background:none;cursor:pointer;font-family:inherit;
 }
-.tabs a:hover{color:var(--ink);text-decoration:none}
-.tabs a.on{
+.tabs a:hover,.tabs button:hover{color:var(--ink);text-decoration:none;border-color:transparent}
+.tabs a.on,.tabs button.on{
   color:var(--ink);background:var(--surface);
   border-color:var(--border);border-bottom:1px solid var(--surface);
   box-shadow:inset 0 2px 0 var(--accent);
 }
+.tabs .pallino{
+  display:inline-block;margin-left:6px;padding:1px 6px;border-radius:99px;
+  font-size:.7rem;font-weight:700;background:var(--surface-2);color:var(--muted);
+}
+.tabs .on .pallino{background:var(--accent-soft);color:var(--accent)}
+
+/* una giornata nella redazione: intestazione cliccabile, tre tab dentro */
+.giornata{margin-bottom:12px}
+.giornata summary{list-style:none;cursor:pointer;padding:14px 16px}
+.giornata summary::-webkit-details-marker{display:none}
+.giornata summary:hover{background:var(--surface-2)}
+.giornata[open] summary{border-bottom:1px solid var(--border)}
+.giornata-riga{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.giornata-n{font-weight:800}
+.giornata-meta{color:var(--muted);font-size:.86rem;margin-left:auto}
+.giornata-corpo{padding:0 16px 16px}
+.giornata-corpo .tabs{margin:12px 0 16px}
 
 /* storico delle schedine */
 .storico{margin-bottom:10px}

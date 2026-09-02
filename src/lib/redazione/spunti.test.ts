@@ -206,6 +206,46 @@ describe('spunti sui singoli', () => {
     expect(s.dati.panchinaro).toBe('Panchinaro');
   });
 
+  it('non confronta un panchinaro con un titolare di ruolo diverso', () => {
+    // Il caso vero, uscito al primo pezzo generato: un portiere da 2 in campo
+    // e un difensore da 6,5 in panchina. Quel difensore non avrebbe potuto
+    // giocare in porta, quindi non è un rimprovero — è una frase che suona
+    // bene e non vuol dire niente.
+    const ctx = contesto({
+      sfide: [sfida(
+        squadra('Alfa', 1, 70, {
+          giocatori: [
+            giocatore('De Gea', 2, { ruolo: 'P' }),
+            giocatore('Chalobah T.', 6.5, { ruolo: 'D', titolare: false, counted: false }),
+          ],
+        }),
+        squadra('Beta', 0, 60),
+      )],
+    });
+    expect(codici(ctx)).not.toContain('panchina_beffarda');
+  });
+
+  it('lo confronta col pari ruolo, e mette il ruolo nei dati', () => {
+    const ctx = contesto({
+      sfide: [sfida(
+        squadra('Alfa', 1, 70, {
+          giocatori: [
+            giocatore('De Gea', 2, { ruolo: 'P' }),
+            giocatore('Muric', 7, { ruolo: 'P', titolare: false, counted: false }),
+            giocatore('Chalobah T.', 6.5, { ruolo: 'D', titolare: false, counted: false }),
+          ],
+        }),
+        squadra('Beta', 0, 60),
+      )],
+    });
+    const s = trova(ctx, 'panchina_beffarda')!;
+    expect(s.dati.ruolo).toBe('P');
+    expect(s.dati.panchinaro).toBe('Muric');
+    expect(s.dati.titolare).toBe('De Gea');
+    expect(s.dati.differenza).toBe(5);
+    expect(s.frase).toContain('portiere');
+  });
+
   it('non se la prende con la panchina se il panchinaro era entrato', () => {
     const ctx = contesto({
       sfide: [sfida(

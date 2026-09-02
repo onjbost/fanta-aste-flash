@@ -57,13 +57,12 @@ export async function middleware(request: NextRequest) {
   return response;
 }
 
+// Il file del preferito è pubblico per forza: lo carica la pagina della lega,
+// che non ha e non deve avere i nostri cookie.
+//
+// La stringa va tenuta su una riga sola: Next legge `config.matcher` senza
+// eseguire il file, quindi una concatenazione con + non la sa valutare e la
+// build muore con «Unsupported node type "BinaryExpression"».
 export const config = {
-  // Il file del preferito è pubblico per forza: lo carica la pagina della lega,
-  // che non ha e non deve avere i nostri cookie. Le immagini e gli asset di
-  // Next non passano di qui per lo stesso motivo di sempre, la velocità.
-  matcher: [
-    '/((?!_next/static|_next/image|favicon.ico|manifest.json'
-    + '|redazione-bookmarklet.js'
-    + '|.*\\.(?:svg|png|webp|ico)$).*)',
-  ],
+  matcher: ['/((?!_next/static|_next/image|favicon\\.ico|manifest\\.json|redazione-bookmarklet\\.js|.*\\.(?:svg|png|webp|ico)$).*)'],
 };

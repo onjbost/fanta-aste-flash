@@ -6,9 +6,11 @@
  * l'animazione parte nello stesso istante in cui parte l'attesa, che è
  * esattamente quando servirebbe di più e quando il browser ha meno tempo.
  *
- * Dopo qualche secondo compare da sola una riga di spiegazione: se Supabase
- * dormiva da giorni la prima richiesta lo sveglia, e sapere perché si aspetta
- * rende l'attesa molto più corta di quanto sia.
+ * Il pallone però resta invisibile per i primi due secondi e mezzo: nelle
+ * navigazioni normali, che durano un battito di ciglia, si vede solo il velo
+ * sfocato con i riquadri che pulsano. Se l'attesa si allunga — tipicamente il
+ * primo accesso dopo giorni, quando Supabase si sta svegliando — entra il
+ * pallone, e dopo cinque secondi anche la riga che spiega perché.
  */
 export function Caricamento({ nota }: { nota?: string }) {
   return (

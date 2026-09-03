@@ -358,10 +358,23 @@ ol.rules li::before{
   -webkit-backdrop-filter:blur(4px) saturate(120%);
   backdrop-filter:blur(4px) saturate(120%);
 }
+/*
+ * Il pallone non si vede quasi mai, ed è voluto: compare solo se l'attesa
+ * supera i due secondi e mezzo. Una navigazione normale dura tre decimi di
+ * secondo — il velo sfocato con i riquadri che pulsano basta e avanza, e un
+ * pallone che appare e sparisce a ogni tocco è solo rumore.
+ *
+ * Quando invece Supabase si sta svegliando dopo giorni di silenzio, l'attesa
+ * arriva a dieci secondi: lì il pallone entra in scena e dice che sta
+ * succedendo qualcosa. Nessun JavaScript, solo un ritardo nell'animazione:
+ * se la pagina arriva prima, il velo sparisce e il pallone non nasce mai.
+ */
 .caricamento-centro{
   position:relative;width:132px;height:132px;
   display:grid;place-items:center;
+  opacity:0;animation:centro-compare .45s ease 2.5s forwards;
 }
+@keyframes centro-compare{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 
 /* --- anello --------------------------------------------------------- */
 .anello{position:absolute;inset:0;width:132px;height:132px;animation:anello-gira 1.9s linear infinite}
@@ -395,7 +408,7 @@ ol.rules li::before{
 
 .caricamento-nota{
   margin:0;max-width:280px;text-align:center;font-size:.84rem;color:var(--muted);
-  opacity:0;animation:nota-compare .6s ease 3.5s forwards;
+  opacity:0;animation:nota-compare .6s ease 5s forwards;
 }
 @keyframes nota-compare{to{opacity:1}}
 
@@ -403,5 +416,7 @@ ol.rules li::before{
   .anello{animation:anello-gira 3.4s linear infinite}
   .anello-arco{animation:none;stroke-dasharray:150 114}
   .pallone,.pallone-dondolo{animation:none}
-  .caricamento-nota{opacity:1;animation:none}
+  /* il ritardo resta: cambia il modo di comparire, non il quando */
+  .caricamento-centro{animation:centro-compare .01s linear 2.5s forwards}
+  .caricamento-nota{animation:nota-compare .01s linear 5s forwards}
 }

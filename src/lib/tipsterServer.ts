@@ -280,8 +280,12 @@ export async function chiudiGiornata(matchdayId: string): Promise<EsitoChiusura>
 }
 
 // =====================================================================
-// Storico delle schedine di una squadra
+// Storico delle schedine
 // =====================================================================
+// Una sola andata al database per vista: le giocate se le porta dietro la
+// schedina, e ogni giocata si porta dietro la sfida con il suo risultato.
+// Prima erano tre interrogazioni in fila — schedine, giocate, sfide — e in
+// fila le attese si sommano.
 
 export interface GiocataStorico {
   sfida: string;
@@ -306,6 +310,41 @@ export interface SchedinaStorico {
   giocate: GiocataStorico[];
 }
 
+const SELECT_SCHEDINA = `
+  id, submitted_at, points, shared,
+  matchdays(id, fanta, serie_a, match_date, status),
+  picks(
+    fixture_id, market, selection, price, outcome, points,
+    fixtures(competition, home_goals, away_goals,
+             casa:home_team_id(name), ospite:away_team_id(name))
+  )
+`;
+
+type PickRow = {
+  market: string; selection: string; price: number;
+  outcome: string | null; points: number | null;
+  fixtures: {
+    competition: string; home_goals: number | null; away_goals: number | null;
+    casa: { name: string } | null; ospite: { name: string } | null;
+  } | null;
+};
+
+function giocateDaRighe(picks: PickRow[] | null | undefined): GiocataStorico[] {
+  return (picks ?? []).map((p) => {
+    const f = p.fixtures;
+    return {
+      sfida: f ? `${f.casa?.name ?? '?'} – ${f.ospite?.name ?? '?'}` : 'sfida rimossa',
+      competizione: (f?.competition as 'campionato' | 'coppa') ?? 'campionato',
+      market: p.market as Mercato,
+      selection: String(p.selection),
+      price: Number(p.price),
+      outcome: (p.outcome as GiocataStorico['outcome']) ?? null,
+      points: p.points == null ? null : Number(p.points),
+      risultato: f && f.home_goals != null ? `${f.home_goals}-${f.away_goals}` : null,
+    };
+  });
+}
+
 /**
  * Tutte le schedine di una squadra, dalla più recente, con dentro le giocate.
  *
@@ -317,22 +356,20 @@ export async function storicoSchedine(
   teamId: string,
 ): Promise<{ schedine: SchedinaStorico[]; errore: string | null }> {
   const db = supabaseAdmin();
-  const { data: slips, error } = await db.from('slips')
-    .select('id, submitted_at, points, shared, matchdays(id, fanta, serie_a, match_date, status)')
+  const { data, error } = await db.from('slips')
+    .select(SELECT_SCHEDINA)
     .eq('team_id', teamId)
     .order('submitted_at', { ascending: false });
 
-  type SlipRow = {
-    id: string; submitted_at: string; points: number | null; shared: boolean;
-    matchdays: { id: string; fanta: number | null; serie_a: number; match_date: string; status: string } | null;
-  };
   if (error) return { schedine: [], errore: error.message };
-  const righe = (slips ?? []) as unknown as SlipRow[];
-  if (!righe.length) return { schedine: [], errore: null };
 
-  const perSlip = await giocateDiSlips(righe.map((s) => s.id));
+  type Row = {
+    id: string; submitted_at: string; points: number | null; shared: boolean;
+    matchdays: { fanta: number | null; serie_a: number; match_date: string; status: string } | null;
+    picks: PickRow[] | null;
+  };
 
-  const schedine = righe.map((s) => ({
+  const schedine = ((data ?? []) as unknown as Row[]).map((s) => ({
     slipId: s.id,
     giornata: s.matchdays?.fanta ?? null,
     serieA: Number(s.matchdays?.serie_a ?? 0),
@@ -341,48 +378,9 @@ export async function storicoSchedine(
     punti: s.points == null ? null : Number(s.points),
     conclusa: s.matchdays?.status === 'settled',
     condivisa: !!s.shared,
-    giocate: perSlip.get(s.id) ?? [],
+    giocate: giocateDaRighe(s.picks),
   }));
   return { schedine, errore: null };
-}
-
-/** Le giocate di un gruppo di schedine, con nomi delle sfide e risultati. */
-async function giocateDiSlips(slipIds: string[]): Promise<Map<string, GiocataStorico[]>> {
-  const perSlip = new Map<string, GiocataStorico[]>();
-  if (!slipIds.length) return perSlip;
-
-  const db = supabaseAdmin();
-  const { data: picks } = await db.from('picks')
-    .select('slip_id, fixture_id, market, selection, price, outcome, points')
-    .in('slip_id', slipIds);
-
-  const fixtureIds = [...new Set((picks ?? []).map((p) => p.fixture_id as string))];
-  const { data: sfide } = await db.from('fixtures')
-    .select('id, competition, home_goals, away_goals, casa:home_team_id(name), ospite:away_team_id(name)')
-    .in('id', fixtureIds.length ? fixtureIds : ['00000000-0000-0000-0000-000000000000']);
-
-  type FixRow = {
-    id: string; competition: string; home_goals: number | null; away_goals: number | null;
-    casa: { name: string } | null; ospite: { name: string } | null;
-  };
-  const perId = new Map(((sfide ?? []) as unknown as FixRow[]).map((f) => [f.id, f]));
-
-  (picks ?? []).forEach((p) => {
-    const f = perId.get(p.fixture_id as string);
-    const l = perSlip.get(p.slip_id as string) ?? [];
-    l.push({
-      sfida: f ? `${f.casa?.name ?? '?'} – ${f.ospite?.name ?? '?'}` : 'sfida rimossa',
-      competizione: (f?.competition as 'campionato' | 'coppa') ?? 'campionato',
-      market: p.market as Mercato,
-      selection: String(p.selection),
-      price: Number(p.price),
-      outcome: (p.outcome as GiocataStorico['outcome']) ?? null,
-      points: p.points == null ? null : Number(p.points),
-      risultato: f && f.home_goals != null ? `${f.home_goals}-${f.away_goals}` : null,
-    });
-    perSlip.set(p.slip_id as string, l);
-  });
-  return perSlip;
 }
 
 export interface SchedinaAltrui {
@@ -407,23 +405,21 @@ export async function schedineCondivise(
   leagueId: string, escludiTeamId: string,
 ): Promise<{ giornate: GiornataAltrui[]; errore: string | null }> {
   const db = supabaseAdmin();
-  const { data: slips, error } = await db.from('slips')
-    .select('id, team_id, points, teams(name), matchdays(fanta, serie_a, match_date, status)')
+  const { data, error } = await db.from('slips')
+    .select(`${SELECT_SCHEDINA}, teams(name)`)
     .eq('league_id', leagueId).eq('shared', true).neq('team_id', escludiTeamId);
 
+  if (error) return { giornate: [], errore: error.message };
+
   type Row = {
-    id: string; team_id: string; points: number | null;
+    id: string; points: number | null;
     teams: { name: string } | null;
     matchdays: { fanta: number | null; serie_a: number; match_date: string; status: string } | null;
+    picks: PickRow[] | null;
   };
-  if (error) return { giornate: [], errore: error.message };
-  const righe = (slips ?? []) as unknown as Row[];
-  if (!righe.length) return { giornate: [], errore: null };
-
-  const perSlip = await giocateDiSlips(righe.map((r) => r.id));
 
   const perGiornata = new Map<number, GiornataAltrui>();
-  righe.forEach((r) => {
+  ((data ?? []) as unknown as Row[]).forEach((r) => {
     const sa = Number(r.matchdays?.serie_a ?? 0);
     const g = perGiornata.get(sa) ?? {
       giornata: r.matchdays?.fanta ?? null,
@@ -436,7 +432,7 @@ export async function schedineCondivise(
       slipId: r.id,
       squadra: r.teams?.name ?? '?',
       punti: r.points == null ? null : Number(r.points),
-      giocate: perSlip.get(r.id) ?? [],
+      giocate: giocateDaRighe(r.picks),
     });
     perGiornata.set(sa, g);
   });

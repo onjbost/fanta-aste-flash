@@ -42,9 +42,31 @@ export default async function AstaPage() {
   const effective = phase === 'live' && s.status !== 'live' ? 'joins_closed' : phase;
 
   const db = await supabaseServer();
-  const { data: lotRows } = await db.from('lots')
-    .select('id, order_index, status, player_id, caller_team_id, players(name, role, club), teams:caller_team_id(name)')
-    .eq('session_id', s.id).neq('status', 'cancelled').order('order_index');
+
+  // Cinque letture indipendenti: partono insieme. In fila erano cinque attese
+  // sommate, e su questa pagina si vedeva.
+  const [
+    { data: lotRows },
+    { data: myParts },
+    { data: counts },
+    { data: allTeams },
+    { data: freeAgents, error: freeAgentsError },
+  ] = await Promise.all([
+    db.from('lots')
+      .select('id, order_index, status, player_id, caller_team_id, players(name, role, club), teams:caller_team_id(name)')
+      .eq('session_id', s.id).neq('status', 'cancelled').order('order_index'),
+    // le mie partecipazioni le vedo sempre; quelle altrui solo da 'live' in poi
+    db.from('lot_participants')
+      .select('lot_id, is_caller, release_player_id, status, budget, cancelled_reason')
+      .eq('team_id', ctx.team.id).eq('session_id', s.id),
+    db.from('v_lot_participants')
+      .select('id, lot_id, team_id, is_caller, status').eq('session_id', s.id)
+      .neq('status', 'cancelled'),
+    db.from('teams').select('id, name').eq('league_id', ctx.team.leagueId),
+    db.from('v_free_agents')
+      .select('id, name, role, club, quotation, signing_window, locked_until_number')
+      .order('quotation', { ascending: false }).limit(600),
+  ]);
 
   type LotRow = {
     id: string; order_index: number; status: string; player_id: string; caller_team_id: string;
@@ -53,20 +75,11 @@ export default async function AstaPage() {
   };
   const lots = (lotRows ?? []) as unknown as LotRow[];
 
-  // le mie partecipazioni le vedo sempre; quelle altrui solo da 'live' in poi
-  const { data: myParts } = await db.from('lot_participants')
-    .select('lot_id, is_caller, release_player_id, status, budget, cancelled_reason')
-    .eq('team_id', ctx.team.id).eq('session_id', s.id);
   const mine = new Map(
     (myParts ?? []).filter((p) => p.status !== 'cancelled').map((p) => [p.lot_id, p]),
   );
   const annullate = (myParts ?? []).filter((p) => p.status === 'cancelled');
 
-  const { data: counts } = await db.from('v_lot_participants')
-    .select('id, lot_id, team_id, is_caller, status').eq('session_id', s.id)
-    .neq('status', 'cancelled');
-  const { data: allTeams } = await db.from('teams')
-    .select('id, name').eq('league_id', ctx.team.leagueId);
   const teamName = new Map((allTeams ?? []).map((t) => [t.id, t.name]));
 
   const byLot = new Map<string, { id: string; teamId: string; name: string; isCaller: boolean }[]>();
@@ -78,10 +91,6 @@ export default async function AstaPage() {
     });
     byLot.set(c.lot_id, list);
   });
-
-  const { data: freeAgents, error: freeAgentsError } = await db.from('v_free_agents')
-    .select('id, name, role, club, quotation, signing_window, locked_until_number')
-    .order('quotation', { ascending: false }).limit(600);
 
   const callable = (freeAgents ?? []).filter((p) =>
     (p.locked_until_number == null || p.locked_until_number <= s.number)

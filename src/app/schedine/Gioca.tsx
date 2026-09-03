@@ -15,20 +15,22 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
   }
 
   const db = supabaseAdmin();
-  const sfide = await sfideDiGiornata(giornata.id);
-  const conSquadre = sfide.filter((s) => s.homeTeamId && s.awayTeamId);
 
-  const [{ data: quote }, { data: lega }, { data: mieSlip }] = await Promise.all([
-    db.from('odds').select('fixture_id, market, selection, price')
-      .in('fixture_id', conSquadre.map((s) => s.id)),
+  // Tutto quello che serve in una sola andata: le quote se le porta dietro la
+  // sfida, le giocate se le porta dietro la schedina. Prima erano quattro
+  // interrogazioni in fila, e in fila si sommano le attese.
+  const [sfide, { data: quote }, { data: lega }, { data: mieSlip }] = await Promise.all([
+    sfideDiGiornata(giornata.id),
+    db.from('odds').select('fixture_id, market, selection, price, fixtures!inner(matchday_id)')
+      .eq('fixtures.matchday_id', giornata.id),
     db.from('leagues').select('tipster_multiplier, tipster_max_picks').eq('id', leagueId).single(),
-    db.from('slips').select('id').eq('matchday_id', giornata.id).eq('team_id', teamId).maybeSingle(),
+    db.from('slips')
+      .select('id, picks(fixture_id, market, selection, price, outcome, points)')
+      .eq('matchday_id', giornata.id).eq('team_id', teamId).maybeSingle(),
   ]);
 
-  const { data: miePicks } = mieSlip
-    ? await db.from('picks').select('fixture_id, market, selection, price, outcome, points')
-        .eq('slip_id', mieSlip.id)
-    : { data: [] as Record<string, unknown>[] };
+  const conSquadre = sfide.filter((s) => s.homeTeamId && s.awayTeamId);
+  const miePicks = ((mieSlip as { picks?: Record<string, unknown>[] } | null)?.picks ?? []);
 
   const moltiplicatore = Number(lega?.tipster_multiplier ?? 10);
   const tetto = Number(lega?.tipster_max_picks ?? 3);
@@ -48,7 +50,7 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
     quote: perSfida.get(s.id) ?? [],
   }));
 
-  const iniziali = (miePicks ?? []).map((p) => ({
+  const iniziali = miePicks.map((p) => ({
     fixtureId: String(p.fixture_id), market: p.market as Mercato, selection: String(p.selection),
   }));
 

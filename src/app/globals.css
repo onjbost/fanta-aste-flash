@@ -325,3 +325,83 @@ ol.rules li::before{
 .squadra summary:hover{background:var(--surface-2)}
 .squadra[open] summary{border-bottom:1px solid var(--border)}
 .squadra-corpo{padding:4px 12px 12px}
+
+/* =====================================================================
+   Scheletro di caricamento
+   ===================================================================== */
+.sk{
+  display:inline-block;background:var(--surface-2);border-radius:2px;
+  position:relative;overflow:hidden;
+}
+.sk::after{
+  content:"";position:absolute;inset:0;transform:translateX(-100%);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--ink) 7%,transparent),transparent);
+  animation:sk-onda 1.15s infinite;
+}
+@keyframes sk-onda{100%{transform:translateX(100%)}}
+.sk-riga{height:12px;width:100%}
+.sk-quadro{width:22px;height:22px;flex:0 0 auto}
+@media (prefers-reduced-motion:reduce){ .sk::after{animation:none} }
+
+.sr-only{
+  position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0,0,0,0);white-space:nowrap;border:0;
+}
+
+/* =====================================================================
+   Velo di caricamento: pagina sfocata, pallone e anello
+   ===================================================================== */
+.caricamento{
+  position:fixed;inset:0;z-index:60;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;
+  background:color-mix(in srgb,var(--bg) 55%,transparent);
+  -webkit-backdrop-filter:blur(4px) saturate(120%);
+  backdrop-filter:blur(4px) saturate(120%);
+}
+.caricamento-centro{
+  position:relative;width:132px;height:132px;
+  display:grid;place-items:center;
+}
+
+/* --- anello --------------------------------------------------------- */
+.anello{position:absolute;inset:0;width:132px;height:132px;animation:anello-gira 1.9s linear infinite}
+.anello circle{fill:none;stroke-width:5;stroke-linecap:round}
+.anello-pista{stroke:var(--border)}
+.anello-arco{
+  stroke:var(--accent);
+  stroke-dasharray:20 244;
+  animation:anello-arco 1.9s cubic-bezier(.5,0,.5,1) infinite;
+}
+@keyframes anello-gira{to{transform:rotate(360deg)}}
+@keyframes anello-arco{
+  0%  {stroke-dasharray:12 252;stroke-dashoffset:0}
+  45% {stroke-dasharray:150 114;stroke-dashoffset:-40}
+  100%{stroke-dasharray:12 252;stroke-dashoffset:-264}
+}
+
+/* --- pallone -------------------------------------------------------- */
+.pallone-dondolo{
+  display:block;width:72px;height:72px;
+  animation:pallone-dondola 2.6s ease-in-out infinite alternate;
+}
+.pallone{width:72px;height:72px;animation:pallone-rotola 1.3s linear infinite}
+.pallone .cuoio{fill:var(--surface);stroke:var(--ink);stroke-width:2}
+.pallone .pezze{fill:var(--ink);stroke:var(--ink);stroke-width:3;stroke-linecap:round}
+@keyframes pallone-rotola{to{transform:rotate(360deg)}}
+@keyframes pallone-dondola{
+  from{transform:translateX(-16px)}
+  to  {transform:translateX(16px)}
+}
+
+.caricamento-nota{
+  margin:0;max-width:280px;text-align:center;font-size:.84rem;color:var(--muted);
+  opacity:0;animation:nota-compare .6s ease 3.5s forwards;
+}
+@keyframes nota-compare{to{opacity:1}}
+
+@media (prefers-reduced-motion:reduce){
+  .anello{animation:anello-gira 3.4s linear infinite}
+  .anello-arco{animation:none;stroke-dasharray:150 114}
+  .pallone,.pallone-dondolo{animation:none}
+  .caricamento-nota{opacity:1;animation:none}
+}

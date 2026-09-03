@@ -1,6 +1,17 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
+/**
+ * Le funzioni girano a Francoforte, dove sta il database.
+ *
+ * Vercel per difetto le mette a Washington: ogni interrogazione a Supabase
+ * (eu-central-1) attraversava l'Atlantico due volte, un decimo di secondo a
+ * botta. Una pagina che ne fa sei ci perdeva mezzo secondo abbondante prima
+ * ancora di iniziare a disegnare. Stessa architettura, stesso codice: cambia
+ * solo il continente.
+ */
+export const preferredRegion = 'fra1';
+
 export const metadata: Metadata = {
   title: 'Aste Flash · Fanta Mansarda',
   description: 'Mercato degli svincolati della Lega Fanta Mansarda',

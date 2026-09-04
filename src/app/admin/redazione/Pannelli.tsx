@@ -168,7 +168,7 @@ function TabImport({ g, inDieci }: { g: GiornataVista; inDieci: number }) {
       )}
 
       {inDieci > 0 && (
-        <p style={{ fontSize: '.84rem', color: 'var(--muted)', margin: '10px 0 0' }}>
+        <p style={{ fontSize: '.86rem', color: 'var(--muted)', margin: '10px 0 0' }}>
           {inDieci} {inDieci === 1 ? 'squadra ha' : 'squadre hanno'} giocato in dieci: in panchina
           non c&apos;era un pari ruolo che avesse preso voto.
         </p>
@@ -300,7 +300,7 @@ export function Preferito({ sito, segreto }: { sito: string; segreto: string | n
 
       <textarea readOnly value={codice} rows={3}
         onFocus={(e) => e.currentTarget.select()}
-        style={{ width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: '.74rem' }} />
+        style={{ width: '100%', fontFamily: 'ui-monospace, monospace', fontSize: '.76rem' }} />
 
       <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginTop: 10 }}>
         <button type="button" onClick={() => {
@@ -311,7 +311,7 @@ export function Preferito({ sito, segreto }: { sito: string; segreto: string | n
         }}>
           {copiato ? 'Copiato' : 'Copia il codice'}
         </button>
-        <span style={{ color: 'var(--muted)', fontSize: '.84rem' }}>
+        <span style={{ color: 'var(--muted)', fontSize: '.86rem' }}>
           Contiene la parola d&apos;ordine: tienilo per te.
         </span>
       </div>
@@ -482,7 +482,7 @@ export function Impostazioni({ tono, minParole, vietate }: {
         </div>
         <div><button type="submit" disabled={pending}>{pending ? 'Salvo…' : 'Salva'}</button></div>
       </form>
-      <p style={{ fontSize: '.84rem', color: 'var(--muted)', margin: '10px 0 0' }}>
+      <p style={{ fontSize: '.86rem', color: 'var(--muted)', margin: '10px 0 0' }}>
         Dove una sfida non ha spunti di peso, il tono scende da solo di un gradino:
         chiedere cattiveria dove non è successo niente la fa inventare.
       </p>
@@ -507,7 +507,7 @@ export function SchedaFlavour({ squadra }: {
         <div style={{ display: 'flex', gap: 10, alignItems: 'baseline' }}>
           <b>{squadra.nome}</b>
           {squadra.allenatore && (
-            <span style={{ color: 'var(--muted)', fontSize: '.84rem' }}>{squadra.allenatore}</span>
+            <span style={{ color: 'var(--muted)', fontSize: '.86rem' }}>{squadra.allenatore}</span>
           )}
           <span style={{
             marginLeft: 'auto', fontSize: '.82rem',

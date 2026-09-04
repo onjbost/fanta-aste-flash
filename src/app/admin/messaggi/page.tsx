@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase';
 import { MESSAGE_LABEL, type MessageKind } from '@/lib/messages';
 import { TopBar } from '../../TopBar';
 import { MessageCard } from './MessageCard';
+import { TradeForm } from './TradeForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -22,6 +23,15 @@ export default async function MessaggiPage() {
     ? await db.from('messages').select('id, kind, body, status, created_at')
         .eq('session_id', session.id).order('created_at', { ascending: false })
     : { data: [] };
+
+  // La rubrica non appartiene a nessuna asta: uno scambio può chiudersi in
+  // qualunque momento della stagione, anche a mercato degli svincolati fermo.
+  const [{ data: teams }, { data: trades }] = await Promise.all([
+    db.from('teams').select('name').eq('league_id', ctx.team.leagueId).order('name'),
+    db.from('messages').select('id, body, created_at')
+      .eq('league_id', ctx.team.leagueId).eq('kind', 'trade')
+      .order('created_at', { ascending: false }).limit(20),
+  ]);
 
   return (
     <div className="shell">
@@ -48,11 +58,25 @@ export default async function MessaggiPage() {
         );
       })}
 
-      <div className="callout">
-        Le chiamate generano il loro messaggio da sole, appena arrivano. Gli altri quattro
-        li rigeneri quando vuoi: leggono sempre lo stato attuale della sessione, quindi un
-        testo vecchio non resta mai in giro.
-      </div>
+      {session && (
+        <div className="callout">
+          Le chiamate generano il loro messaggio da sole, appena arrivano. Gli altri quattro
+          li rigeneri quando vuoi: leggono sempre lo stato attuale della sessione, quindi un
+          testo vecchio non resta mai in giro.
+        </div>
+      )}
+
+      <h2>Fantacalciomercato</h2>
+      <p className="sub">
+        Uno scambio già chiuso fra due squadre, raccontato al gruppo. L&apos;app non
+        gestisce gli scambi e non tocca rose né crediti: le rose restano quelle di
+        Leghe Fantacalcio, qui si scrive solo l&apos;annuncio.
+      </p>
+
+      <TradeForm
+        teams={(teams ?? []).map((t) => t.name)}
+        saved={(trades ?? []).map((m) => ({ id: m.id, body: m.body, createdAt: m.created_at }))}
+      />
     </div>
   );
 }

@@ -48,7 +48,7 @@ export function FreeReleaseButton(props: {
         <div className="head">Svincolo gratuito · {props.playerName}</div>
         <form action={action}>
           <div className="body">
-            <p style={{ marginTop: 0, fontSize: '.92rem' }}>
+            <p style={{ marginTop: 0, fontSize: '.9rem' }}>
               Chiedi all'admin di considerare questo svincolo come cambio gratuito.
               Le prove e le spiegazioni portale nel gruppo: qui basta il pulsante.
             </p>
@@ -68,7 +68,7 @@ export function FreeReleaseButton(props: {
               </tbody>
             </table>
 
-            <p style={{ fontSize: '.88rem', color: 'var(--muted)' }}>
+            <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
               Se hai già chiamato o aderito con questo giocatore, l'operazione resta
               congelata finché l'admin non decide. Può anche annullarla, così ne fai
               un'altra con un giocatore diverso.

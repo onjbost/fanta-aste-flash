@@ -185,7 +185,7 @@ export default async function AstaPage() {
                 <span className="role-badge">{l.players?.role}</span>{' '}
                 <b style={{ fontSize: '1.05rem' }}>{l.players?.name}</b>{' '}
                 <span style={{ color: 'var(--muted)' }}>{l.players?.club}</span>
-                <div style={{ color: 'var(--muted)', fontSize: '.88rem', marginTop: 2 }}>
+                <div style={{ color: 'var(--muted)', fontSize: '.86rem', marginTop: 2 }}>
                   Chiamato da {l.teams?.name} · {partecipanti.length}{' '}
                   {partecipanti.length === 1 ? 'partecipante' : 'partecipanti'}
                   {altri.length > 0 && `: ${altri.map((p) => p.name).join(', ')}`}

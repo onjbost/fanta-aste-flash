@@ -12,7 +12,7 @@ export function TelegramCheck({ configured }: { configured: boolean }) {
         <span className={`tag ${configured ? 'ok' : 'muted'}`}>
           Telegram {configured ? 'attivo' : 'non configurato'}
         </span>
-        <span style={{ fontSize: '.85rem', color: 'var(--muted)', flex: 1, minWidth: 200 }}>
+        <span style={{ fontSize: '.86rem', color: 'var(--muted)', flex: 1, minWidth: 200 }}>
           {configured
             ? 'Il bot scrive solo a te: chiamate, richieste da decidere, scadenze ed esiti.'
             : 'Aggiungi TELEGRAM_BOT_TOKEN e TELEGRAM_ADMIN_CHAT_ID su Vercel per riceverle.'}

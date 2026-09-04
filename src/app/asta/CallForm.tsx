@@ -70,7 +70,7 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes }: {
             ))}
           </select>
           {target && eligible.length === 0 && (
-            <p style={{ fontSize: '.85rem', color: 'var(--crit)', marginTop: 6 }}>
+            <p style={{ fontSize: '.86rem', color: 'var(--crit)', marginTop: 6 }}>
               Non hai {ROLE_LABEL[target.role].toLowerCase()}i disponibili da mettere sul piatto:
               gli altri sono già impegnati in un altro lotto di questa asta.
             </p>
@@ -91,7 +91,7 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes }: {
         {state && (
           <div className={state.ok ? 'callout' : 'callout crit'} role="status">
             {state.message}
-            {state.warnings?.map((w) => <div key={w} style={{ marginTop: 6, fontSize: '.88rem' }}>⚠ {w}</div>)}
+            {state.warnings?.map((w) => <div key={w} style={{ marginTop: 6, fontSize: '.86rem' }}>⚠ {w}</div>)}
           </div>
         )}
       </form>

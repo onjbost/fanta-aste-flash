@@ -131,17 +131,22 @@ const KIND_LABEL: Record<string, string> = {
   joins_closed: 'Chiusura adesioni · T−1',
   room_open: 'Apertura sala',
   results: 'Esiti e movimenti',
+  trade: 'Fantacalciomercato · scambio',
 };
 
 /**
  * Archivia su Telegram un messaggio del centro messaggi, con una riga di
  * intestazione che dice quale è e a che asta appartiene. Il testo sotto è
  * quello esatto da incollare nel gruppo: si copia direttamente da Telegram.
+ *
+ * `sessionNumber` può mancare: uno scambio di mercato non appartiene a
+ * nessuna asta, e scrivergli sopra «Asta flash #0» sarebbe una bugia.
  */
 export async function archiveMessage(
-  kind: string, sessionNumber: number, body: string,
+  kind: string, sessionNumber: number | null | undefined, body: string,
 ): Promise<NotifyResult> {
-  const intestazione = `📋 CENTRO MESSAGGI · Asta flash #${sessionNumber}`
+  const dove = sessionNumber ? ` · Asta flash #${sessionNumber}` : '';
+  const intestazione = `📋 CENTRO MESSAGGI${dove}`
     + `\n${KIND_LABEL[kind] ?? kind} · generato ${new Date().toLocaleString('it-IT', { timeZone: 'Europe/Rome' })}`
     + `\n${'─'.repeat(28)}\n\n`;
   return notifyAdminPlain(intestazione + body);

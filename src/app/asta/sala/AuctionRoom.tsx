@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from
 import { createBrowserClient } from '@supabase/ssr';
 import { placeBid, settleExpiredLot } from '../actions';
 import { Countdown } from '../Countdown';
+import { Timer } from '../../Icone';
 
 export interface LotView {
   id: string;
@@ -104,7 +105,7 @@ export function AuctionRoom({ myTeamId, lots }: { myTeamId: string; lots: LotVie
                     <b>{l.player.name}</b>{' '}
                     <span style={{ color: 'var(--muted)' }}>{l.player.club}</span>
                   </td>
-                  <td style={{ fontSize: '.85rem' }}>
+                  <td style={{ fontSize: '.86rem' }}>
                     {l.participants.map((p) => (
                       <div key={p.teamId}>
                         {p.teamName} <span style={{ color: 'var(--muted)' }}>
@@ -143,38 +144,34 @@ function LiveLot({ lot, myTeamId, onBid, onExpire }: {
   const steps = [1, 5, 10].map((s) => (lot.currentPrice === null ? s : price + s));
 
   return (
-    <div className="panel" style={{ padding: 20, borderColor: 'var(--accent)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+    <div className="panel sala-lotto">
+      <div className="sala-testa">
         <div>
-          <p className="eyebrow" style={{ margin: 0 }}>Lotto {lot.index} · all'asta adesso</p>
-          <div style={{ fontSize: '1.6rem', fontWeight: 800, letterSpacing: '-.02em' }}>
-            {lot.player.name}
-          </div>
-          <div style={{ color: 'var(--muted)' }}>
+          <p className="eyebrow" style={{ margin: 0 }}>Lotto {lot.index} · all&apos;asta adesso</p>
+          <div className="sala-nome">{lot.player.name}</div>
+          <div className="sala-meta">
             {lot.player.role} · {lot.player.club} · chiamato da {lot.callerTeam}
           </div>
         </div>
-        <div style={{ textAlign: 'right' }}>
-          <div className="k" style={{ fontSize: '.68rem', letterSpacing: '.12em', color: 'var(--muted)' }}>
-            OFFERTA CORRENTE
-          </div>
-          <div className="mono" style={{ fontSize: '2.4rem', fontWeight: 600, lineHeight: 1 }}>
-            {lot.currentPrice ?? '—'}
-          </div>
-          <div style={{ color: 'var(--muted)', fontSize: '.9rem' }}>
+        <div className="sala-cifra">
+          <div className="k">Offerta corrente</div>
+          <div className="sala-prezzo">{lot.currentPrice ?? '—'}</div>
+          <div className="sala-chi">
             {lot.currentLeader ? `di ${lot.currentLeader}` : 'nessuna offerta'}
           </div>
           {lot.timerEndsAt && (
-            <div className="mono" style={{ fontSize: '1.3rem', marginTop: 6 }}>
-              ⏱ <Countdown to={lot.timerEndsAt} onExpire={() => onExpire(lot.id)} />
+            <div className="sala-timer">
+              <Timer className="" />
+              <Countdown to={lot.timerEndsAt} onExpire={() => onExpire(lot.id)} />
+              <span className="sr-only">al termine del lotto</span>
             </div>
           )}
         </div>
       </div>
 
       {lot.iParticipate ? (
-        <div style={{ marginTop: 18 }}>
-          <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+        <>
+          <div className="sala-offerte">
             {steps.map((amount, i) => (
               <button key={amount} className={i === 0 ? 'primary' : ''}
                       disabled={!canBid || amount > budget}
@@ -182,9 +179,7 @@ function LiveLot({ lot, myTeamId, onBid, onExpire }: {
                 {amount} cr
               </button>
             ))}
-            <span className="mono" style={{ marginLeft: 'auto', color: 'var(--muted)', fontSize: '.9rem' }}>
-              budget {budget} cr
-            </span>
+            <span className="sala-budget mono">budget {budget} cr</span>
           </div>
           {iLead && <div className="callout" style={{ marginTop: 12 }}>Sei tu il migliore offerente.</div>}
           {!iLead && budget < next && (
@@ -192,16 +187,14 @@ function LiveLot({ lot, myTeamId, onBid, onExpire }: {
               Il tuo budget non arriva a {next} crediti: su questo lotto sei fuori.
             </div>
           )}
-        </div>
+        </>
       ) : (
         <div className="callout" style={{ marginTop: 18 }}>
           Non partecipi a questo lotto: puoi solo guardare.
         </div>
       )}
 
-      <h3 style={{ marginTop: 20, fontSize: '.72rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-        In gara
-      </h3>
+      <h3 className="micro-titolo">In gara</h3>
       <div className="tablewrap">
         <table>
           <thead>
@@ -209,7 +202,7 @@ function LiveLot({ lot, myTeamId, onBid, onExpire }: {
           </thead>
           <tbody>
             {lot.participants.map((p) => (
-              <tr key={p.teamId} style={{ fontWeight: p.teamId === lot.currentLeaderId ? 700 : 400 }}>
+              <tr key={p.teamId} className={p.teamId === lot.currentLeaderId ? 'in-testa' : undefined}>
                 <td>{p.teamName}{p.isCaller && <span className="tag muted" style={{ marginLeft: 6 }}>chiamante</span>}</td>
                 <td>{p.releaseName}</td>
                 <td className="num">{p.budget}</td>
@@ -221,3 +214,4 @@ function LiveLot({ lot, myTeamId, onBid, onExpire }: {
     </div>
   );
 }
+

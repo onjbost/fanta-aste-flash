@@ -125,7 +125,7 @@ export default async function RosePage({
         insieme, quindi è giusto che gli altri possano vedere cosa hai toccato.
         {' '}Le voci usano il nome dei giocatori, non solo gli id.
       </div>
-      <p style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
+      <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
         Ruoli: {(['P', 'D', 'C', 'A'] as Role[]).map((r) => `${r} = ${ROLE_LABEL[r]}`).join(' · ')}
       </p>
     </div>

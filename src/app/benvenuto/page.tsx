@@ -60,14 +60,14 @@ select t.league_id, t.id, u.id, u.email, true
           </div>
 
           <h2>Se l'admin sei tu</h2>
-          <p style={{ fontSize: '.92rem', color: 'var(--muted)' }}>
+          <p style={{ fontSize: '.9rem', color: 'var(--muted)' }}>
             La prima volta serve una query: apri Supabase → <b>SQL Editor</b>, incolla
             questo, cambia il nome della squadra con la tua e premi <i>Run</i>. Poi
             ricarica. Da lì in avanti gli altri allenatori li colleghi dal pannello
             admin, senza più SQL.
           </p>
           <CopySql sql={sql} />
-          <p style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
+          <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
             Squadre con un posto libero: ogni squadra può avere due allenatori.
           </p>
         </>

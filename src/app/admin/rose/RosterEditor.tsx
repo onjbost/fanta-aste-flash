@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { editPrice, removePlayer, addPlayer, type EditState } from './actions';
+import { Chiudi } from '../../Icone';
 import type { Role } from '@/lib/rules';
 
 interface RosterRow {
@@ -54,7 +55,7 @@ export function RosterEditor({ teamId, teamName, roster, freeAgents }: {
                   <td><span className="role-badge">{r.role}</span></td>
                   <td>
                     <b>{r.name}</b>{' '}
-                    <span style={{ color: 'var(--muted)', fontSize: '.85rem' }}>{r.club}</span>
+                    <span style={{ color: 'var(--muted)', fontSize: '.86rem' }}>{r.club}</span>
                   </td>
                   <td style={{ color: 'var(--muted)', fontSize: '.82rem' }}>
                     {SOURCE_LABEL[r.source] ?? r.source}
@@ -67,7 +68,9 @@ export function RosterEditor({ teamId, teamName, roster, freeAgents }: {
                                style={{ width: 80 }} autoFocus />
                         <input name="note" placeholder="motivo" style={{ width: 120 }} />
                         <button type="submit" className="primary" disabled={savingPrice}>OK</button>
-                        <button type="button" onClick={() => setEditing(null)}>×</button>
+                        <button type="button" onClick={() => setEditing(null)} aria-label="Annulla la modifica">
+                          <Chiudi />
+                        </button>
                       </form>
                     ) : (
                       <button type="button" className="link" onClick={() => setEditing(r.contractId)}>
@@ -79,7 +82,7 @@ export function RosterEditor({ teamId, teamName, roster, freeAgents }: {
                   <td style={{ textAlign: 'right' }}>
                     <form action={doRemove} style={{ display: 'flex', gap: 6, justifyContent: 'flex-end', alignItems: 'center' }}>
                       <input type="hidden" name="contractId" value={r.contractId} />
-                      <label style={{ display: 'flex', gap: 4, alignItems: 'center', margin: 0, textTransform: 'none', letterSpacing: 0, fontSize: '.75rem' }}>
+                      <label style={{ display: 'flex', gap: 4, alignItems: 'center', margin: 0, textTransform: 'none', letterSpacing: 0, fontSize: '.76rem' }}>
                         <input type="checkbox" name="refund" defaultChecked style={{ width: 'auto' }} />
                         rimborsa
                       </label>

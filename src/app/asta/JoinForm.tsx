@@ -40,7 +40,7 @@ export function JoinForm({ lotId, role, roster, credits }: {
                 ))}
               </select>
               {roster.length === 0 && (
-                <p style={{ fontSize: '.85rem', color: 'var(--crit)', marginTop: 6 }}>
+                <p style={{ fontSize: '.86rem', color: 'var(--crit)', marginTop: 6 }}>
                   Non hai {ROLE_LABEL[role].toLowerCase()}i liberi da mettere sul piatto.
                 </p>
               )}
@@ -50,7 +50,7 @@ export function JoinForm({ lotId, role, roster, credits }: {
               <label htmlFor={`max-${lotId}`}>Offerta massima (facoltativa)</label>
               <input id={`max-${lotId}`} name="maxBid" type="number" min={1} step={1}
                      placeholder="Il sistema rilancia per te fino a questa cifra" />
-              <p style={{ fontSize: '.83rem', color: 'var(--muted)', marginTop: 6 }}>
+              <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 6 }}>
                 Lasciala se il giorno dell'asta potresti non esserci. Nessuno la vede, mai:
                 serve solo al server per rilanciare al posto tuo, un credito alla volta.
               </p>

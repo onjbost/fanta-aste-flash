@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-04T00:00:00Z",
+  "title": "Design System: Aste Flash · Fanta Mansarda",
+  "extensions": {
+    "colorMeta": {
+      "oro-di-coppa": {
+        "role": "primary",
+        "displayName": "Oro di Coppa",
+        "canonical": "oklch(54.2% 0.104 86.0)",
+        "dark": "#E2B44E",
+        "tonalRamp": ["oklch(15% 0.104 86.0)", "oklch(26% 0.104 86.0)", "oklch(38% 0.104 86.0)", "oklch(50% 0.104 86.0)", "oklch(62% 0.104 86.0)", "oklch(73% 0.104 86.0)", "oklch(85% 0.104 86.0)", "oklch(95% 0.104 86.0)"]
+      },
+      "oro-tenue": {
+        "role": "primary",
+        "displayName": "Oro Tenue",
+        "canonical": "oklch(92.0% 0.044 89.9)",
+        "dark": "#2C2718",
+        "tonalRamp": ["oklch(15% 0.044 89.9)", "oklch(26% 0.044 89.9)", "oklch(38% 0.044 89.9)", "oklch(50% 0.044 89.9)", "oklch(62% 0.044 89.9)", "oklch(73% 0.044 89.9)", "oklch(85% 0.044 89.9)", "oklch(95% 0.044 89.9)"]
+      },
+      "oro-pastiglia": {
+        "role": "primary",
+        "displayName": "Oro Pastiglia",
+        "canonical": "rgba(138,106,21,.14)",
+        "dark": "rgba(226,180,78,.18)",
+        "note": "Unica tinta translucida dell'accento; esiste per la voce attiva dentro il vetro, dove un fondo opaco spegnerebbe la trasparenza."
+      },
+      "carta": {
+        "role": "neutral",
+        "displayName": "Carta",
+        "canonical": "oklch(96.2% 0.004 134.8)",
+        "dark": "#101614",
+        "tonalRamp": ["oklch(15% 0.004 134.8)", "oklch(26% 0.004 134.8)", "oklch(38% 0.004 134.8)", "oklch(50% 0.004 134.8)", "oklch(62% 0.004 134.8)", "oklch(73% 0.004 134.8)", "oklch(85% 0.004 134.8)", "oklch(95% 0.004 134.8)"]
+      },
+      "foglio": {
+        "role": "neutral",
+        "displayName": "Foglio",
+        "canonical": "oklch(100.0% 0.000 89.9)",
+        "dark": "#171F1C",
+        "tonalRamp": ["oklch(15% 0.000 89.9)", "oklch(26% 0.000 89.9)", "oklch(38% 0.000 89.9)", "oklch(50% 0.000 89.9)", "oklch(62% 0.000 89.9)", "oklch(73% 0.000 89.9)", "oklch(85% 0.000 89.9)", "oklch(95% 0.000 89.9)"]
+      },
+      "feltro": {
+        "role": "neutral",
+        "displayName": "Feltro",
+        "canonical": "oklch(94.2% 0.008 139.4)",
+        "dark": "#1E2724",
+        "tonalRamp": ["oklch(15% 0.008 139.4)", "oklch(26% 0.008 139.4)", "oklch(38% 0.008 139.4)", "oklch(50% 0.008 139.4)", "oklch(62% 0.008 139.4)", "oklch(73% 0.008 139.4)", "oklch(85% 0.008 139.4)", "oklch(95% 0.008 139.4)"]
+      },
+      "inchiostro": {
+        "role": "neutral",
+        "displayName": "Inchiostro",
+        "canonical": "oklch(21.7% 0.014 163.3)",
+        "dark": "#E6EDE8",
+        "tonalRamp": ["oklch(15% 0.014 163.3)", "oklch(26% 0.014 163.3)", "oklch(38% 0.014 163.3)", "oklch(50% 0.014 163.3)", "oklch(62% 0.014 163.3)", "oklch(73% 0.014 163.3)", "oklch(85% 0.014 163.3)", "oklch(95% 0.014 163.3)"]
+      },
+      "inchiostro-tenue": {
+        "role": "neutral",
+        "displayName": "Inchiostro Tenue",
+        "canonical": "oklch(49.9% 0.016 162.0)",
+        "dark": "#97A39C",
+        "tonalRamp": ["oklch(15% 0.016 162.0)", "oklch(26% 0.016 162.0)", "oklch(38% 0.016 162.0)", "oklch(50% 0.016 162.0)", "oklch(62% 0.016 162.0)", "oklch(73% 0.016 162.0)", "oklch(85% 0.016 162.0)", "oklch(95% 0.016 162.0)"]
+      },
+      "filetto": {
+        "role": "neutral",
+        "displayName": "Filetto",
+        "canonical": "oklch(89.4% 0.011 149.8)",
+        "dark": "#28332E",
+        "tonalRamp": ["oklch(15% 0.011 149.8)", "oklch(26% 0.011 149.8)", "oklch(38% 0.011 149.8)", "oklch(50% 0.011 149.8)", "oklch(62% 0.011 149.8)", "oklch(73% 0.011 149.8)", "oklch(85% 0.011 149.8)", "oklch(95% 0.011 149.8)"]
+      },
+      "verde-esito": {
+        "role": "tertiary",
+        "displayName": "Verde Esito",
+        "canonical": "oklch(51.3% 0.120 153.1)",
+        "dark": "#4FBF80",
+        "tonalRamp": ["oklch(15% 0.120 153.1)", "oklch(26% 0.120 153.1)", "oklch(38% 0.120 153.1)", "oklch(50% 0.120 153.1)", "oklch(62% 0.120 153.1)", "oklch(73% 0.120 153.1)", "oklch(85% 0.120 153.1)", "oklch(95% 0.120 153.1)"]
+      },
+      "ambra-attesa": {
+        "role": "tertiary",
+        "displayName": "Ambra Attesa",
+        "canonical": "oklch(56.3% 0.114 77.4)",
+        "dark": "#E0A93F",
+        "tonalRamp": ["oklch(15% 0.114 77.4)", "oklch(26% 0.114 77.4)", "oklch(38% 0.114 77.4)", "oklch(50% 0.114 77.4)", "oklch(62% 0.114 77.4)", "oklch(73% 0.114 77.4)", "oklch(85% 0.114 77.4)", "oklch(95% 0.114 77.4)"]
+      },
+      "rosso-blocco": {
+        "role": "tertiary",
+        "displayName": "Rosso Blocco",
+        "canonical": "oklch(48.1% 0.167 28.4)",
+        "dark": "#E8746B",
+        "tonalRamp": ["oklch(15% 0.167 28.4)", "oklch(26% 0.167 28.4)", "oklch(38% 0.167 28.4)", "oklch(50% 0.167 28.4)", "oklch(62% 0.167 28.4)", "oklch(73% 0.167 28.4)", "oklch(85% 0.167 28.4)", "oklch(95% 0.167 28.4)"]
+      },
+      "vetro": {
+        "role": "neutral",
+        "displayName": "Vetro",
+        "canonical": "rgba(255,255,255,.58)",
+        "dark": "rgba(30,39,36,.55)",
+        "note": "Fondo della capsula di navigazione. Sempre accompagnato da backdrop-filter: blur(22px) saturate(190%) e dalla ricaduta @supports."
+      },
+      "vetro-bordo": {
+        "role": "neutral",
+        "displayName": "Vetro Bordo",
+        "canonical": "rgba(255,255,255,.85)",
+        "dark": "rgba(255,255,255,.16)",
+        "note": "Bordo chiaro della capsula. Il riflesso interno usa --spec: rgba(255,255,255,.9) in chiaro, .22 in scuro."
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Cifra Viva", "purpose": "L'offerta in corso nella sala d'asta. Il testo più grande che il sistema sappia mostrare, e compare in una schermata sola." },
+      "headline": { "displayName": "Titolo di Pagina", "purpose": "Uno per schermata, sempre sotto un'etichetta occhiello. text-wrap: balance." },
+      "title": { "displayName": "Intestazione di Sezione", "purpose": "A separare è lo spazio sopra (32px), non il salto di corpo." },
+      "body": { "displayName": "Testo Corrente", "purpose": "Scende a .9rem dentro tabelle e pannelli densi, .86rem nei metadati." },
+      "label": { "displayName": "Etichetta", "purpose": "Maiuscoletto spaziato: il tono di voce di tutto ciò che nomina un dato invece di dirlo. Mai in titoli, bottoni o frasi." },
+      "metric-card": { "displayName": "Valore di Scheda", "purpose": "JetBrains Mono 600, 1.8rem, interlinea 1.2. Crediti residui, budget, punti." },
+      "metric-counter": { "displayName": "Contatore di Cambi", "purpose": "JetBrains Mono 600, 1.5rem. Vira ad Ambra Attesa a uno, a Rosso Blocco a zero." },
+      "metric-inline": { "displayName": "Numero in Linea", "purpose": ".num / .mono con font-variant-numeric: tabular-nums, allineato a destra, non va a capo." }
+    },
+    "shadows": [
+      { "name": "appoggio", "value": "0 1px 2px rgba(20,28,24,.05), 0 8px 24px -16px rgba(20,28,24,.25)", "purpose": "Valore per difetto di ogni pannello, scheda e barra appiccicata. Serve a staccare il bianco dal bianco, non a suggerire altezza." },
+      { "name": "appoggio-scuro", "value": "0 1px 2px rgba(0,0,0,.4), 0 8px 24px -16px rgba(0,0,0,.8)", "purpose": "La stessa ombra ricalibrata per il tema scuro." },
+      { "name": "distacco", "value": "0 24px 60px -20px rgba(0,0,0,.5)", "purpose": "Solo la finestra di dialogo, l'unico elemento che interrompe davvero il flusso." },
+      { "name": "vetro", "value": "0 10px 34px -12px rgba(20,28,24,.42), 0 2px 8px -4px rgba(20,28,24,.24)", "purpose": "La capsula di navigazione e ogni futuro oggetto in vetro. Va sempre accompagnata da inset 0 1px 0 di speculare e inset 0 -1px 0 di bordo inferiore." }
+    ],
+    "motion": [
+      { "name": "dock-scala", "value": "cubic-bezier(.22,1,.36,1) .42s", "purpose": "Il rimpicciolimento della barra allo scorrimento: partenza decisa, arrivo morbido." },
+      { "name": "stato", "value": "ease .2s", "purpose": "Cambi di colore su hover e focus." },
+      { "name": "superficie", "value": "ease .28s", "purpose": "Cambi di fondo, più lenti del colore del testo così la pastiglia non lampeggia." },
+      { "name": "pressione", "value": "ease .12s", "purpose": "L'affondamento a scale(.94) alla pressione. Deve essere più veloce di tutto il resto per sembrare fisico." },
+      { "name": "onda-scheletro", "value": "1.15s infinite lineare", "purpose": "Il riflesso che attraversa i riquadri di caricamento." },
+      { "name": "ritardo-velo", "value": "2.5s (centro) / 5s (nota)", "purpose": "Il pallone e l'anello non nascono prima di 2,5 secondi. Questo ritardo è informazione e sopravvive a prefers-reduced-motion." }
+    ],
+    "breakpoints": [
+      { "name": "stretto", "value": "400px" },
+      { "name": "telefono", "value": "560px" },
+      { "name": "colonna", "value": "940px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Bottone Primario",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "L'unica azione che l'utente è venuto a premere. Uno solo per schermata.",
+      "html": "<button class=\"ds-btn-primary\">Chiama all'asta</button>",
+      "css": ".ds-btn-primary { font-family: 'Chivo', system-ui, sans-serif; font-size: .82rem; font-weight: 600; background: var(--accent, #8A6A15); border: 1px solid var(--accent, #8A6A15); color: var(--bg, #F1F3F0); border-radius: 2px; padding: 6px 12px; cursor: pointer; transition: opacity .2s ease, transform .12s ease; } .ds-btn-primary:hover { opacity: .9; } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent, #8A6A15); outline-offset: 2px; } .ds-btn-primary:active { transform: scale(.97); }"
+    },
+    {
+      "name": "Bottone Secondario",
+      "kind": "button",
+      "refersTo": "button",
+      "description": "Lo stato normale di quasi tutti i bottoni del sistema. Si accende sul perimetro prima di essere premuto.",
+      "html": "<button class=\"ds-btn\">Ritira la richiesta</button>",
+      "css": ".ds-btn { font-family: 'Chivo', system-ui, sans-serif; font-size: .82rem; font-weight: 600; border: 1px solid var(--border, #D7DED8); background: var(--surface, #FFFFFF); color: var(--ink, #141C18); border-radius: 2px; padding: 6px 12px; cursor: pointer; transition: border-color .2s ease, color .2s ease, transform .12s ease; } .ds-btn:hover { border-color: var(--accent, #8A6A15); color: var(--accent, #8A6A15); } .ds-btn:focus-visible { outline: 2px solid var(--accent, #8A6A15); outline-offset: 2px; } .ds-btn:active { transform: scale(.94); } .ds-btn:disabled { opacity: .45; cursor: not-allowed; transform: none; }"
+    },
+    {
+      "name": "Campo di Testo",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Etichetta in maiuscoletto sopra, campo a larghezza piena sotto. Il focus è un contorno d'oro con offset, uguale in tutto il sistema.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-label\" for=\"ds-i1\">Offerta massima</label><input class=\"ds-input\" id=\"ds-i1\" value=\"48\" /></div>",
+      "css": ".ds-field { margin-bottom: 14px; max-width: 260px; } .ds-label { display: block; font-family: 'Chivo', system-ui, sans-serif; font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted, #5B6660); margin-bottom: 4px; } .ds-input { font-family: 'Chivo', system-ui, sans-serif; font-size: .9rem; padding: 8px 10px; border-radius: 2px; border: 1px solid var(--border, #D7DED8); background: var(--surface, #FFFFFF); color: var(--ink, #141C18); width: 100%; } .ds-input:focus-visible { outline: 2px solid var(--accent, #8A6A15); outline-offset: 2px; }"
+    },
+    {
+      "name": "Distintivo di Stato",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Dice sempre uno stato, mai una categoria. Il bordo prende il colore del testo, così una sola regola serve tutte le varianti.",
+      "html": "<span class=\"ds-tag ds-tag-ok\">Gratuito</span> <span class=\"ds-tag ds-tag-warn\">In attesa</span> <span class=\"ds-tag ds-tag-crit\">In corso</span>",
+      "css": ".ds-tag { display: inline-block; font-family: 'Chivo', system-ui, sans-serif; font-size: .64rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; padding: 2px 6px; border-radius: 2px; border: 1px solid currentColor; } .ds-tag-ok { color: var(--ok, #1B7A44); } .ds-tag-warn { color: var(--warn, #9A6B0B); } .ds-tag-crit { color: var(--crit, #A8261F); }"
+    },
+    {
+      "name": "Scheda Numerica",
+      "kind": "card",
+      "refersTo": "stat",
+      "description": "Il componente che incarna la Regola del Numero Più Grande: chiave minuscola in maiuscoletto, valore monospaziato a 1.8rem.",
+      "html": "<div class=\"ds-stat\"><div class=\"ds-stat-k\">Crediti residui</div><div class=\"ds-stat-v\">37<small> / 500</small></div><div class=\"ds-stat-note\">più 21 di rimborso all'asta</div></div>",
+      "css": ".ds-stat { background: var(--surface, #FFFFFF); border: 1px solid var(--border, #D7DED8); border-radius: 3px; padding: 14px 16px; box-shadow: 0 1px 2px rgba(20,28,24,.05), 0 8px 24px -16px rgba(20,28,24,.25); max-width: 220px; font-family: 'Chivo', system-ui, sans-serif; } .ds-stat-k { font-size: .68rem; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted, #5B6660); } .ds-stat-v { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: 1.8rem; font-weight: 600; line-height: 1.2; margin-top: 4px; color: var(--ink, #141C18); } .ds-stat-v small { font-size: .9rem; color: var(--muted, #5B6660); } .ds-stat-note { font-size: .76rem; color: var(--muted, #5B6660); margin-top: 2px; }"
+    },
+    {
+      "name": "Richiamo",
+      "kind": "custom",
+      "refersTo": "callout",
+      "description": "Il bordo sinistro da 3px porta il colore, gli angoli destri restano a 3px e i sinistri vivi: il richiamo è appoggiato al margine, non un riquadro.",
+      "html": "<div class=\"ds-callout\">Sei tu il migliore offerente.</div><div class=\"ds-callout ds-callout-crit\">Hai superato il tuo budget per questo lotto.</div>",
+      "css": ".ds-callout { font-family: 'Chivo', system-ui, sans-serif; background: var(--accent-soft, #F0E4C4); border-left: 3px solid var(--accent, #8A6A15); padding: 12px 16px; border-radius: 0 3px 3px 0; font-size: .9rem; margin: 0 0 12px; color: var(--ink, #141C18); } .ds-callout-crit { border-left-color: var(--crit, #A8261F); background: color-mix(in srgb, var(--crit, #A8261F) 10%, transparent); }"
+    },
+    {
+      "name": "Tabella Dati",
+      "kind": "custom",
+      "refersTo": "panel",
+      "description": "Testa in Feltro, colonne numeriche monospaziate a destra, intestazione ordinabile con segno d'oro e pastiglia di livello.",
+      "html": "<div class=\"ds-panel\"><table class=\"ds-table\"><thead><tr><th>Giocatore</th><th class=\"ds-sortable ds-num\"><button type=\"button\">Quot. <span class=\"ds-segno\">▼</span><span class=\"ds-livello\">1</span></button></th><th class=\"ds-num\">Svincolo</th></tr></thead><tbody><tr><td><span class=\"ds-role\">A</span> Lautaro</td><td class=\"ds-num\">31</td><td class=\"ds-num\">23</td></tr><tr><td><span class=\"ds-role\">C</span> Barella</td><td class=\"ds-num\">18</td><td class=\"ds-num\">13</td></tr></tbody></table></div>",
+      "css": ".ds-panel { background: var(--surface, #FFFFFF); border: 1px solid var(--border, #D7DED8); border-radius: 3px; box-shadow: 0 1px 2px rgba(20,28,24,.05), 0 8px 24px -16px rgba(20,28,24,.25); overflow: hidden; } .ds-table { border-collapse: collapse; width: 100%; font-family: 'Chivo', system-ui, sans-serif; font-size: .9rem; color: var(--ink, #141C18); } .ds-table th { text-align: left; font-size: .66rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted, #5B6660); padding: 10px 14px; border-bottom: 1px solid var(--border, #D7DED8); white-space: nowrap; background: var(--surface-2, #E9EDE8); } .ds-table td { padding: 10px 14px; border-bottom: 1px solid var(--border, #D7DED8); } .ds-table tr:last-child td { border-bottom: none; } .ds-table tbody tr:hover { background: var(--surface-2, #E9EDE8); } .ds-table .ds-num { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; } .ds-table th.ds-sortable { padding: 0; } .ds-table th.ds-sortable button { all: unset; display: flex; align-items: center; justify-content: flex-end; gap: 4px; width: 100%; padding: 10px 14px; cursor: pointer; font-size: .66rem; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--ink, #141C18); } .ds-table th.ds-sortable button:hover { color: var(--accent, #8A6A15); } .ds-segno { font-size: .85rem; line-height: 1; color: var(--accent, #8A6A15); } .ds-livello { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; border-radius: 99px; background: var(--accent-soft, #F0E4C4); color: var(--accent, #8A6A15); font-size: .6rem; font-weight: 700; letter-spacing: 0; } .ds-role { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border-radius: 2px; font-size: .7rem; font-weight: 800; border: 1px solid var(--border, #D7DED8); background: var(--surface-2, #E9EDE8); margin-right: 4px; }"
+    },
+    {
+      "name": "Piastrella di Quota",
+      "kind": "custom",
+      "refersTo": "quota",
+      "description": "Componente firma del Torneo dei Tipster: esito, quota monospaziata, punti potenziali in oro. Scelta, si riempie di Oro Tenue.",
+      "html": "<div class=\"ds-quote\"><button class=\"ds-quota\"><span class=\"ds-quota-sel\">1</span><span class=\"ds-quota-n\">2.15</span><span class=\"ds-quota-pt\">21.5 pt</span></button><button class=\"ds-quota ds-quota-on\"><span class=\"ds-quota-sel\">X</span><span class=\"ds-quota-n\">3.40</span><span class=\"ds-quota-pt\">34.0 pt</span></button><button class=\"ds-quota\" disabled><span class=\"ds-quota-sel\">2</span><span class=\"ds-quota-n\">3.05</span><span class=\"ds-quota-pt\">30.5 pt</span></button></div>",
+      "css": ".ds-quote { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; max-width: 320px; } .ds-quota { display: flex; flex-direction: column; align-items: center; gap: 1px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border, #D7DED8); border-radius: 3px; background: var(--surface, #FFFFFF); color: var(--ink, #141C18); cursor: pointer; font-family: 'Chivo', system-ui, sans-serif; font-size: .76rem; transition: border-color .15s ease, background .15s ease, transform .12s ease; } .ds-quota-sel { font-weight: 600; } .ds-quota-n { font-family: 'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; font-size: .94rem; font-weight: 600; } .ds-quota-pt { font-size: .64rem; color: var(--accent, #8A6A15); font-weight: 600; } .ds-quota:hover:not(:disabled) { border-color: var(--accent, #8A6A15); } .ds-quota:active:not(:disabled) { transform: scale(.94); } .ds-quota:focus-visible { outline: 2px solid var(--accent, #8A6A15); outline-offset: 2px; } .ds-quota-on { border-color: var(--accent, #8A6A15); background: var(--accent-soft, #F0E4C4); } .ds-quota:disabled { opacity: .4; cursor: not-allowed; }"
+    },
+    {
+      "name": "Barra di Vetro",
+      "kind": "nav",
+      "refersTo": "dock-capsule",
+      "description": "Componente firma: capsula translucida con riflesso superiore, icone disegnate in linea a tratto 1.7px, voce attiva su pastiglia d'oro. Degrada a superficie opaca dove il backdrop-filter manca.",
+      "html": "<nav class=\"ds-dock\" aria-label=\"Navigazione\"><div class=\"ds-capsule\"><a class=\"ds-tab\" href=\"#\" aria-current=\"page\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"M8.5 3.5 5 5.2A2 2 0 0 0 4 7v3h3v10a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V10h3V7a2 2 0 0 0-1-1.8l-3.5-1.7\"/><path d=\"M8.5 3.5a3.5 3.5 0 0 0 7 0\"/></svg><span class=\"ds-lbl\">Rosa</span></a><a class=\"ds-tab\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><path d=\"m14 4 6 6\"/><path d=\"m17 7-8.5 8.5\"/><path d=\"m11.5 4.5 4 4\"/><path d=\"m9 12 3 3\"/><path d=\"M3 21h9\"/><path d=\"m5.5 18.5 5-5\"/></svg><span class=\"ds-lbl\">Asta</span></a><a class=\"ds-tab\" href=\"#\"><svg viewBox=\"0 0 24 24\" aria-hidden=\"true\"><circle cx=\"10\" cy=\"7.5\" r=\"3.5\"/><path d=\"M3.5 20a6.5 6.5 0 0 1 11.4-4.3\"/><path d=\"M18 14.5v6\"/><path d=\"M15 17.5h6\"/></svg><span class=\"ds-lbl\">Svincolati</span></a></div></nav>",
+      "css": ".ds-dock { display: flex; align-items: center; padding: 10px 0; } .ds-capsule { position: relative; display: flex; align-items: center; gap: 2px; padding: 6px; border-radius: 26px; background: var(--glass, rgba(255,255,255,.58)); -webkit-backdrop-filter: blur(22px) saturate(190%); backdrop-filter: blur(22px) saturate(190%); border: 1px solid var(--glass-edge, rgba(255,255,255,.85)); box-shadow: 0 10px 34px -12px rgba(20,28,24,.42), 0 2px 8px -4px rgba(20,28,24,.24), inset 0 1px 0 var(--spec, rgba(255,255,255,.9)), inset 0 -1px 0 var(--glass-edge-2, rgba(20,28,24,.10)); overflow: hidden; } .ds-capsule::before { content: ''; position: absolute; inset: 0 0 auto; height: 52%; background: linear-gradient(to bottom, var(--spec, rgba(255,255,255,.9)), transparent); opacity: .55; pointer-events: none; border-radius: 26px 26px 40% 40% / 26px 26px 100% 100%; } @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) { .ds-capsule { background: var(--surface, #FFFFFF); border-color: var(--border, #D7DED8); } } .ds-tab { position: relative; z-index: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-width: 58px; padding: 8px 10px 7px; border-radius: 20px; color: var(--muted, #5B6660); font-family: 'Chivo', system-ui, sans-serif; font-size: .62rem; font-weight: 600; letter-spacing: .04em; text-decoration: none; -webkit-tap-highlight-color: transparent; transition: color .2s ease, background .28s ease, transform .12s ease; } .ds-tab:hover { color: var(--ink, #141C18); } .ds-tab svg { width: 22px; height: 22px; display: block; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; } .ds-tab .ds-lbl { line-height: 1; } .ds-tab[aria-current='page'] { color: var(--accent, #8A6A15); background: var(--pill, rgba(138,106,21,.14)); } .ds-tab:active { transform: scale(.94); } .ds-tab:focus-visible { outline: 2px solid var(--accent, #8A6A15); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "La Sala d'Aste",
+    "overview": "Il contegno di una casa d'aste, non l'eccitazione di un botteghino. Le superfici sono sobrie — carta verdolina, feltro, filetti sottili — e l'ottone compare solo sui dettagli che contano: l'azione da fare adesso, la voce dove sei, la cifra in gioco. Intorno all'oggetto in vendita c'è silenzio, e quel silenzio è quello che rende leggibile il numero al centro. Il sistema non decora: allestisce.\n\nIl carattere è denso e sportivo. Non è un archivio: è fantacalcio fra amici, e la densità serve a metterti sotto gli occhi tutto quello che serve per decidere in fretta, dal telefono, mentre la serata va avanti. Testi piccoli, righe strette, quattro contatori affiancati, tabelle che si incolonnano. Il contrasto e il colore lavorano per far emergere l'esito — preso, perso, in corso, esaurito — non per fare atmosfera.\n\nI comandi si comportano come cartellini d'asta: oggetti che rispondono al dito. Affondano quando li premi, il bordo si accende quando li sfiori, lo stato scelto resta visibilmente scelto. La barra di vetro in fondo allo schermo è il primo membro di una famiglia, non un'eccezione: dove qualcosa galleggia davvero sopra il contenuto che scorre, può essere vetro.",
+    "keyCharacteristics": [
+      "Un solo accento, l'Oro di Coppa, e compare dove c'è qualcosa in gioco.",
+      "Il testo più grande di ogni schermata è un numero, non una parola.",
+      "Due linguaggi di forma soltanto: il contenuto è squadrato, la navigazione è tonda.",
+      "Profondità per tonalità e filetti; l'ombra è larga, bassa e quasi invisibile.",
+      "Chiaro e scuro sono pari grado, non tema e variante.",
+      "Ogni animazione ha la sua versione a movimento ridotto, scritta a mano."
+    ],
+    "rules": [
+      { "name": "La Regola dell'Oro Raro", "body": "In una schermata l'Oro di Coppa tocca al massimo un elemento per gerarchia: un bottone primario, una voce di navigazione attiva, una cifra viva. Se due cose sono d'oro nella stessa vista, una delle due non era in gioco davvero.", "section": "colors" },
+      { "name": "La Regola dei Tre Semafori", "body": "Verde, ambra e rosso comunicano esiti, mai marca, mai categoria, mai decorazione. Un verde che non significa «è andata bene» è un errore, non una scelta cromatica.", "section": "colors" },
+      { "name": "La Regola del Fondo Verdolino", "body": "Il bianco puro esiste solo come superficie (Foglio), mai come fondo pagina. Il fondo è sempre Carta: è quel mezzo grado di verde che impedisce al sistema di sembrare un modulo d'ufficio.", "section": "colors" },
+      { "name": "La Regola del Numero Più Grande", "body": "In ogni schermata il testo più grande è un numero in JetBrains Mono, non una parola. Il valore di una scheda (1.8rem) batte il titolo di pagina (1.7rem), e l'offerta viva (2.4rem) batte tutto. Se un titolo è la cosa più grande che si vede, quella schermata non ha ancora capito cosa l'utente è venuto a leggere.", "section": "typography" },
+      { "name": "La Regola dell'Incolonnamento", "body": "Qualunque cifra che qualcuno possa voler confrontare con quella della riga sopra porta .num o .mono, cifre tabulari e allineamento a destra. Nessuna eccezione per «tanto sono poche».", "section": "typography" },
+      { "name": "La Regola del Maiuscoletto", "body": "Il maiuscolo spaziato è riservato alle etichette che nominano un dato. Non compare mai in un titolo, in un bottone, in una frase.", "section": "typography" },
+      { "name": "La Regola dei 116px", "body": "La barra di navigazione galleggia sopra il contenuto: qualunque pagina che scorre riserva 116px più l'area sicura in fondo, e qualunque elemento appiccicato in basso si ancora sopra quella quota. Un contenuto che finisce sotto il vetro è un difetto, non un dettaglio.", "section": "layout" },
+      { "name": "La Regola della Tabella Che Scorre", "body": "Quando i dati non ci stanno in larghezza, scorre la tabella dentro il suo pannello — la pagina non scorre mai in orizzontale, e le colonne non si trasformano in schede impilate.", "section": "layout" },
+      { "name": "La Regola del Vetro Meritato", "body": "Il vetro (backdrop-filter: blur(22px) saturate(190%)) è ammesso solo su elementi che galleggiano davvero sopra contenuto che scorre, e deve portare con sé il riflesso superiore e la ricaduta @supports not (backdrop-filter) che lo riporta a superficie opaca con bordo normale. Vetro su un elemento fermo nel flusso è decorazione, e va rifiutato.", "section": "elevation" },
+      { "name": "La Regola dell'Ombra Impercettibile", "body": "Se si nota l'ombra, è troppo forte. L'ombra d'appoggio serve a staccare il bianco dal bianco, non a suggerire altezza: l'altezza la dice il tono.", "section": "elevation" },
+      { "name": "La Regola dei Due Linguaggi", "body": "Un raggio è 2–3px (contenuto) oppure 20–99px (comando e contatore). I valori intermedi — 6px, 8px, 12px — non appartengono a questo sistema e non vanno introdotti: sono la firma visiva esatta di ciò che questo progetto rifiuta.", "section": "shapes" },
+      { "name": "La Regola del Filetto Unico", "body": "Ogni separazione è 1px in Filetto. Se serve più peso, si cambia il tono del fondo, non lo spessore del bordo.", "section": "shapes" },
+      { "name": "La Regola dell'Azione Unica", "body": "Un solo bottone primario per schermata: quello che l'utente è venuto a premere. Tutto il resto è secondario, anche quando è importante.", "section": "components" },
+      { "name": "La Regola del Ritorno", "body": "Ogni animazione porta con sé la sua versione a prefers-reduced-motion: reduce, scritta a mano e non semplicemente spenta: il movimento ridotto cambia il come, mai il quando. Il velo di caricamento conserva il suo ritardo di 2,5 secondi anche senza animazione, perché quel ritardo è informazione, non decorazione.", "section": "components" },
+      { "name": "La Regola dell'Icona Che Dice Cosa", "body": "Un'icona di navigazione rappresenta la cosa specifica che si va a cercare, non la sua categoria: gli svincolati sono un giocatore libero con un più, non un elenco puntato.", "section": "components" }
+    ],
+    "dos": [
+      "Do usare l'Oro di Coppa su un solo elemento per gerarchia, e solo dove c'è qualcosa in gioco (Regola dell'Oro Raro).",
+      "Do dare a ogni comando premibile una risposta al dito: bordo che si accende al passaggio, affondamento alla pressione (scale(.97) largo, scale(.94) compatto), stato scelto che resta visibilmente scelto. A movimento ridotto il riscontro resta e cambia forma: risponde il fondo invece del moto.",
+      "Do far vincere il numero: la cifra monospaziata è il testo più grande della schermata, e ogni valore confrontabile porta cifre tabulari allineate a destra.",
+      "Do restare su due soli raggi: 2–3px per il contenuto, 20–99px per comandi e contatori.",
+      "Do definire ogni colore nuovo in entrambi i temi dentro globals.css, mai in un solo blocco: chiaro e scuro sono pari grado.",
+      "Do riservare 116px più l'area sicura in fondo a ogni pagina che scorre.",
+      "Do scrivere a mano la variante prefers-reduced-motion di ogni animazione che si aggiunge, cambiando il come e non il quando.",
+      "Do disegnare le icone in linea nel componente, a tratto 1.7px su currentColor.",
+      "Do far scorrere una tabella dentro il suo pannello quando i dati non ci stanno, invece di impilarla in schede."
+    ],
+    "donts": [
+      "Don't far somigliare niente a un'app di scommesse: niente verdi acidi, quote lampeggianti, contatori urlati, effetti da vincita. Le quote di questa lega sono eque e senza banco, e devono sembrarlo.",
+      "Don't far somigliare niente a un cruscotto SaaS: niente raggi da 8–12px, gradienti pastello, schede arrotondate ovunque, illustrazioni generiche. I 2px di raggio esistono proprio per rifiutarlo.",
+      "Don't far somigliare niente a un'app «divertente»: niente emoji nell'interfaccia, colori a coriandoli, animazioni giocose a ogni tocco, microcopy ammiccante. Lo scherzo sta nei testi della Redazione, mai nei pixel.",
+      "Don't usare Verde, Ambra o Rosso per qualcosa che non sia un esito.",
+      "Don't usare il bianco puro come fondo pagina: il fondo è Carta.",
+      "Don't introdurre un secondo colore di marca. Il sistema ha un accento solo, e la sua rarità è il punto.",
+      "Don't mettere il vetro su un elemento che non galleggia sopra contenuto che scorre, né spedirlo senza la ricaduta @supports.",
+      "Don't ingrossare un bordo per dare importanza: si cambia il tono del fondo. L'unico bordo spesso del sistema è la riga da 2px sotto l'intestazione.",
+      "Don't usare il maiuscoletto spaziato per titoli, bottoni o frasi: è solo per le etichette che nominano un dato.",
+      "Don't importare una libreria di icone o di componenti. Il sistema è un solo foglio di stile e icone disegnate a mano, e questo è un vincolo di progetto (l'app deve restare gratis e leggera), non un'abitudine."
+    ]
+  }
+}

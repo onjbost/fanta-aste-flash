@@ -58,7 +58,7 @@ export function MyParticipation({ lotId, isCaller, status, budget, roster, credi
           </form>
         </div>
       ) : (
-        <span style={{ fontSize: '.78rem', color: 'var(--muted)' }}>{deadlineLabel}</span>
+        <span style={{ fontSize: '.8rem', color: 'var(--muted)' }}>{deadlineLabel}</span>
       )}
 
       {state && (
@@ -66,7 +66,7 @@ export function MyParticipation({ lotId, isCaller, status, budget, roster, credi
              style={{ textAlign: 'left', marginBottom: 0 }}>
           {state.message}
           {state.warnings?.map((w) => (
-            <div key={w} style={{ marginTop: 6, fontSize: '.85rem' }}>⚠ {w}</div>
+            <div key={w} style={{ marginTop: 6, fontSize: '.86rem' }}>⚠ {w}</div>
           ))}
         </div>
       )}

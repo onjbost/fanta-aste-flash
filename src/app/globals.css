@@ -24,8 +24,57 @@ body{
 }
 .mono,.num{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums}
 a{color:var(--accent);text-decoration:none}
-a:hover{text-decoration:underline}
+a:hover{text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
 :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+/*
+ * Due punti dove l'anello di focus si perdeva.
+ *
+ * Le teste ordinabili azzerano tutto con `all:unset` per non ereditare il
+ * riquadro dei bottoni: `all` comprende anche `outline`, e con una
+ * specificità più alta di `:focus-visible` vinceva lei. Da tastiera la
+ * colonna si poteva ordinare senza vedere dov'eri.
+ *
+ * Le voci della barra vivono dentro una capsula con `overflow:hidden`, che
+ * ritagliava l'anello disegnato *fuori* dal bordo: qui va disegnato dentro.
+ */
+th.ordinabile button:focus-visible,
+.dock .tab:focus-visible,
+.tabs a:focus-visible,.tabs button:focus-visible{
+  outline:2px solid var(--accent);outline-offset:-2px;
+}
+
+/* =====================================================================
+   Le superfici che arrivano dal browser.
+   Selezione, cursore, barre di scorrimento, spunte e frecce dei menu
+   nascono con i colori di sistema: dentro un'app che ha una tavolozza
+   sua sono le uniche cose che continuano a dire «pagina web qualunque».
+   ===================================================================== */
+::selection{background:var(--accent-soft);color:var(--ink)}
+input,textarea,select{caret-color:var(--accent);accent-color:var(--accent)}
+input[type="checkbox"],input[type="radio"]{width:auto;accent-color:var(--accent);cursor:pointer}
+::placeholder{color:var(--muted);opacity:.75}
+
+/* Barre di scorrimento: sottili, nei toni dell'app, senza fondo bianco */
+*{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+::-webkit-scrollbar{width:10px;height:10px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{
+  background:var(--border);border-radius:99px;
+  border:3px solid transparent;background-clip:content-box;
+}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);background-clip:content-box}
+
+/* Il tocco non lascia il rettangolo grigio di Android su niente di cliccabile */
+a,button,summary,label,select,.tab,.quota{-webkit-tap-highlight-color:transparent}
+
+/* Misura di riposo delle icone disegnate. Chi ne vuole una diversa cambia
+   la misura, mai il tratto: è il tratto che le fa sembrare una famiglia. */
+.icona{
+  width:1em;height:1em;flex:0 0 auto;vertical-align:-.13em;
+  fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;
+}
+button .icona{width:1.05em;height:1.05em;margin-right:.4em}
+button .icona:only-child{margin-right:0}
 
 .shell{max-width:940px;margin:0 auto;padding:0 16px calc(116px + env(safe-area-inset-bottom))}
 .topbar{
@@ -39,7 +88,7 @@ a:hover{text-decoration:underline}
 
 h1{font-size:1.7rem;font-weight:800;letter-spacing:-.02em;margin:0 0 4px;text-wrap:balance}
 h2{font-size:1.05rem;font-weight:800;margin:32px 0 12px;letter-spacing:-.01em}
-.sub{color:var(--muted);font-size:.92rem;margin:0 0 24px}
+.sub{color:var(--muted);font-size:.9rem;margin:0 0 24px}
 .eyebrow{font-size:.68rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin:0 0 6px}
 
 .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:20px 0}
@@ -74,6 +123,7 @@ button,.btn{
   font-family:inherit;font-size:.82rem;font-weight:600;
   border:1px solid var(--border);background:var(--surface);color:var(--ink);
   border-radius:2px;padding:6px 12px;cursor:pointer;
+  transition:border-color .2s ease,color .2s ease,opacity .2s ease,transform .12s ease;
 }
 button:hover,.btn:hover{border-color:var(--accent);color:var(--accent)}
 button.primary{background:var(--accent);border-color:var(--accent);color:var(--bg)}
@@ -81,9 +131,57 @@ button.primary:hover{opacity:.9;color:var(--bg)}
 button:disabled{opacity:.45;cursor:not-allowed}
 button.link{border:none;background:none;padding:0;color:var(--accent);text-decoration:underline}
 
+/* =====================================================================
+   Cartellini d'asta: un comando premuto affonda.
+   Sui bottoni larghi .94 schiaccerebbe la riga di testo, quindi il tuffo è
+   più corto; resta .94 sui comandi compatti, dove si legge come una
+   pressione vera. Il link non affonda: non è un oggetto, è una parola.
+   ===================================================================== */
+button:not(:disabled):active,.btn:active,.tabs a:active{transform:scale(.97)}
+button.link:active{transform:none}
+.quota:not(:disabled):active,.condividi button:active{transform:scale(.94)}
+.tabs a{transition:color .2s ease,transform .12s ease}
+
+@media (prefers-reduced-motion:reduce){
+  /* Il riscontro resta, cambia il modo: il fondo risponde invece del moto. */
+  button:not(:disabled):active,.btn:active,
+  .quota:not(:disabled):active,.condividi button:active{
+    transform:none;background:var(--surface-2);
+  }
+  button.primary:not(:disabled):active{background:var(--accent);opacity:.82}
+}
+
 input,select,textarea{
   font-family:inherit;font-size:.9rem;padding:8px 10px;border-radius:2px;
   border:1px solid var(--border);background:var(--surface);color:var(--ink);width:100%;
+  transition:border-color .2s ease;
+}
+input:hover:not(:disabled),select:hover:not(:disabled),textarea:hover:not(:disabled){
+  border-color:var(--muted);
+}
+input:disabled,select:disabled,textarea:disabled{
+  opacity:.55;cursor:not-allowed;background:var(--surface-2);
+}
+/* I numeri di un campo si confrontano come quelli di una tabella, e le
+   frecce del contatore rubano spazio a un campo che si compila scrivendo. */
+input[type="number"]{
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  appearance:textfield;-moz-appearance:textfield;
+}
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button{appearance:none;margin:0}
+
+/* La freccia del menu a tendina arriva dal sistema operativo e non dalla
+   tavolozza: la ridisegniamo con lo stesso tratto delle altre icone. */
+select{
+  appearance:none;-webkit-appearance:none;padding-right:30px;cursor:pointer;
+  background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%235B6660' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 9px center;background-size:14px;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]) select{
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2397A39C' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
 }
 label{display:block;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
 .field{margin-bottom:14px}
@@ -96,6 +194,15 @@ label{display:block;font-size:.72rem;font-weight:600;letter-spacing:.08em;text-t
 
 dialog{border:1px solid var(--border);border-radius:var(--r);background:var(--surface);color:var(--ink);padding:0;max-width:460px;width:calc(100% - 32px);box-shadow:0 24px 60px -20px rgba(0,0,0,.5)}
 dialog::backdrop{background:rgba(10,14,12,.55)}
+/* La finestra è l'unica cosa che interrompe il flusso: che arrivi si deve
+   vedere. Sale di poco e in fretta — è un riscontro, non una scena. */
+dialog[open]{animation:dialog-entra .18s cubic-bezier(.22,1,.36,1)}
+dialog[open]::backdrop{animation:velo-entra .18s ease}
+@keyframes dialog-entra{from{opacity:0;transform:translateY(8px) scale(.98)}}
+@keyframes velo-entra{from{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  dialog[open]{animation:velo-entra .12s ease}
+}
 dialog .head{padding:14px 18px;border-bottom:1px solid var(--border);font-weight:800}
 dialog .body{padding:18px}
 dialog .foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;gap:10px;justify-content:flex-end;background:var(--surface-2)}
@@ -106,8 +213,113 @@ dialog .foot{padding:12px 18px;border-top:1px solid var(--border);display:flex;g
 /* centro messaggi */
 .msgcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);margin:16px 0;overflow:hidden}
 .msgcard-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface-2);font-weight:600;font-size:.86rem}
-.msgcard-body{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.79rem;line-height:1.65;white-space:pre-wrap;padding:16px;margin:0;overflow-x:auto;color:var(--ink)}
+.msgcard-body{font-family:"JetBrains Mono",ui-monospace,monospace;font-size:.8rem;line-height:1.65;white-space:pre-wrap;padding:16px;margin:0;overflow-x:auto;color:var(--ink)}
 .msgcard-foot{display:flex;gap:10px;padding:12px 16px;border-top:1px solid var(--border);background:var(--surface-2);flex-wrap:wrap}
+
+/* =====================================================================
+   Sala d'asta — il lotto in corso.
+   È l'unica schermata che si usa in piedi, di sera, con una mano sola e
+   dieci secondi di tempo: qui i bersagli sono grandi e la cifra comanda.
+   ===================================================================== */
+.sala-lotto{padding:20px;border-color:var(--accent)}
+.sala-testa{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap}
+.sala-nome{font-size:1.6rem;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+.sala-meta{color:var(--muted);font-size:.9rem}
+.sala-cifra{text-align:right;margin-left:auto}
+.sala-cifra .k{font-size:.68rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.sala-prezzo{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  font-size:2.4rem;font-weight:600;line-height:1}
+.sala-chi{color:var(--muted);font-size:.9rem}
+
+/* il timer: icona disegnata, non un'emoji, e l'urgenza sale a gradini */
+.sala-timer{display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-top:6px}
+.sala-timer svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.7;
+  stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.conto{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  font-size:1.3rem;font-weight:600;line-height:1}
+/* il numero si colora da sé; :has() porta il colore anche sull'icona
+   accanto, e dove non è supportato resta comunque leggibile l'urgenza */
+.conto.avviso{color:var(--warn)}
+.conto.critico{color:var(--crit)}
+.sala-timer:has(.conto.avviso){color:var(--warn)}
+.sala-timer:has(.conto.critico){color:var(--crit)}
+.conto.critico{animation:conto-battito .7s ease-in-out infinite}
+@keyframes conto-battito{50%{opacity:.45}}
+
+/* I rilanci sono l'azione della serata: bersagli veri, non bottoncini.
+   In riga stretta si dividono la larghezza invece di andare a capo. */
+.sala-offerte{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:18px}
+.sala-offerte button{
+  flex:1 1 96px;min-height:48px;font-size:1rem;
+  font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;
+}
+.sala-budget{margin-left:auto;color:var(--muted);font-size:.9rem;white-space:nowrap}
+
+/* chi è in testa si vede dal tono, non solo dal grassetto */
+tr.in-testa{background:var(--accent-soft)}
+tr.in-testa td{font-weight:700}
+tbody tr.in-testa:hover{background:var(--accent-soft)}
+
+/* etichetta di sotto-sezione: la stessa voce delle chiavi e delle teste
+   di tabella, riusabile ovunque serva nominare un blocco dentro un altro */
+.micro-titolo{
+  margin:20px 0 8px;font-size:.72rem;font-weight:600;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--muted);
+}
+
+@media (max-width:560px){
+  .sala-lotto{padding:16px}
+  .sala-testa{gap:10px}
+  .sala-cifra{text-align:left;margin-left:0}
+  .sala-timer{justify-content:flex-start}
+  .sala-budget{margin-left:0;width:100%;text-align:right}
+}
+@media (prefers-reduced-motion:reduce){
+  /* il battito è moto: resta il colore, che è l'informazione */
+  .conto.critico{animation:none}
+}
+
+/* rubrica fantacalciomercato: le due parti dello scambio, una di fronte
+   all'altra. Niente riquadri annidati dentro la scheda — a separare i due
+   lati bastano l'etichetta e il filetto sotto, come ovunque nell'app. */
+.scambio-form{padding:16px 16px 4px}
+.scambio{display:grid;grid-template-columns:1fr auto 1fr;gap:16px;align-items:start}
+.scambio-lato{min-width:0}
+.scambio-parte{
+  font-size:.66rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);margin:0 0 10px;padding-bottom:6px;border-bottom:1px solid var(--border);
+}
+.scambio-verso{
+  display:flex;align-items:center;justify-content:center;
+  align-self:center;width:24px;height:24px;color:var(--muted);
+}
+.scambio-verso svg{
+  width:22px;height:22px;fill:none;stroke:currentColor;
+  stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;
+}
+
+/* L'importo e chi lo versa sono un concetto solo: stanno vicini fra loro e
+   lontani dal bottone, che è l'azione e non un terzo campo. */
+.conguaglio{
+  display:flex;gap:20px;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;
+  margin-top:4px;padding-top:14px;border-top:1px solid var(--border);
+}
+.conguaglio-gruppo{display:flex;gap:16px;align-items:flex-end;flex-wrap:wrap}
+.conguaglio .field{margin:0}
+.conguaglio input{width:96px;text-align:center}
+.conguaglio select{min-width:190px;width:auto}
+.conguaglio-nota{margin:0 0 8px;font-size:.8rem;color:var(--muted)}
+.scambio-form .callout{margin:14px 0 4px}
+
+@media (max-width:560px){
+  .scambio{grid-template-columns:1fr;gap:4px}
+  /* in colonna le due parti stanno una sopra l'altra: la freccia gira con loro */
+  .scambio-verso{transform:rotate(90deg);margin:2px auto 8px}
+  .conguaglio{gap:14px}
+  .conguaglio-gruppo{width:100%}
+  .conguaglio-gruppo select{flex:1;min-width:0}
+  .conguaglio button{width:100%}
+}
 
 /* elenco numerato del regolamento */
 ol.rules{counter-reset:r;list-style:none;padding:0;margin:20px 0;display:grid;gap:14px}
@@ -115,7 +327,7 @@ ol.rules li{counter-increment:r;position:relative;padding-left:44px;font-size:.9
 ol.rules li::before{
   content:counter(r);position:absolute;left:0;top:0;
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
-  font-family:"JetBrains Mono",monospace;font-size:.85rem;font-weight:600;
+  font-family:"JetBrains Mono",monospace;font-size:.86rem;font-weight:600;
   color:var(--accent);border:1px solid var(--border);border-radius:2px;background:var(--surface);
 }
 
@@ -203,7 +415,7 @@ ol.rules li::before{
 .sfida-nomi{font-weight:800;margin-top:5px;letter-spacing:-.01em}
 .sfida-nomi span{color:var(--muted);font-weight:400}
 .sfida-n{font-family:"JetBrains Mono",monospace;font-size:1.05rem;color:var(--muted)}
-.sfida-n small{font-size:.75rem}
+.sfida-n small{font-size:.76rem}
 .sfida-n.vuota{color:var(--warn)}
 
 .mercato{margin-top:12px}
@@ -219,7 +431,7 @@ ol.rules li::before{
   transition:border-color .15s ease,background .15s ease;
 }
 .quota .sel{font-weight:600}
-.quota .num{font-family:"JetBrains Mono",monospace;font-size:.94rem;font-weight:600}
+.quota .num{font-family:"JetBrains Mono",monospace;font-size:.95rem;font-weight:600}
 .quota .pt{font-size:.64rem;color:var(--accent);font-weight:600}
 .quota:hover:not(:disabled){border-color:var(--accent);color:var(--ink)}
 .quota.on{border-color:var(--accent);background:var(--accent-soft)}
@@ -233,7 +445,7 @@ ol.rules li::before{
 }
 .barra-schedina .avviso{color:var(--warn)}
 
-.riga-admin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--border);font-size:.88rem}
+.riga-admin{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:9px 0;border-bottom:1px solid var(--border);font-size:.86rem}
 .riga-admin:last-of-type{border-bottom:none}
 .riga-admin select,.riga-admin input{width:auto;min-width:130px}
 .riga-admin input.mini{width:72px;min-width:0;text-align:center}
@@ -244,7 +456,7 @@ ol.rules li::before{
 /* i tab sono link dove la sezione ha un indirizzo suo, e bottoni dove cambia
    solo la vista senza cambiare pagina: stesso aspetto, comportamento diverso */
 .tabs a,.tabs button{
-  padding:8px 14px;font-size:.88rem;font-weight:600;color:var(--muted);
+  padding:8px 14px;font-size:.86rem;font-weight:600;color:var(--muted);
   border:1px solid transparent;border-bottom:none;border-radius:var(--r) var(--r) 0 0;
   margin-bottom:-1px;text-decoration:none;background:none;cursor:pointer;font-family:inherit;
 }
@@ -279,12 +491,12 @@ th.ordinabile button{
 th.ordinabile.num button{justify-content:flex-end}
 th.ordinabile button:hover{color:var(--accent)}
 th.ordinabile[aria-sort]:not([aria-sort="none"]) button{color:var(--ink)}
-th.ordinabile .segno{font-size:.85rem;line-height:1;color:var(--accent)}
+th.ordinabile .segno{font-size:.86rem;line-height:1;color:var(--accent)}
 th.ordinabile .livello{
   display:inline-flex;align-items:center;justify-content:center;
   min-width:15px;height:15px;border-radius:99px;
   background:var(--accent-soft);color:var(--accent);
-  font-size:.6rem;font-weight:700;letter-spacing:0;
+  font-size:.64rem;font-weight:700;letter-spacing:0;
 }
 
 /* una giornata nella redazione: intestazione cliccabile, tre tab dentro */
@@ -315,7 +527,7 @@ th.ordinabile .livello{
 
 .gio{
   display:grid;grid-template-columns:1fr auto 56px 56px;gap:10px;align-items:center;
-  padding:8px 10px;margin-top:6px;border-radius:var(--r);font-size:.84rem;
+  padding:8px 10px;margin-top:6px;border-radius:var(--r);font-size:.86rem;
   border-left:3px solid var(--border);background:var(--surface-2);
 }
 .gio.presa{border-left-color:var(--ok);background:color-mix(in srgb,var(--ok) 12%,transparent)}
@@ -434,7 +646,7 @@ th.ordinabile .livello{
 }
 
 .caricamento-nota{
-  margin:0;max-width:280px;text-align:center;font-size:.84rem;color:var(--muted);
+  margin:0;max-width:280px;text-align:center;font-size:.86rem;color:var(--muted);
   opacity:0;animation:nota-compare .6s ease 5s forwards;
 }
 @keyframes nota-compare{to{opacity:1}}

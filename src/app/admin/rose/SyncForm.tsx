@@ -15,18 +15,18 @@ export function SyncForm() {
         <div className="field">
           <label htmlFor="file">Export «Lista calciatori» della lega</label>
           <input id="file" name="file" type="file" accept=".xlsx,.csv,.txt" required />
-          <p style={{ fontSize: '.83rem', color: 'var(--muted)', marginTop: 6 }}>
+          <p style={{ fontSize: '.82rem', color: 'var(--muted)', marginTop: 6 }}>
             Il primo invio mostra soltanto le differenze. Niente viene scritto finché non
             spunti la conferma qui sotto e reinvii.
           </p>
         </div>
 
         <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap', margin: '12px 0 16px' }}>
-          <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: 0, textTransform: 'none', letterSpacing: 0, fontSize: '.85rem' }}>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: 0, textTransform: 'none', letterSpacing: 0, fontSize: '.86rem' }}>
             <input type="checkbox" name="rosters" style={{ width: 'auto' }} />
             aggiorna anche le rose (non solo il listone)
           </label>
-          <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: 0, textTransform: 'none', letterSpacing: 0, fontSize: '.85rem' }}>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: 0, textTransform: 'none', letterSpacing: 0, fontSize: '.86rem' }}>
             <input type="checkbox" name="confirm" style={{ width: 'auto' }} />
             <b>confermo, applica</b>
           </label>
@@ -113,7 +113,7 @@ export function SyncForm() {
             </div>
           )}
 
-          <p style={{ fontSize: '.85rem', color: 'var(--muted)', marginTop: 12 }}>
+          <p style={{ fontSize: '.86rem', color: 'var(--muted)', marginTop: 12 }}>
             Listone: {p.listone.newPlayers.length} nuovi, {p.listone.updated.length} aggiornati,
             {' '}{p.listone.disappeared.length} spariti dal file. {r!.unchanged} contratti invariati.
           </p>

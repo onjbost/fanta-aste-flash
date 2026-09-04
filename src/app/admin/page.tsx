@@ -96,7 +96,7 @@ export default async function AdminPage() {
                   {r.teams?.name} · pagato {price} cr · {STATUS_NOTE[r.players?.status ?? 'active']}
                 </div>
               </div>
-              <div className="mono" style={{ textAlign: 'right', fontSize: '.85rem' }}>
+              <div className="mono" style={{ textAlign: 'right', fontSize: '.86rem' }}>
                 <div><b>Approva</b> · {s.approved.refund} cr · cambio non consumato</div>
                 <div style={{ color: 'var(--muted)' }}>
                   Rifiuta · {s.rejected.refund} cr · cambio consumato

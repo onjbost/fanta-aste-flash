@@ -131,7 +131,7 @@ export function Svincolati({ players }: { players: FreeAgent[] }) {
         </div>
       </div>
 
-      <p style={{ fontSize: '.84rem', color: 'var(--muted)', marginTop: 10 }}>
+      <p style={{ fontSize: '.86rem', color: 'var(--muted)', marginTop: 10 }}>
         {visibili.length} di {players.length} svincolati.
       </p>
 
@@ -177,7 +177,7 @@ export function Svincolati({ players }: { players: FreeAgent[] }) {
               {clubDisponibili.map((c) => (
                 <label key={c} style={{
                   display: 'flex', gap: 8, alignItems: 'center', margin: 0,
-                  textTransform: 'none', letterSpacing: 0, fontSize: '.88rem',
+                  textTransform: 'none', letterSpacing: 0, fontSize: '.86rem',
                   padding: '3px 0', color: 'var(--ink)', fontWeight: 400,
                 }}>
                   <input type="checkbox" style={{ width: 'auto' }}

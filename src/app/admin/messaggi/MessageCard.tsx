@@ -2,6 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { generateMessage, markSent, type MsgState } from './actions';
+import { Spunta } from '../../Icone';
 import type { MessageKind } from '@/lib/messages';
 
 interface Saved { id: string; body: string; status: string; createdAt: string }
@@ -48,7 +49,7 @@ export function MessageCard({ sessionId, kind, label, saved }: {
           <pre className="msgcard-body">{body}</pre>
           <div className="msgcard-foot">
             <button type="button" className="primary" onClick={copy}>
-              {copied ? 'Copiato ✓' : 'Copia per WhatsApp'}
+              {copied ? <><Spunta />Copiato</> : 'Copia per WhatsApp'}
             </button>
             {latest && latest.status !== 'sent' && (
               <form action={send}>

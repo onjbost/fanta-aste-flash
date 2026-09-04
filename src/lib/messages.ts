@@ -8,7 +8,8 @@
 
 import { ROLE_LABEL, type Role } from './rules';
 
-export type MessageKind = 'call' | 'calls_closed' | 'joins_closed' | 'room_open' | 'results';
+export type MessageKind =
+  'call' | 'calls_closed' | 'joins_closed' | 'room_open' | 'results' | 'trade';
 
 export const MESSAGE_LABEL: Record<MessageKind, string> = {
   call: 'Nuova chiamata',
@@ -16,6 +17,7 @@ export const MESSAGE_LABEL: Record<MessageKind, string> = {
   joins_closed: 'Chiusura adesioni · T−1',
   room_open: 'Apertura sala',
   results: 'Esiti e movimenti',
+  trade: 'Fantacalciomercato · scambio',
 };
 
 export interface MsgSession {
@@ -97,6 +99,22 @@ const numero = (n: number) => (n <= 9 ? NUM[n] : `${n}.`);
 const head = (s: MsgSession) => `⚡ ASTA FLASH #${s.number} · ${dateTime(s.auctionAt)}`;
 
 const playerLine = (p: MsgPlayer) => `${p.name} · ${p.role} · ${p.club}`;
+
+/**
+ * Intestazione della rubrica: la stessa del riepilogo di giornata della
+ * Redazione (`montaMessaggio`), perché nel gruppo i due testi si leggono di
+ * seguito e devono sembrare due puntate della stessa cosa, non due app.
+ */
+const RIGA = '─'.repeat(28);
+
+const testata = (titolo: string) => [`🏆 FANTA MANSARDA · ${titolo}`, RIGA, ''].join('\n');
+
+/** Sezione con titolo in maiuscolo e corpo rientrato di tre spazi. */
+const sezione = (titolo: string, righe: string[]) =>
+  [titolo, ...righe.map((r) => `   ${r}`)].join('\n');
+
+const plurale = (n: number, uno: string, molti: string) =>
+  `${n} ${n === 1 ? uno : molti}`;
 
 // -------------------------------------------------------------- modelli
 
@@ -201,28 +219,114 @@ export function msgRoomOpen(s: MsgSession, lots: MsgLot[], roomUrl?: string): st
   ].join('\n');
 }
 
-/** 5 · a fine serata: chi ha preso chi, a quanto, e come restano i conti. */
+/**
+ * 5 · a fine serata: chi ha preso chi, a quanto, e come restano i conti.
+ *
+ * Montato come il riepilogo di giornata: testata della lega, una riga di
+ * apertura che dice com'è andata in generale, un blocco per lotto con il titolo
+ * sulla prima riga e i dettagli rientrati sotto, e in coda le sezioni con il
+ * bilancio e il prossimo appuntamento.
+ */
 export function msgResults(s: MsgSession, lots: MsgLot[], nextSessionAt?: string): string {
-  const body = lots.map((l) => {
-    const lines = [`🏆 ${l.player.name} → ${l.winnerTeam} per ${l.finalPrice} crediti`];
+  const spesi = lots.reduce((n, l) => n + (l.finalPrice ?? 0), 0);
+  const rimborsi = lots.reduce((n, l) => n + (l.refund ?? 0), 0);
+  const piuCaro = lots.reduce<MsgLot | null>(
+    (best, l) => ((l.finalPrice ?? 0) > (best?.finalPrice ?? -1) ? l : best), null);
+
+  const blocchi = lots.map((l) => {
+    const righe = [
+      `⚡ ${l.player.name} → ${l.winnerTeam} per ${l.finalPrice} crediti`,
+      `   ${l.player.role} · ${l.player.club}`,
+    ];
     if (l.uncontested) {
-      lines.push(`   (nessun contendente, 75% di ${l.releasedName})`);
+      righe.push(`   (nessun contendente, 75% di ${l.releasedName})`);
     } else if (l.runnerUpPrice != null) {
       const second = l.participants.find((p) => p.teamName !== l.winnerTeam);
-      lines.push(`   (${second?.teamName ?? 'il secondo'} si ferma a ${l.runnerUpPrice})`);
+      righe.push(`   (${second?.teamName ?? 'il secondo'} si ferma a ${l.runnerUpPrice})`);
     }
-    lines.push(`   Svincolato: ${l.releasedName} · +${l.refund} cr`);
-    lines.push(`   Crediti: ${l.creditsBefore} → ${l.creditsAfter}${l.changesLeftLabel ? ` · ${l.changesLeftLabel}` : ''}`);
-    return lines.join('\n');
+    righe.push(`   Svincolato: ${l.releasedName} · +${l.refund} cr`);
+    righe.push(`   Crediti: ${l.creditsBefore} → ${l.creditsAfter}${l.changesLeftLabel ? ` · ${l.changesLeftLabel}` : ''}`);
+    return righe.join('\n');
   }).join('\n\n');
 
+  if (lots.length === 0) {
+    return [
+      testata(`ASTA FLASH #${s.number}`),
+      'Serata chiusa senza assegnazioni: nessun lotto è andato a buon fine.',
+      '',
+      sezione('📅 PROSSIMO APPUNTAMENTO', nextSessionAt
+        ? [`Prossima asta flash: ${longDate(nextSessionAt)}`, 'Chiamate aperte da adesso.']
+        : ['Era l\'ultima asta flash della stagione.']),
+    ].join('\n');
+  }
+
   return [
-    `⚡ ASTA FLASH #${s.number} · RISULTATI`,
+    testata(`ASTA FLASH #${s.number}`),
+    `Serata chiusa: ${plurale(lots.length, 'lotto assegnato', 'lotti assegnati')}.`,
     '',
-    lots.length ? body : 'Nessun lotto assegnato.',
+    blocchi,
     '',
-    nextSessionAt
-      ? `📅 Prossima asta flash: ${longDate(nextSessionAt)}\n   Chiamate aperte da adesso.`
-      : '📅 Era l\'ultima asta flash della stagione.',
+    sezione('📊 IL BILANCIO DELLA SERATA', [
+      `Crediti spesi: ${spesi} · rimborsi incassati: ${rimborsi}`,
+      piuCaro ? `Il colpo più caro: ${piuCaro.player.name} a ${piuCaro.finalPrice} crediti (${piuCaro.winnerTeam})` : '',
+    ].filter(Boolean)),
+    '',
+    sezione('📅 PROSSIMO APPUNTAMENTO', nextSessionAt
+      ? [`Prossima asta flash: ${longDate(nextSessionAt)}`, 'Chiamate aperte da adesso.']
+      : ['Era l\'ultima asta flash della stagione.']),
   ].join('\n');
+}
+
+// ------------------------------------------------------- fantacalciomercato
+
+export interface MsgTrade {
+  /** chi ha proposto lo scambio */
+  fromTeam: string;
+  /** il giocatore che la richiedente mette sul piatto */
+  fromPlayer: string;
+  /** chi ha accettato */
+  toTeam: string;
+  /** il giocatore che l'accettante mette sul piatto */
+  toPlayer: string;
+  /** crediti di conguaglio; assente o 0 significa scambio alla pari */
+  settlement?: number;
+  /** chi versa il conguaglio: la richiedente o l'accettante */
+  settlementPayer?: 'from' | 'to';
+}
+
+/**
+ * 6 · rubrica fantacalciomercato: uno scambio chiuso fra due squadre.
+ *
+ * L'app non gestisce gli scambi — restano come li fa la lega, e il registro
+ * ufficiale è sempre Leghe Fantacalcio. Qui si scrive solo l'annuncio, con lo
+ * stesso taglio del riepilogo di giornata, così la rubrica sembra una rubrica.
+ */
+export function msgTrade(t: MsgTrade): string {
+  const conguaglio = t.settlement && t.settlement > 0 ? t.settlement : 0;
+  const paga = t.settlementPayer === 'to' ? t.toTeam : t.fromTeam;
+  const incassa = t.settlementPayer === 'to' ? t.fromTeam : t.toTeam;
+
+  const righe = [
+    testata('FANTACALCIOMERCATO'),
+    conguaglio
+      ? `Scambio chiuso fra ${t.fromTeam} e ${t.toTeam}, con conguaglio.`
+      : `Scambio chiuso fra ${t.fromTeam} e ${t.toTeam}, alla pari.`,
+    '',
+    `🔁 ${t.fromTeam}  ⇄  ${t.toTeam}`,
+    `   ${t.fromTeam} cede ${t.fromPlayer}`,
+    `   ${t.toTeam} cede ${t.toPlayer}`,
+  ];
+
+  if (conguaglio) {
+    righe.push('', sezione('💰 CONGUAGLIO', [
+      `${plurale(conguaglio, 'credito', 'crediti')} da ${paga} a ${incassa}`,
+    ]));
+  }
+
+  righe.push('', sezione('📋 COME RESTANO LE ROSE', [
+    `${t.fromTeam}: fuori ${t.fromPlayer}, dentro ${t.toPlayer}`,
+    `${t.toTeam}: fuori ${t.toPlayer}, dentro ${t.fromPlayer}`,
+  ]));
+
+  return righe.join('\n');
 }

@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { buildMessage } from '@/lib/messageBuilder';
 import { archiveMessage } from '@/lib/telegram';
-import type { MessageKind } from '@/lib/messages';
+import { msgTrade, type MessageKind } from '@/lib/messages';
 
 export type MsgState = { ok: boolean; message: string; body?: string } | null;
 
@@ -42,6 +42,56 @@ export async function generateMessage(_prev: MsgState, form: FormData): Promise<
     message: tg.sent
       ? 'Testo aggiornato e mandato su Telegram.'
       : 'Testo aggiornato con i dati di adesso.',
+    body,
+  };
+}
+
+/**
+ * Rubrica fantacalciomercato: l'annuncio di uno scambio già chiuso fra due
+ * squadre. Non tocca rose, contratti né crediti — l'app non gestisce gli
+ * scambi, li racconta soltanto. Il registro resta Leghe Fantacalcio.
+ */
+export async function generateTrade(_prev: MsgState, form: FormData): Promise<MsgState> {
+  const team = await requireAdmin();
+  if (!team) return { ok: false, message: 'Serve essere admin.' };
+
+  const testo = (k: string) => String(form.get(k) ?? '').trim();
+  const fromTeam = testo('fromTeam');
+  const fromPlayer = testo('fromPlayer');
+  const toTeam = testo('toTeam');
+  const toPlayer = testo('toPlayer');
+
+  if (!fromTeam || !toTeam) return { ok: false, message: 'Scegli tutte e due le squadre.' };
+  if (fromTeam === toTeam) {
+    return { ok: false, message: 'Le due squadre devono essere diverse: uno scambio con sé stessi non esiste.' };
+  }
+  if (!fromPlayer || !toPlayer) {
+    return { ok: false, message: 'Scrivi il giocatore ceduto da ciascuna delle due squadre.' };
+  }
+
+  // Il conguaglio è facoltativo: vuoto e zero significano «alla pari».
+  const grezzo = testo('settlement');
+  const settlement = grezzo === '' ? 0 : Number(grezzo);
+  if (!Number.isInteger(settlement) || settlement < 0) {
+    return { ok: false, message: 'Il conguaglio è un numero intero di crediti, oppure niente.' };
+  }
+
+  const body = msgTrade({
+    fromTeam, fromPlayer, toTeam, toPlayer,
+    settlement,
+    settlementPayer: form.get('settlementPayer') === 'to' ? 'to' : 'from',
+  });
+
+  const db = supabaseAdmin();
+  await db.from('messages').insert({
+    league_id: team.league_id, session_id: null, kind: 'trade', body,
+  });
+  const tg = await archiveMessage('trade', null, body);
+
+  revalidatePath('/admin/messaggi');
+  return {
+    ok: true,
+    message: tg.sent ? 'Annuncio pronto e mandato su Telegram.' : 'Annuncio pronto.',
     body,
   };
 }

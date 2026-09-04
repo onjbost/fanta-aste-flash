@@ -5,6 +5,7 @@ import {
   generaQuoteAction, pubblicaQuote, salvaRisultato, chiudiGiornataAction,
   cambiaOrario, segnaRinvio, accoppiaCoppa, type ActionState,
 } from './actions';
+import { Coppa } from '../../Icone';
 
 function Messaggio({ state }: { state: ActionState }) {
   if (!state) return null;
@@ -36,7 +37,7 @@ export function Quote({ matchdayId, pubblicate, esiti }: {
             : `${esiti} esiti quotati · ${pubblicate ? 'pubblicati' : 'ancora nascosti alla lega'}`}
         </span>
       </div>
-      <p style={{ fontSize: '.84rem', color: 'var(--muted)', margin: '10px 0 0' }}>
+      <p style={{ fontSize: '.86rem', color: 'var(--muted)', margin: '10px 0 0' }}>
         Le quote si calcolano sulle rose di adesso: dopo un'asta o un import nuovo, rigenerale.
         Chi ha già giocato tiene la quota che aveva.
       </p>
@@ -82,16 +83,24 @@ export function Rinvio({ id, casa, ospite, stato, policy }: {
   );
 }
 
-export function Risultato({ fixtureId, casa, ospite, golCasa, golOspite, fpCasa, fpOspite }: {
+export function Risultato({ fixtureId, casa, ospite, golCasa, golOspite, fpCasa, fpOspite, coppa }: {
   fixtureId: string; casa: string; ospite: string;
   golCasa: number | null; golOspite: number | null;
   fpCasa: number | null; fpOspite: number | null;
+  coppa?: boolean;
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(salvaRisultato, null);
   return (
     <form action={action} className="riga-admin">
       <input type="hidden" name="fixtureId" value={fixtureId} />
-      <span style={{ minWidth: 210 }}>{casa} – {ospite}</span>
+      <span style={{ minWidth: 210 }}>
+        {coppa && (
+          <span title="Coppa Mansarda" style={{ color: 'var(--accent)' }}>
+            <Coppa /><span className="sr-only">Coppa Mansarda: </span>
+          </span>
+        )}
+        {casa} – {ospite}
+      </span>
       <input name="golCasa" className="mini" inputMode="numeric" placeholder="gol" defaultValue={golCasa ?? ''} />
       <input name="golOspite" className="mini" inputMode="numeric" placeholder="gol" defaultValue={golOspite ?? ''} />
       <input name="fpCasa" className="mini" inputMode="decimal" placeholder="fp" defaultValue={fpCasa ?? ''} />

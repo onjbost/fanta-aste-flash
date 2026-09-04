@@ -88,7 +88,7 @@ export default async function AdminSchedinePage({
       <div className="stats">
         <div className="stat">
           <div className="k">Chiusura schedine</div>
-          <div className="v" style={{ fontSize: '1.1rem' }}>
+          <div className="v" style={{ fontSize: '1.05rem' }}>
             {new Date(giornata.lockAt).toLocaleString('it-IT', {
               day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
             })}
@@ -121,7 +121,7 @@ export default async function AdminSchedinePage({
 
       <h2>Partite di Serie A e rinvii</h2>
       <div className="panel" style={{ padding: 16 }}>
-        <p style={{ fontSize: '.84rem', color: 'var(--muted)', marginTop: 0 }}>
+        <p style={{ fontSize: '.86rem', color: 'var(--muted)', marginTop: 0 }}>
           Una partita rinviata cambia due cose: le quote (i suoi giocatori non prendono voto) e il
           momento in cui la giornata si può chiudere. Dopo averla segnata, rigenera le quote.
         </p>
@@ -151,13 +151,13 @@ export default async function AdminSchedinePage({
 
       <h2>Risultati</h2>
       <div className="panel" style={{ padding: 16 }}>
-        <p style={{ fontSize: '.84rem', color: 'var(--muted)', marginTop: 0 }}>
+        <p style={{ fontSize: '.86rem', color: 'var(--muted)', marginTop: 0 }}>
           Gol e, se li hai sottomano, i fantapunti: i gol risolvono i mercati, i fantapunti servono
           a tarare il modello per le giornate dopo.
         </p>
         {conSquadre.map((s) => (
           <Risultato key={s.id} fixtureId={s.id}
-            casa={`${s.competition === 'coppa' ? '🏆 ' : ''}${s.homeName}`} ospite={s.awayName}
+            casa={s.homeName} ospite={s.awayName} coppa={s.competition === 'coppa'}
             golCasa={s.homeGoals} golOspite={s.awayGoals} fpCasa={null} fpOspite={null} />
         ))}
         <Chiusura matchdayId={giornata.id} />

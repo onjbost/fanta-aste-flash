@@ -75,10 +75,10 @@ export default async function RegolamentoPage() {
                         <span className="tag ok" style={{ marginLeft: 8 }}>Prossima</span>
                       )}
                     </td>
-                    <td style={{ color: 'var(--muted)', fontSize: '.85rem' }}>
+                    <td style={{ color: 'var(--muted)', fontSize: '.86rem' }}>
                       {shortDeadline(callsCloseAt(r.info, ctx.cfg).toISOString())}
                     </td>
-                    <td style={{ color: 'var(--muted)', fontSize: '.85rem' }}>
+                    <td style={{ color: 'var(--muted)', fontSize: '.86rem' }}>
                       {shortDeadline(joinsCloseAt(r.info, ctx.cfg).toISOString())}
                     </td>
                     <td><span className={`tag ${stato.cls}`}>{stato.label}</span></td>
@@ -92,7 +92,7 @@ export default async function RegolamentoPage() {
           </table>
         </div>
       </div>
-      <p style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
+      <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
         Le aste di gennaio sono le uniche in cui non si possono chiamare i giocatori
         arrivati in Serie A nel mercato invernale (art. 11.2). A febbraio non ci sono
         aste flash: c&apos;è l&apos;asta di riparazione, che si fa fuori dall&apos;app.
@@ -214,7 +214,7 @@ export default async function RegolamentoPage() {
         Qui c&apos;è solo il mercato degli svincolati.
       </div>
 
-      <p style={{ fontSize: '.85rem', color: 'var(--muted)' }}>
+      <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
         Ruoli: {(['P', 'D', 'C', 'A'] as Role[]).map((r) => `${r} = ${ROLE_LABEL[r]}`).join(' · ')}
       </p>
     </div>

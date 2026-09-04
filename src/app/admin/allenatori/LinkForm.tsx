@@ -19,7 +19,7 @@ export function LinkForm({ users, teams }: { users: UserRow[]; teams: TeamRow[] 
             <label>Account</label>
             <div style={{ padding: '8px 0', fontWeight: 600 }}>
               {u.email}
-              <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8, fontSize: '.85rem' }}>
+              <span style={{ color: 'var(--muted)', fontWeight: 400, marginLeft: 8, fontSize: '.86rem' }}>
                 {u.lastSignIn
                   ? `ultimo accesso ${new Date(u.lastSignIn).toLocaleDateString('it-IT')}`
                   : 'mai entrato'}
@@ -37,7 +37,7 @@ export function LinkForm({ users, teams }: { users: UserRow[]; teams: TeamRow[] 
               ))}
             </select>
           </div>
-          <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '0 0 8px', textTransform: 'none', letterSpacing: 0, fontSize: '.85rem' }}>
+          <label style={{ display: 'flex', gap: 6, alignItems: 'center', margin: '0 0 8px', textTransform: 'none', letterSpacing: 0, fontSize: '.86rem' }}>
             <input type="checkbox" name="isAdmin" style={{ width: 'auto' }} />
             admin
           </label>

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  msgNewCall, msgCallsClosed, msgJoinsClosed, msgRoomOpen, msgResults,
+  msgNewCall, msgCallsClosed, msgJoinsClosed, msgRoomOpen, msgResults, msgTrade,
   longDate, shortDeadline, type MsgSession, type MsgLot,
 } from './messages';
 
@@ -159,5 +159,72 @@ describe('5 · risultati', () => {
 
   it('sa anche che era l\'ultima', () => {
     expect(msgResults(S, closed)).toContain('ultima asta flash della stagione');
+  });
+
+  it('apre come il riepilogo di giornata: testata della lega e riga', () => {
+    expect(m.startsWith('🏆 FANTA MANSARDA · ASTA FLASH #3\n─')).toBe(true);
+    expect(m).toContain('Serata chiusa: 2 lotti assegnati.');
+  });
+
+  it('chiude i conti della serata', () => {
+    expect(m).toContain('Crediti spesi: 62 · rimborsi incassati: 42');
+    expect(m).toContain('Il colpo più caro: KOLASINAC a 44 crediti (Montester United)');
+  });
+
+  it('regge la serata finita a vuoto senza inventare un bilancio', () => {
+    const vuota = msgResults(S, [], '2026-11-17T21:30:00+01:00');
+    expect(vuota).toContain('Serata chiusa senza assegnazioni');
+    expect(vuota).not.toContain('IL BILANCIO');
+    expect(vuota).toContain('Prossima asta flash: martedì 17 novembre');
+  });
+
+  it('accorda il singolare quando il lotto è uno solo', () => {
+    expect(msgResults(S, [closed[0]])).toContain('Serata chiusa: 1 lotto assegnato.');
+  });
+});
+
+describe('6 · fantacalciomercato', () => {
+  const base = {
+    fromTeam: 'Montester United', fromPlayer: 'KOLASINAC',
+    toTeam: 'Real Sballo', toPlayer: 'BIRAGHI',
+  };
+
+  it('usa la stessa testata della rubrica di giornata', () => {
+    expect(msgTrade(base).startsWith('🏆 FANTA MANSARDA · FANTACALCIOMERCATO\n─')).toBe(true);
+  });
+
+  it('dice chi cede cosa, da entrambe le parti', () => {
+    const m = msgTrade(base);
+    expect(m).toContain('🔁 Montester United  ⇄  Real Sballo');
+    expect(m).toContain('Montester United cede KOLASINAC');
+    expect(m).toContain('Real Sballo cede BIRAGHI');
+  });
+
+  it('senza conguaglio lo dichiara alla pari e non apre la sezione', () => {
+    const m = msgTrade(base);
+    expect(m).toContain('alla pari');
+    expect(m).not.toContain('CONGUAGLIO');
+  });
+
+  it('un conguaglio a zero vale come alla pari', () => {
+    expect(msgTrade({ ...base, settlement: 0 })).toContain('alla pari');
+  });
+
+  it('dice chi paga il conguaglio e a chi', () => {
+    expect(msgTrade({ ...base, settlement: 12, settlementPayer: 'from' }))
+      .toContain('12 crediti da Montester United a Real Sballo');
+    expect(msgTrade({ ...base, settlement: 12, settlementPayer: 'to' }))
+      .toContain('12 crediti da Real Sballo a Montester United');
+  });
+
+  it('accorda il singolare per un credito solo', () => {
+    expect(msgTrade({ ...base, settlement: 1, settlementPayer: 'from' }))
+      .toContain('1 credito da Montester United');
+  });
+
+  it('riassume come restano le due rose', () => {
+    const m = msgTrade(base);
+    expect(m).toContain('Montester United: fuori KOLASINAC, dentro BIRAGHI');
+    expect(m).toContain('Real Sballo: fuori BIRAGHI, dentro KOLASINAC');
   });
 });

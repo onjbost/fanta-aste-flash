@@ -9,7 +9,7 @@ const inFile = (over: Partial<ListonePlayer> = {}): ListonePlayer => ({
 
 const inDb = (over: Partial<CurrentContract> = {}): CurrentContract => ({
   extId: '2764', name: 'MARTINEZ L.', role: 'A',
-  teamName: 'Montester United', price: 160, fromFlashAuction: false, ...over,
+  teamName: 'Montester United', price: 160, status: 'active', fromFlashAuction: false, ...over,
 });
 
 describe('differenze tra file e database · rose', () => {
@@ -110,5 +110,53 @@ describe('differenze tra file e database · listone', () => {
   it('vede quando qualcuno rientra in lista', () => {
     const d = diffListone([dbPlayer({ outOfList: true })], [inFile({ outOfList: false })]);
     expect(d.updated[0].changes).toEqual(['non più fuori lista']);
+  });
+});
+
+// =====================================================================
+// Il rimborso di chi esce dalla rosa
+// =====================================================================
+// Uscire da una rosa, per la lega, è uno svincolo: rende il 75% del prezzo
+// pagato, non il prezzo intero. Prima l'import restituiva tutto, e ogni
+// sincronizzazione regalava crediti a chi aveva svincolato.
+describe('rimborso di chi esce dalla rosa', () => {
+  const esce = (over: Partial<CurrentContract> = {}) =>
+    diffRosters([inDb(over)], [inFile({ teamName: null, price: null })]).removed[0];
+
+  it('restituisce il 75% del prezzo pagato, non il prezzo intero', () => {
+    const r = esce({ price: 160 });
+    expect(r.price).toBe(160);
+    expect(r.rimborso).toBe(120);
+    expect(r.tipoRimborso).toBe('flash_75');
+  });
+
+  it('arrotonda per difetto', () => {
+    // 41 × 0,75 = 30,75
+    expect(esce({ price: 41 }).rimborso).toBe(30);
+  });
+
+  it('non scende mai sotto un credito per chi era costato qualcosa', () => {
+    expect(esce({ price: 1 }).rimborso).toBe(1);
+  });
+
+  it('ma chi è entrato a costo zero non genera crediti dal nulla', () => {
+    expect(esce({ price: 0 }).rimborso).toBe(0);
+  });
+
+  it('rende il 100% a chi ha lasciato la Serie A', () => {
+    const r = esce({ price: 160, status: 'out_of_serie_a' });
+    expect(r.rimborso).toBe(160);
+    expect(r.tipoRimborso).toBe('free_100');
+  });
+
+  it('e a chi è squalificato dalla lega', () => {
+    expect(esce({ price: 80, status: 'banned' }).rimborso).toBe(80);
+  });
+
+  it('ma non a chi è solo infortunato: quello lo decide l\'admin', () => {
+    // senza una richiesta approvata vale lo svincolo ordinario
+    const r = esce({ price: 80, status: 'injured_long' });
+    expect(r.rimborso).toBe(60);
+    expect(r.tipoRimborso).toBe('flash_75');
   });
 });

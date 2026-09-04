@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { supabaseServer } from '@/lib/supabase';
-import { updateContractPrice, removeFromRoster, addToRoster } from '@/lib/adminEdits';
+import { updateContractPrice, removeFromRoster, addToRoster, setTeamCredits } from '@/lib/adminEdits';
 import { previewSync, applySync, type SyncPreview } from '@/lib/adminEdits';
 import { parseListone, checkRosters, type ListonePlayer } from '@/lib/listone';
 import { parseCsv } from '@/lib/csv';
@@ -146,4 +146,26 @@ export async function syncFromFile(_prev: SyncState, form: FormData): Promise<Sy
   revalidatePath('/listone');
   revalidatePath('/');
   return { ok: result.ok, message: result.message, applied: result.details, checks };
+}
+
+/** Allinea i crediti di una squadra al valore dell'app ufficiale. */
+export async function impostaCrediti(_prev: EditState, form: FormData): Promise<EditState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
+
+  const grezzo = String(form.get('crediti') ?? '').trim();
+  if (grezzo === '') return { ok: false, message: 'Scrivi quanti crediti deve avere.' };
+  const target = Number(grezzo);
+  if (!Number.isFinite(target)) return { ok: false, message: 'Non è un numero.' };
+
+  const r = await setTeamCredits(
+    String(form.get('teamId') ?? ''),
+    Math.round(target),
+    admin.userId,
+    String(form.get('note') ?? '').trim(),
+  );
+  revalidatePath('/admin/rose');
+  revalidatePath('/');
+  revalidatePath('/asta');
+  return r;
 }

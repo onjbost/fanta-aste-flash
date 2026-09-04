@@ -8,7 +8,7 @@
  */
 
 import type { ListonePlayer } from './listone';
-import type { Role } from './rules';
+import { refundValue, type PlayerStatus, type ReleaseType, type Role } from './rules';
 
 export interface CurrentContract {
   extId: string;
@@ -16,6 +16,8 @@ export interface CurrentContract {
   role: Role;
   teamName: string;
   price: number;
+  /** serve al rimborso: chi ha lasciato la Serie A o è squalificato rende il 100% */
+  status: PlayerStatus;
   /** true se il giocatore è arrivato con un'asta flash, non con l'asta iniziale */
   fromFlashAuction: boolean;
 }
@@ -31,8 +33,18 @@ export interface CurrentPlayer {
 export interface RosterDiff {
   /** in rosa nel file, libero nel database */
   added: { extId: string; name: string; role: Role; teamName: string; price: number }[];
-  /** in rosa nel database, libero nel file */
-  removed: { extId: string; name: string; role: Role; teamName: string; price: number; fromFlashAuction: boolean }[];
+  /**
+   * In rosa nel database, libero nel file: per la lega è uno svincolo, e uno
+   * svincolo rende il 75% del prezzo pagato — non il prezzo intero.
+   * `rimborso` è quello che verrà accreditato davvero, calcolato con le
+   * stesse regole del mercato, così l'anteprima e il database non possono
+   * dire due numeri diversi.
+   */
+  removed: {
+    extId: string; name: string; role: Role; teamName: string; price: number;
+    rimborso: number; tipoRimborso: Extract<ReleaseType, 'flash_75' | 'free_100'>;
+    fromFlashAuction: boolean;
+  }[];
   /** cambiato di squadra */
   moved: { extId: string; name: string; role: Role; from: string; to: string; price: number }[];
   /** stessa squadra, prezzo diverso */
@@ -102,9 +114,19 @@ export function diffRosters(current: CurrentContract[], incoming: ListonePlayer[
         diff.unchanged += 1;
       }
     } else if (old) {
+      // Il rimborso lo decide il regolamento, non il prezzo pagato: 75%
+      // arrotondato per difetto (mai sotto 1 credito), oppure 100% per chi ha
+      // lasciato la Serie A o è squalificato. È la stessa funzione che usa il
+      // mercato, così l'import non può inventarsi una regola sua.
+      const r = refundValue({
+        playerId: p.extId, name: p.name, role: p.role, club: p.club,
+        status: old.status, price: old.price,
+      });
       diff.removed.push({
         extId: p.extId, name: p.name, role: p.role,
-        teamName: old.teamName, price: old.price, fromFlashAuction: old.fromFlashAuction,
+        teamName: old.teamName, price: old.price,
+        rimborso: r.value, tipoRimborso: r.type,
+        fromFlashAuction: old.fromFlashAuction,
       });
     }
   }

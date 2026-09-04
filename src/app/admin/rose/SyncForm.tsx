@@ -98,7 +98,10 @@ export function SyncForm() {
                       <td><span className="tag crit">Esce</span></td>
                       <td><b>{x.name}</b></td>
                       <td>
-                        da {x.teamName} · {x.price} crediti restituiti
+                        da {x.teamName} · pagato {x.price}, restituiti <b>{x.rimborso}</b>
+                        {x.tipoRimborso === 'free_100'
+                          ? ' (100%: fuori dalla Serie A o squalificato)'
+                          : ' (75%)'}
                         {x.fromFlashAuction && (
                           <span className="tag crit" style={{ marginLeft: 8 }}>preso all'asta flash</span>
                         )}

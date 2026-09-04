@@ -2,7 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from './supabase';
 import { diffRosters, diffListone, type CurrentContract, type CurrentPlayer, type RosterDiff } from './sync';
 import type { ListonePlayer } from './listone';
-import type { Role } from './rules';
+import type { PlayerStatus, Role } from './rules';
 
 /**
  * Correzioni dell'admin sulle rose.
@@ -80,6 +80,55 @@ export async function removeFromRoster(
   return { ok: true, message: `${name} tolto dalla rosa${refundCredits ? `, ${c.price} crediti restituiti` : ''}.` };
 }
 
+/**
+ * Porta i crediti residui di una squadra al valore indicato.
+ *
+ * Non scrive un saldo: i crediti restano la somma dei movimenti, quindi qui si
+ * registra soltanto la **differenza** fra quello che risulta e quello che deve
+ * risultare. Il vantaggio è che la correzione si vede nel registro con tanto di
+ * motivo, e un saldo sbagliato si può sempre ricostruire da capo.
+ *
+ * Serve dopo un'asta di riparazione o un import: l'app calcola i residui dai
+ * prezzi che ha in pancia, l'app ufficiale ha i suoi, e la verità è quella
+ * ufficiale.
+ */
+export async function setTeamCredits(
+  teamId: string, target: number, actor: string, note: string,
+): Promise<EditResult> {
+  if (!Number.isInteger(target)) {
+    return { ok: false, message: 'I crediti sono un numero intero.' };
+  }
+  // Un saldo negativo nel gioco non esiste, e un meno battuto per sbaglio
+  // passerebbe inosservato fino al giorno dell'asta, quando le validazioni
+  // sul budget comincerebbero a rifiutare tutto senza dire perché.
+  if (target < 0) {
+    return { ok: false, message: 'I crediti non possono essere negativi.' };
+  }
+  const db = supabaseAdmin();
+  const { data: t } = await db.from('v_team_credits')
+    .select('team_id, league_id, name, credits').eq('team_id', teamId).maybeSingle();
+  if (!t) return { ok: false, message: 'Squadra inesistente.' };
+
+  const attuali = Number(t.credits ?? 0);
+  const delta = target - attuali;
+  if (delta === 0) return { ok: true, message: `${t.name}: erano già ${target} crediti.` };
+
+  await db.from('credit_movements').insert({
+    league_id: t.league_id, team_id: teamId, amount: delta, reason: 'adjustment',
+    created_by: actor,
+    note: `Correzione crediti: ${attuali} → ${target}${note ? ` · ${note}` : ''}`,
+  });
+  await db.from('audit_log').insert({
+    league_id: t.league_id, actor, action: 'credits_adjusted',
+    payload: { team_id: teamId, team: t.name, from: attuali, to: target, delta, note },
+  });
+
+  return {
+    ok: true,
+    message: `${t.name}: ${attuali} → ${target} crediti (${delta > 0 ? '+' : ''}${delta}).`,
+  };
+}
+
 /** Aggiunge uno svincolato a una rosa al prezzo indicato. */
 export async function addToRoster(
   teamId: string, playerId: string, price: number, actor: string, note: string,
@@ -129,7 +178,7 @@ export async function currentSnapshot(leagueId: string): Promise<{
   const db = supabaseAdmin();
   const [{ data: contracts }, { data: players }, { data: teams }] = await Promise.all([
     db.from('contracts')
-      .select('id, price, acquisition_type, teams(name), players(ext_id, name, role)')
+      .select('id, price, acquisition_type, teams(name), players(ext_id, name, role, status)')
       .eq('league_id', leagueId).is('released_at', null),
     db.from('players').select('ext_id, name, club, quotation, out_of_list').eq('league_id', leagueId),
     db.from('teams').select('id, name').eq('league_id', leagueId),
@@ -138,7 +187,7 @@ export async function currentSnapshot(leagueId: string): Promise<{
   type Row = {
     id: string; price: number; acquisition_type: string;
     teams: { name: string } | null;
-    players: { ext_id: string; name: string; role: Role } | null;
+    players: { ext_id: string; name: string; role: Role; status: PlayerStatus } | null;
   };
 
   return {
@@ -146,7 +195,7 @@ export async function currentSnapshot(leagueId: string): Promise<{
       .filter((c) => c.players && c.teams)
       .map((c) => ({
         extId: c.players!.ext_id, name: c.players!.name, role: c.players!.role,
-        teamName: c.teams!.name, price: c.price,
+        teamName: c.teams!.name, price: c.price, status: c.players!.status,
         fromFlashAuction: c.acquisition_type === 'flash_auction',
       })),
     players: (players ?? []).map((p) => ({
@@ -224,15 +273,28 @@ export async function applySync(
   if (diff.repriced.length) details.push(`${diff.repriced.length} prezzi corretti`);
 
   // 3 · usciti dalle rose
+  //
+  // Per la lega uscire dalla rosa è uno svincolo, e uno svincolo rende il 75%
+  // del prezzo pagato — non il prezzo intero. Il valore arriva già calcolato
+  // dal confronto (`rimborso`), con le stesse regole del mercato: così quello
+  // che l'admin legge nell'anteprima è esattamente quello che viene scritto.
+  //
+  // `release_type` resta 'correction' perché descrive *come* è entrata questa
+  // riga nel nostro database — a mano, riconciliando un file — non che tipo
+  // di operazione sia stata in lega. Di conseguenza non consuma un cambio di
+  // ruolo: se lo svincolo è avvenuto davvero fuori dall'app, il contatore va
+  // corretto a mano dal pannello.
   for (const r of diff.removed) {
     const c = contractByExt.get(r.extId);
     if (!c) continue;
     await db.from('contracts').update({
-      released_at: now, release_type: 'correction', release_value: c.price,
+      released_at: now, release_type: 'correction', release_value: r.rimborso,
     }).eq('id', c.id);
     await db.from('credit_movements').insert({
-      league_id: leagueId, team_id: c.team_id, amount: c.price, reason: 'adjustment',
-      note: `Sincronizzazione: ${r.name} non è più in rosa`,
+      league_id: leagueId, team_id: c.team_id, amount: r.rimborso, reason: 'adjustment',
+      note: `Sincronizzazione: ${r.name} non è più in rosa`
+        + ` · rimborso ${r.rimborso} di ${r.price}`
+        + (r.tipoRimborso === 'free_100' ? ' (100%, fuori dalla Serie A o squalificato)' : ' (75%)'),
     });
   }
   if (diff.removed.length) details.push(`${diff.removed.length} usciti dalle rose`);

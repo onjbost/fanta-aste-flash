@@ -6,6 +6,7 @@ import { refundValue, ROLE_LABEL, type Role, type PlayerStatus } from '@/lib/rul
 import { TopBar } from '../../TopBar';
 import { RosterEditor } from './RosterEditor';
 import { SyncForm } from './SyncForm';
+import { CreditiEditor } from './CreditiEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,13 +25,15 @@ export default async function RosePage({
   const sp = await searchParams;
   const selected = sp.team ?? teams?.[0]?.id ?? '';
 
-  const [{ data: contracts }, { data: credits }, { data: freeAgents }] = await Promise.all([
+  const [{ data: contracts }, { data: credits }, { data: freeAgents }, { data: creditiLega }] = await Promise.all([
     db.from('contracts')
       .select('id, price, acquisition_type, players(id, name, role, club, status)')
       .eq('team_id', selected).is('released_at', null),
     db.from('v_team_credits').select('credits').eq('team_id', selected).maybeSingle(),
     db.from('v_free_agents').select('id, name, role, club, quotation')
       .order('quotation', { ascending: false }).limit(600),
+    db.from('v_team_credits').select('team_id, name, credits')
+      .eq('league_id', ctx.team.leagueId).order('name'),
   ]);
 
   type Row = {
@@ -103,6 +106,13 @@ export default async function RosePage({
         roster={roster}
         freeAgents={(freeAgents ?? []).map((p) => ({
           id: p.id, name: p.name, role: p.role as Role, club: p.club, quotation: p.quotation,
+        }))}
+      />
+
+      <h2>Crediti residui</h2>
+      <CreditiEditor
+        squadre={(creditiLega ?? []).map((t) => ({
+          id: String(t.team_id), name: String(t.name), credits: Number(t.credits ?? 0),
         }))}
       />
 

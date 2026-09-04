@@ -260,6 +260,33 @@ ol.rules li::before{
 }
 .tabs .on .pallino{background:var(--accent-soft);color:var(--accent)}
 
+/* pastiglia contatore, fuori dai tab: il numero di filtri attivi, per esempio */
+.pallino{
+  display:inline-block;margin-left:6px;padding:1px 6px;border-radius:99px;
+  font-size:.7rem;font-weight:700;background:var(--accent-soft);color:var(--accent);
+}
+
+/* intestazioni ordinabili della tabella svincolati.
+   Il bottone dentro il th eredita tutto dal th: serve solo che sia cliccabile
+   e che non si porti dietro il riquadro dei bottoni normali. */
+th.ordinabile{padding:0}
+th.ordinabile button{
+  all:unset;display:flex;align-items:center;gap:4px;width:100%;
+  padding:10px 14px;cursor:pointer;
+  font-size:.66rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--muted);white-space:nowrap;
+}
+th.ordinabile.num button{justify-content:flex-end}
+th.ordinabile button:hover{color:var(--accent)}
+th.ordinabile[aria-sort]:not([aria-sort="none"]) button{color:var(--ink)}
+th.ordinabile .segno{font-size:.85rem;line-height:1;color:var(--accent)}
+th.ordinabile .livello{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:15px;height:15px;border-radius:99px;
+  background:var(--accent-soft);color:var(--accent);
+  font-size:.6rem;font-weight:700;letter-spacing:0;
+}
+
 /* una giornata nella redazione: intestazione cliccabile, tre tab dentro */
 .giornata{margin-bottom:12px}
 .giornata summary{list-style:none;cursor:pointer;padding:14px 16px}

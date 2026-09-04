@@ -145,13 +145,18 @@ export interface FreeAgent {
  * diverse, e chi guarda la pagina deve poterle distinguere.
  */
 export async function loadFreeAgents(
-  filter: { role?: Role; q?: string } = {},
+  filter: { role?: Role; q?: string; fuoriLista?: boolean } = {},
 ): Promise<{ players: FreeAgent[]; error: string | null }> {
   const db = await supabaseServer();
   let query = db.from('v_free_agents')
     .select('id, name, role, club, quotation, status, signing_window, out_of_list, locked_until_number')
     .order('quotation', { ascending: false })
-    .limit(400);
+    .limit(700);
+  // «Fuori lista» vuol dire che la società non l'ha iscritto: non prende voto,
+  // in rosa non serve a niente. La vista non li distingue — è giusto così,
+  // risponde solo «chi non ha un contratto aperto» — quindi il filtro sta qui,
+  // dove si decide cosa mostrare a chi un giocatore lo deve scegliere.
+  if (!filter.fuoriLista) query = query.eq('out_of_list', false);
   if (filter.role) query = query.eq('role', filter.role);
   if (filter.q) query = query.ilike('name', `%${filter.q}%`);
   const { data, error } = await query;

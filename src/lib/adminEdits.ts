@@ -227,16 +227,42 @@ export async function applySync(
   const db = supabaseAdmin();
   const details: string[] = [];
 
+  // Chi c'è adesso, prima di toccare niente: serve per sapere chi sparirà.
+  // Va letto qui, perché dopo l'upsert la fotografia è già cambiata.
+  const { data: prima } = await db.from('players')
+    .select('id, ext_id, name').eq('league_id', leagueId);
+  const inArrivo = new Set(incoming.map((p) => p.extId));
+  const spariti = (prima ?? []).filter((p) => !inArrivo.has(p.ext_id as string));
+
   // 1 · listone: sempre, è solo anagrafica
+  const adesso = new Date().toISOString();
   for (let i = 0; i < incoming.length; i += 500) {
     const rows = incoming.slice(i, i + 500).map((p) => ({
       league_id: leagueId, ext_id: p.extId, name: p.name, role: p.role,
       club: p.club, quotation: p.quotation, out_of_list: p.outOfList,
+      // senza questo l'upsert lascia la data del primo inserimento, e diventa
+      // impossibile distinguere «c'era e non è cambiato» da «non c'è più»
+      updated_at: adesso,
     }));
     const { error } = await db.from('players').upsert(rows, { onConflict: 'league_id,ext_id' });
     if (error) return { ok: false, message: `Listone: ${error.message}`, details };
   }
   details.push(`${incoming.length} giocatori aggiornati nel listone`);
+
+  // 1b · spariti dal listone ufficiale: si contano, non si toccano.
+  //
+  // Cancellarli sarebbe rischioso più di quanto sembri: `contracts.player_id` è
+  // `on delete cascade`, quindi con il giocatore se ne andrebbero anche i suoi
+  // contratti chiusi — cioè la storia di mercato che l'app tiene apposta — e
+  // lotti e richieste di svincolo lo referenziano senza cascade, quindi
+  // Postgres rifiuterebbe e l'import morirebbe a metà.
+  //
+  // Restano quindi dove sono. Se un giorno danno fastidio, la strada meno
+  // invasiva è marcarli `out_of_list`: sparirebbero dalle stesse viste da cui
+  // spariscono i fuori lista, e tornerebbero da soli se rientrassero nel file.
+  if (spariti.length) {
+    details.push(`${spariti.length} non sono più nel listone (lasciati dove sono)`);
+  }
 
   if (!opts.rosters) {
     return { ok: true, message: 'Listone aggiornato. Le rose non sono state toccate.', details };

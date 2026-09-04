@@ -31,6 +31,7 @@ export default async function RosePage({
       .eq('team_id', selected).is('released_at', null),
     db.from('v_team_credits').select('credits').eq('team_id', selected).maybeSingle(),
     db.from('v_free_agents').select('id, name, role, club, quotation')
+      .eq('out_of_list', false)
       .order('quotation', { ascending: false }).limit(600),
     db.from('v_team_credits').select('team_id, name, credits')
       .eq('league_id', ctx.team.leagueId).order('name'),

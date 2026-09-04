@@ -26,10 +26,14 @@ const ICONS: Record<NavKey, ReactNode> = {
       <path d="M9.5 9.5h5" /><path d="M9.5 13.5h3" />
     </svg>
   ),
+  // Svincolati: un giocatore libero, e il piu' che dice «lo puoi prendere».
+  // L'elenco puntato di prima diceva «una lista qualsiasi» e non «questi sono
+  // quelli che puoi chiamare», che e' l'unica cosa che si va a cercare qui.
   listone: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M9 5h11" /><path d="M9 12h11" /><path d="M9 19h11" />
-      <circle cx="4.5" cy="5" r="1.2" /><circle cx="4.5" cy="12" r="1.2" /><circle cx="4.5" cy="19" r="1.2" />
+      <circle cx="10" cy="7.5" r="3.5" />
+      <path d="M3.5 20a6.5 6.5 0 0 1 11.4-4.3" />
+      <path d="M18 14.5v6" /><path d="M15 17.5h6" />
     </svg>
   ),
   regolamento: (
@@ -51,7 +55,7 @@ const VOCI: { key: NavKey; href: string; label: string }[] = [
   { key: 'rosa', href: '/', label: 'Rosa' },
   { key: 'asta', href: '/asta', label: 'Asta' },
   { key: 'schedine', href: '/schedine', label: 'Schedine' },
-  { key: 'listone', href: '/listone', label: 'Listone' },
+  { key: 'listone', href: '/listone', label: 'Svincolati' },
   { key: 'regolamento', href: '/regolamento', label: 'Regole' },
 ];
 

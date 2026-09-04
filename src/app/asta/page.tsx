@@ -63,8 +63,11 @@ export default async function AstaPage() {
       .select('id, lot_id, team_id, is_caller, status').eq('session_id', s.id)
       .neq('status', 'cancelled'),
     db.from('teams').select('id, name').eq('league_id', ctx.team.leagueId),
+    // fuori lista = la societa' non l'ha iscritto: non prende voto, e
+    // chiamarlo all'asta sarebbe buttare via un cambio di ruolo
     db.from('v_free_agents')
       .select('id, name, role, club, quotation, signing_window, locked_until_number')
+      .eq('out_of_list', false)
       .order('quotation', { ascending: false }).limit(600),
   ]);
 

@@ -1,24 +1,15 @@
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
 import { loadFreeAgents, requireTeamContext } from '@/lib/queries';
-import { ROLE_LABEL, type Role } from '@/lib/rules';
 import { TopBar } from '../TopBar';
+import { Svincolati } from './Svincolati';
 
 export const dynamic = 'force-dynamic';
 
-const ROLES: Role[] = ['P', 'D', 'C', 'A'];
-
-export default async function ListonePage({
-  searchParams,
-}: {
-  searchParams: Promise<{ role?: string; q?: string }>;
-}) {
+export default async function SvincolatiPage() {
   const ctx = await requireTeamContext();
 
-  const sp = await searchParams;
-  const role = ROLES.includes(sp.role as Role) ? (sp.role as Role) : undefined;
-  const q = sp.q?.trim() || undefined;
-  const { players, error } = await loadFreeAgents({ role, q });
+  // Si caricano tutti una volta sola: ordinare e filtrare avviene nel browser,
+  // così ogni click è immediato invece di essere un giro al server.
+  const { players, error } = await loadFreeAgents();
 
   return (
     <div className="shell">
@@ -27,71 +18,24 @@ export default async function ListonePage({
       <p className="eyebrow">Mercato</p>
       <h1>Svincolati</h1>
       <p className="sub">
-        {players.length} giocatori liberi{role ? ` · ${ROLE_LABEL[role].toLowerCase()}i` : ''}.
-        Chi è uscito da una rosa nell'ultima asta torna chiamabile dalla prossima.
+        {players.length} giocatori liberi. Chi è uscito da una rosa nell&apos;ultima asta
+        torna chiamabile dalla prossima. I fuori lista non compaiono: la società non
+        li ha iscritti, quindi non prendono voto.
       </p>
-
-      <form className="filters" method="get">
-        <div className="field">
-          <label htmlFor="q">Cerca</label>
-          <input id="q" name="q" defaultValue={q ?? ''} placeholder="Cognome" />
-        </div>
-        <div className="field" style={{ maxWidth: 180 }}>
-          <label htmlFor="role">Ruolo</label>
-          <select id="role" name="role" defaultValue={role ?? ''}>
-            <option value="">Tutti</option>
-            {ROLES.map((r) => <option key={r} value={r}>{ROLE_LABEL[r]}</option>)}
-          </select>
-        </div>
-        <button type="submit" className="primary">Filtra</button>
-        {(role || q) && <Link className="btn" href="/listone">Azzera</Link>}
-      </form>
 
       {error && (
         <div className="callout crit">
-          Il listone non si è caricato: {error}. Se hai appena aggiornato il database,
-          controlla di aver eseguito tutte le migrazioni.
+          Gli svincolati non si sono caricati: {error}. Se hai appena aggiornato il
+          database, controlla di aver eseguito tutte le migrazioni.
         </div>
       )}
 
-      <div className="panel">
-        <div className="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>R</th><th>Giocatore</th><th>Club</th>
-                <th className="num">Quotazione</th><th>Note</th>
-              </tr>
-            </thead>
-            <tbody>
-              {players.map((p) => (
-                <tr key={p.id}>
-                  <td><span className="role-badge" title={ROLE_LABEL[p.role]}>{p.role}</span></td>
-                  <td><b>{p.name}</b></td>
-                  <td style={{ color: 'var(--muted)' }}>{p.club}</td>
-                  <td className="num">{p.quotation}</td>
-                  <td>
-                    {p.status === 'injured_long' && <span className="tag crit">Infortunato</span>}
-                    {p.status === 'out_of_serie_a' && <span className="tag warn">Fuori Serie A</span>}
-                    {p.outOfList && <span className="tag warn">Fuori lista</span>}
-                    {p.lockedUntilNumber != null && (
-                      <span className="tag muted">Chiamabile dall'asta #{p.lockedUntilNumber}</span>
-                    )}
-                    {p.signingWindow === 'winter' && <span className="tag muted">Arrivo di gennaio</span>}
-                  </td>
-                </tr>
-              ))}
-              {players.length === 0 && (
-                <tr><td colSpan={5}><div className="empty">Nessun giocatore con questi filtri.</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Svincolati players={players} />
 
       <div className="callout">
-        Nelle aste di gennaio (#7, #8, #9) i giocatori arrivati in Serie A nel mercato invernale
-        non si possono chiamare — art. 11.2. L'app li segnala e blocca la chiamata.
+        Nelle aste di gennaio (#7, #8, #9) i giocatori arrivati in Serie A nel mercato
+        invernale non si possono chiamare — art. 11.2. L&apos;app li segnala e blocca
+        la chiamata.
       </div>
     </div>
   );

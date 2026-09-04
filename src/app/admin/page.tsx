@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
@@ -63,12 +64,13 @@ export default async function AdminPage() {
       <h1>Da decidere</h1>
       <TelegramCheck configured={telegramConfigured()} />
       <div className="filters" style={{ marginTop: 0 }}>
-        <a className="btn" href="/admin/rose">Rose e import</a>
-        <a className="btn" href="/admin/allenatori">Allenatori</a>
-        <a className="btn" href="/admin/messaggi">Centro messaggi</a>
-        <a className="btn" href="/admin/schedine">Tipster</a>
-        <a className="btn" href="/admin/redazione">La redazione</a>
-        <a className="btn" href="/asta/sala">Sala d'asta</a>
+        <Link className="btn" href="/admin/rose">Rose e import</Link>
+        <Link className="btn" href="/admin/allenatori">Allenatori</Link>
+        <Link className="btn" href="/admin/messaggi">Centro messaggi</Link>
+        <Link className="btn" href="/admin/schedine">Tipster</Link>
+        <Link className="btn" href="/admin/redazione">La redazione</Link>
+        <Link className="btn" href="/asta/sala">Sala d&apos;asta</Link>
+        <Link className="btn" href="/admin/prova">Sala di prova</Link>
       </div>
       <p className="sub">
         {requests.length === 0
@@ -96,7 +98,7 @@ export default async function AdminPage() {
                   {r.teams?.name} · pagato {price} cr · {STATUS_NOTE[r.players?.status ?? 'active']}
                 </div>
               </div>
-              <div className="mono" style={{ textAlign: 'right', fontSize: '.86rem' }}>
+              <div className="mono" style={{ textAlign: 'right', fontSize: '.85rem' }}>
                 <div><b>Approva</b> · {s.approved.refund} cr · cambio non consumato</div>
                 <div style={{ color: 'var(--muted)' }}>
                   Rifiuta · {s.rejected.refund} cr · cambio consumato

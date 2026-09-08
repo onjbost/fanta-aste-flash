@@ -250,7 +250,10 @@ async function leggiClassificheUfficiali(
   const { data } = await db.from('standings_snapshots')
     .select('matchday_id, competition, group_name, team_name, team_id, posizione, punti, matchdays!inner(serie_a)')
     .eq('league_id', leagueId)
-    .lte('matchdays.serie_a', serieA);
+    .lte('matchdays.serie_a', serieA)
+    // il campionato non ha gironi: una riga così è una coppa che ha perso
+    // l'etichetta, e in classifica raddoppierebbe le squadre
+    .or('group_name.eq.,competition.eq.coppa');
   if (!data?.length) return vuoto;
 
   type Riga = {

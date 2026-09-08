@@ -74,12 +74,26 @@ export async function importaGiornata(grezzo: unknown): Promise<EsitoImport> {
   if (payload.giornata == null) return scarta('la pagina non diceva che giornata fosse');
 
   /*
-   * Che competizione sia lo dice l'estrattore, che l'ha letta in testa alla
-   * pagina della lega. Chi non lo dice — i grezzi raccolti prima che il
-   * preferito imparasse a guardarla — è campionato: fino ad allora era
-   * l'unica cosa che si riusciva a importare.
+   * Che competizione sia lo dice l'estrattore, che l'ha letta dalla lega.
+   *
+   * Quando non lo dice non si tira a indovinare. Ci abbiamo provato — «se non
+   * lo sai è campionato» — e il primo import di coppa è finito scritto sul
+   * campionato: non un errore, un dato sbagliato che sembrava buono. Un
+   * estrattore che sa parlare di competizioni e resta zitto è un estrattore
+   * che ha letto male la pagina, e l'unica risposta onesta è fermarsi.
+   *
+   * L'eccezione è storica e sicura: i grezzi raccolti prima della versione 3
+   * la competizione non la dicevano perché la coppa non si poteva importare.
    */
-  const tipo: TipoCompetizione = payload.tipo === 'coppa' ? 'coppa' : 'campionato';
+  const tipo: TipoCompetizione | null = payload.tipo === 'coppa' || payload.tipo === 'campionato'
+    ? payload.tipo
+    : (payload.versioneEstrattore ?? 0) < 3 ? 'campionato' : null;
+  if (!tipo) {
+    return scarta(
+      'il preferito non ha capito che competizione fosse: rilancialo dalla pagina della giornata, '
+      + 'e se il pannello lo dice ancora scrivilo a mano dalla pagina di correzione',
+    );
+  }
 
   /*
    * La stessa parola «giornata» conta due cose diverse.
@@ -253,8 +267,28 @@ async function scriviClassifiche(
   let scritte = 0;
 
   for (const c of classifiche) {
-    const competition: TipoCompetizione = c.tipo
-      ?? (/coppa/i.test(c.competizione ?? '') ? 'coppa' : 'campionato');
+    /*
+     * Anche qui: nessuna competizione, nessuna riga.
+     *
+     * È il punto esatto in cui i due gironi di coppa sono finiti archiviati
+     * come campionato — la classifica c'era, l'etichetta no, e il ripiego
+     * «campionato» l'ha presa per buona. Una classifica senza competizione
+     * non è una classifica a metà: è una classifica di cui non sappiamo di
+     * chi sia, e archiviarla vuol dire mescolarla a un'altra.
+     */
+    const competition: TipoCompetizione | null = c.tipo
+      ?? (/coppa/i.test(c.competizione ?? '') ? 'coppa'
+        : /campionato|lega/i.test(c.competizione ?? '') ? 'campionato' : null);
+    if (!competition) {
+      problemi.push(
+        `classifica${c.gruppo ? ` del gruppo ${c.gruppo}` : ''}: non so di che competizione sia, non l'ho archiviata`,
+      );
+      continue;
+    }
+    if (competition === 'campionato' && c.gruppo) {
+      problemi.push(`classifica del gruppo ${c.gruppo}: il campionato non ha gironi, non l'ho archiviata`);
+      continue;
+    }
     const righe = c.righe.map((r) => ({
       league_id: leagueId, matchday_id: matchdayId,
       competition, group_name: c.gruppo ?? '',

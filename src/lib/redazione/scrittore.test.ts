@@ -221,10 +221,33 @@ describe('montaMessaggio', () => {
     expect(m.indexOf('LA CLASSIFICA')).toBeLessThan(m.indexOf('TORNEO DEI TIPSTER'));
   });
 
-  it('segnala le sfide di coppa', () => {
+  it('mette le sfide di coppa sotto la loro intestazione', () => {
     const r = richiesta();
     r.sfide[0].competizione = 'coppa';
-    expect(montaMessaggio(pezzo(), r)).toContain('(Coppa Mansarda)');
+    expect(montaMessaggio(pezzo(), r)).toContain('COPPA MANSARDA');
+  });
+
+  it('separa i due tornei quando la giornata ne ha tutti e due', () => {
+    const r = richiesta();
+    r.sfide = [
+      { ...r.sfide[0], fixtureId: 'f1', competizione: 'campionato' },
+      { ...r.sfide[0], fixtureId: 'f2', casa: 'Gamma', ospite: 'Delta', competizione: 'coppa' },
+    ];
+    const p = pezzo();
+    p.sfide = [
+      { fixtureId: 'f1', testo: lungo(25) },
+      { fixtureId: 'f2', testo: lungo(25) },
+    ];
+    const m = montaMessaggio(p, r);
+    expect(m.indexOf('CAMPIONATO')).toBeGreaterThan(-1);
+    // e nell'ordine giusto: prima il campionato, poi la coppa
+    expect(m.indexOf('CAMPIONATO')).toBeLessThan(m.indexOf('COPPA MANSARDA'));
+    expect(m.indexOf('Alfa 1-0 Beta')).toBeLessThan(m.indexOf('COPPA MANSARDA'));
+    expect(m.indexOf('Gamma 1-0 Delta')).toBeGreaterThan(m.indexOf('COPPA MANSARDA'));
+  });
+
+  it('non intitola il campionato quando è l\'unico torneo della giornata', () => {
+    expect(montaMessaggio(pezzo(), richiesta())).not.toContain('CAMPIONATO');
   });
 
   it('salta i blocchi vuoti invece di lasciare un titolo orfano', () => {

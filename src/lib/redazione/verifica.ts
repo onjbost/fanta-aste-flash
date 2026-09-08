@@ -109,7 +109,14 @@ export function verificaPezzo(
   return { ok: problemi.length === 0, problemi, inventati, parole };
 }
 
-/** Il messaggio finito, montato nell'ordine in cui si legge. */
+/**
+ * Il messaggio finito, montato nell'ordine in cui si legge.
+ *
+ * Campionato e coppa vanno in due blocchi con la loro intestazione, non
+ * mescolati con una parentesi accanto al risultato. Sono due tornei con due
+ * classifiche: chi legge deve capire al volo di quale delle due si sta
+ * parlando, altrimenti «è secondo» non vuol dire niente.
+ */
 export function montaMessaggio(pezzo: Pezzo, r: RichiestaPezzo): string {
   const righe: string[] = [
     `🏆 FANTA MANSARDA · GIORNATA ${r.giornata}`,
@@ -118,17 +125,29 @@ export function montaMessaggio(pezzo: Pezzo, r: RichiestaPezzo): string {
     pezzo.apertura,
   ];
 
-  for (const s of r.sfide) {
+  const blocco = (s: RichiestaPezzo['sfide'][number]) => {
     const testo = pezzo.sfide.find((x) => x.fixtureId === s.fixtureId)?.testo;
-    if (!testo) continue;
+    if (!testo) return;
     righe.push(
       '',
-      `⚽ ${s.casa} ${s.golCasa}-${s.golOspite} ${s.ospite}`
-      + (s.competizione === 'coppa' ? '  (Coppa Mansarda)' : ''),
+      `⚽ ${s.casa} ${s.golCasa}-${s.golOspite} ${s.ospite}`,
       `   ${s.fpCasa} · ${s.fpOspite} fantapunti`,
       '',
       testo,
     );
+  };
+
+  const campionato = r.sfide.filter((s) => s.competizione !== 'coppa');
+  const coppa = r.sfide.filter((s) => s.competizione === 'coppa');
+
+  // l'intestazione del campionato si mette solo se c'è anche la coppa: in una
+  // giornata normale sarebbe un titolo su un capitolo unico
+  if (campionato.length && coppa.length) righe.push('', '📅 CAMPIONATO');
+  campionato.forEach(blocco);
+
+  if (coppa.length) {
+    righe.push('', '─'.repeat(28), '🥇 COPPA MANSARDA');
+    coppa.forEach(blocco);
   }
 
   if (pezzo.classifica) righe.push('', '📊 LA CLASSIFICA', '', pezzo.classifica);

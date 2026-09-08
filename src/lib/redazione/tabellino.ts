@@ -43,6 +43,8 @@ export interface SquadraGrezza {
 
 export interface SfidaGrezza {
   indice: number;
+  /** 'A' o 'B' nella fase a gruppi della coppa: gli indici scorrono su tutti i gironi */
+  gruppo?: string | null;
   dati: { casa: SquadraGrezza; ospite: SquadraGrezza } | { errore: string };
   testo?: string;
 }
@@ -78,6 +80,8 @@ export interface PayloadImport {
   competizione: string | null;
   competizioneNome?: string | null;
   tipo?: TipoCompetizione | null;
+  /** cosa aveva riconosciuto l'estrattore, quando `tipo` l'ha scelto l'admin */
+  tipoRiconosciuto?: TipoCompetizione | null;
   giornata: number | null;
   raccoltoIl: string;
   versioneEstrattore: number;

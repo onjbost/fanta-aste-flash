@@ -71,6 +71,9 @@ export interface PrecedenteSquadra {
 
 export interface RigaClassifica { teamId: string; nome: string; punti: number; posizione: number }
 
+/** Un girone della fase a gruppi della coppa, com'è messo adesso. */
+export interface GironeCoppa { gruppo: string | null; righe: RigaClassifica[] }
+
 export interface TipsterGiornata {
   teamId: string;
   nome: string;
@@ -91,6 +94,11 @@ export interface ContestoGiornata {
   precedenti: PrecedenteSquadra[];
   classificaPrima: RigaClassifica[];
   classificaDopo: RigaClassifica[];
+  /** vera quando le due classifiche sono quelle lette dalla lega, non le nostre */
+  classificaUfficiale?: boolean;
+  /** la fase a gruppi della coppa, se questa giornata ne ha una */
+  gironiCoppa?: GironeCoppa[];
+  gironiCoppaPrima?: GironeCoppa[];
   tipster: TipsterGiornata[];
   /** sopra questo prezzo un giocatore è «uno di quelli pagati» */
   sogliaBigMoney?: number;
@@ -126,6 +134,7 @@ export function trovaSpunti(ctx: ContestoGiornata): Spunto[] {
     ...sulleStrisce(ctx),
     ...suiSingoli(ctx),
     ...sullaClassifica(ctx),
+    ...laClassificaNelleSfide(ctx),
     ...sulTipster(ctx),
     ...sulComportamento(ctx),
   ];
@@ -450,6 +459,149 @@ function sullaClassifica(ctx: ContestoGiornata): Spunto[] {
   return out;
 }
 
+/**
+ * La classifica dentro il racconto delle singole partite.
+ *
+ * `sullaClassifica` guarda la vetta e il fondo, cose da paragrafo finale.
+ * Queste invece sono agganciate a una sfida: servono a far dire al pezzo
+ * *cosa valeva* quella partita — chi ha scavalcato chi, chi è salito, chi
+ * era primo contro chi era ultimo — invece di raccontarla come se la
+ * classifica non esistesse.
+ *
+ * Le posizioni non si inventano mai: si prendono dalle due fotografie, prima
+ * e dopo. Se una delle due manca, di quella sfida non si dice niente.
+ */
+function laClassificaNelleSfide(ctx: ContestoGiornata): Spunto[] {
+  const out: Spunto[] = [];
+  const prima = indice(ctx.classificaPrima);
+  const dopo = indice(ctx.classificaDopo);
+  if (!dopo.size) return out;
+  const quante = ctx.classificaDopo.length;
+
+  for (const s of ctx.sfide) {
+    if (s.competizione !== 'campionato') continue;
+    const casa = cerca(dopo, s.casa); const ospite = cerca(dopo, s.ospite);
+    if (!casa || !ospite) continue;
+    const casaPrima = cerca(prima, s.casa); const ospitePrima = cerca(prima, s.ospite);
+
+    // che partita era, guardando la classifica di prima
+    if (casaPrima && ospitePrima) {
+      const alte = casaPrima.posizione <= 3 && ospitePrima.posizione <= 3;
+      const basse = casaPrima.posizione > quante - 3 && ospitePrima.posizione > quante - 3;
+      if (alte) {
+        out.push({
+          codice: 'scontro_alta', fixtureId: s.fixtureId, soggetto: s.casa.nome, peso: 62,
+          dati: {
+            casa: s.casa.nome, ospite: s.ospite.nome,
+            posCasa: casaPrima.posizione, posOspite: ospitePrima.posizione,
+          },
+          frase: `Partita fra le prime: ${s.casa.nome} era ${casaPrima.posizione}°, ${s.ospite.nome} ${ospitePrima.posizione}°.`,
+        });
+      } else if (basse) {
+        out.push({
+          codice: 'scontro_bassa', fixtureId: s.fixtureId, soggetto: s.casa.nome, peso: 52,
+          dati: {
+            casa: s.casa.nome, ospite: s.ospite.nome,
+            posCasa: casaPrima.posizione, posOspite: ospitePrima.posizione,
+          },
+          frase: `Sfida in fondo alla classifica: ${casaPrima.posizione}° contro ${ospitePrima.posizione}°.`,
+        });
+      } else if (Math.abs(casaPrima.posizione - ospitePrima.posizione) >= quante - 2) {
+        const alto = casaPrima.posizione < ospitePrima.posizione ? s.casa : s.ospite;
+        const basso = alto === s.casa ? s.ospite : s.casa;
+        const vinceIlBasso = (basso === s.casa ? s.casa.gol > s.ospite.gol : s.ospite.gol > s.casa.gol);
+        out.push({
+          codice: 'primo_contro_ultimo', fixtureId: s.fixtureId, soggetto: basso.nome, peso: vinceIlBasso ? 78 : 45,
+          dati: { alto: alto.nome, basso: basso.nome, vinceIlBasso },
+          frase: vinceIlBasso
+            ? `L'ultima batte la prima: ${basso.nome} fa lo sgambetto a ${alto.nome}.`
+            : `Prima contro ultima, e la classifica non si è offesa: ${alto.nome} passa su ${basso.nome}.`,
+        });
+      }
+
+      // il sorpasso diretto: si erano incontrate e si sono anche scambiate
+      const eraSopra = casaPrima.posizione < ospitePrima.posizione;
+      const eSopra = casa.posizione < ospite.posizione;
+      if (eraSopra !== eSopra) {
+        const sale = eSopra ? s.casa : s.ospite;
+        const scende = eSopra ? s.ospite : s.casa;
+        const salePos = eSopra ? casa.posizione : ospite.posizione;
+        const scendePos = eSopra ? ospite.posizione : casa.posizione;
+        out.push({
+          codice: 'sorpasso_diretto', fixtureId: s.fixtureId, soggetto: sale.nome, peso: 72,
+          dati: { sale: sale.nome, scende: scende.nome, posSale: salePos, posScende: scendePos },
+          frase: `${sale.nome} scavalca ${scende.nome} proprio battendola in classifica: adesso ${salePos}° contro ${scendePos}°.`,
+        });
+      }
+    }
+
+    // dove sono finite, comunque sia andata
+    for (const [sq, ora, era] of [[s.casa, casa, casaPrima], [s.ospite, ospite, ospitePrima]] as const) {
+      if (!era || era.posizione === ora.posizione) continue;
+      const salita = era.posizione - ora.posizione;
+      if (Math.abs(salita) < 2) continue;
+      out.push({
+        codice: salita > 0 ? 'scalata' : 'scivolata', fixtureId: s.fixtureId, soggetto: sq.nome, peso: 48,
+        dati: { squadra: sq.nome, da: era.posizione, a: ora.posizione, punti: ora.punti },
+        frase: salita > 0
+          ? `${sq.nome} passa dal ${era.posizione}° al ${ora.posizione}° posto: ${ora.punti} punti.`
+          : `${sq.nome} scivola dal ${era.posizione}° al ${ora.posizione}° posto: ${ora.punti} punti.`,
+      });
+    }
+  }
+
+  // la coppa ha i suoi gironi, e lì la posizione conta anche di più
+  for (const girone of ctx.gironiCoppa ?? []) {
+    const pos = indice(girone.righe);
+    for (const s of ctx.sfide) {
+      if (s.competizione !== 'coppa') continue;
+      const casa = cerca(pos, s.casa); const ospite = cerca(pos, s.ospite);
+      if (!casa || !ospite) continue;
+      const testa = casa.posizione === 1 ? s.casa : ospite.posizione === 1 ? s.ospite : null;
+      out.push({
+        codice: 'girone_coppa', fixtureId: s.fixtureId, soggetto: (testa ?? s.casa).nome, peso: 58,
+        dati: {
+          gruppo: girone.gruppo ?? '', casa: s.casa.nome, ospite: s.ospite.nome,
+          posCasa: casa.posizione, posOspite: ospite.posizione,
+          puntiCasa: casa.punti, puntiOspite: ospite.punti,
+        },
+        frase: girone.gruppo
+          ? `Nel gruppo ${girone.gruppo} adesso ${s.casa.nome} è ${casa.posizione}° con ${casa.punti} punti, ${s.ospite.nome} ${ospite.posizione}° con ${ospite.punti}.`
+          : `In coppa ${s.casa.nome} è ${casa.posizione}°, ${s.ospite.nome} ${ospite.posizione}°.`,
+      });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Le righe di classifica, cercabili.
+ *
+ * La chiave è l'id quando ce l'abbiamo, il nome quando la lega ci dà una
+ * squadra che non riusciamo ad agganciare: così una riga non agganciata non
+ * fa sparire la sfida dal racconto.
+ */
+function indice(righe: RigaClassifica[]): Map<string, RigaClassifica> {
+  const m = new Map<string, RigaClassifica>();
+  for (const r of righe) {
+    m.set(r.teamId, r);
+    m.set(`nome:${normalizzaNome(r.nome)}`, r);
+  }
+  return m;
+}
+
+/** Prima per id, poi per nome: la lega non sa niente dei nostri id. */
+function cerca(
+  m: Map<string, RigaClassifica>, sq: { teamId: string; nome: string },
+): RigaClassifica | undefined {
+  return m.get(sq.teamId) ?? m.get(`nome:${normalizzaNome(sq.nome)}`);
+}
+
+function normalizzaNome(n: string): string {
+  return n.trim().toLowerCase().replace(/\s+/g, ' ');
+}
+
 // ----------------------------------------------------------------- tipster
 
 function sulTipster(ctx: ContestoGiornata): Spunto[] {
@@ -544,6 +696,9 @@ export function numeriLeciti(ctx: ContestoGiornata, spunti: Spunto[]): Set<numbe
     }
   }
   for (const r of [...ctx.classificaPrima, ...ctx.classificaDopo]) { aggiungi(r.punti); aggiungi(r.posizione); }
+  for (const g of [...(ctx.gironiCoppa ?? []), ...(ctx.gironiCoppaPrima ?? [])]) {
+    for (const r of g.righe) { aggiungi(r.punti); aggiungi(r.posizione); }
+  }
   for (const t of ctx.tipster) { aggiungi(t.punti); aggiungi(t.giocate); aggiungi(t.azzeccate); aggiungi(t.esatti); }
   for (const s of spunti) for (const v of Object.values(s.dati)) aggiungi(v);
   aggiungi(ctx.fanta); aggiungi(ctx.serieA);

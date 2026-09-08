@@ -12,7 +12,7 @@
  * Vercel senza toccare il repo.
  */
 
-import type { RigaClassifica, Spunto, TipsterGiornata } from './spunti';
+import type { GironeCoppa, RigaClassifica, Spunto, TipsterGiornata } from './spunti';
 
 export interface SfidaDaRaccontare {
   fixtureId: string;
@@ -45,7 +45,14 @@ export interface RichiestaPezzo {
   squadre: SchedaSquadra[];
   sfide: SfidaDaRaccontare[];
   spunti: Spunto[];
+  /** la classifica dopo la giornata */
   classifica: RigaClassifica[];
+  /** com'era prima: serve al modello per dire chi è salito e chi è sceso */
+  classificaPrima?: RigaClassifica[];
+  /** vera quando è quella letta dalla lega e non quella calcolata da noi */
+  classificaUfficiale?: boolean;
+  /** i gironi di coppa, quando la giornata ne ha */
+  gironiCoppa?: GironeCoppa[];
   tipster: TipsterGiornata[];
   /** cosa non andava nel tentativo precedente: si rigenera dicendoglielo */
   correzioni?: string[];
@@ -117,8 +124,26 @@ export function costruisciPrompt(r: RichiestaPezzo): string {
     return righe.join('\n');
   }).join('\n\n');
 
-  const classifica = r.classifica
-    .map((c) => `${c.posizione}. ${c.nome} — ${c.punti}`).join('\n');
+  /*
+   * La classifica col movimento già calcolato.
+   *
+   * Se gli si dà solo la fotografia di adesso, il modello per dire «è salito»
+   * deve ricordarsi la giornata scorsa — e non ce l'ha. Allora se la inventa.
+   * Qui la freccia è già un fatto, e i numeri delle posizioni sono fra quelli
+   * leciti: può dirlo senza rischiare.
+   */
+  const posizionePrima = new Map((r.classificaPrima ?? []).map((c) => [c.teamId, c.posizione]));
+  const classifica = r.classifica.map((c) => {
+    const era = posizionePrima.get(c.teamId);
+    if (era == null || era === c.posizione) return `${c.posizione}. ${c.nome} — ${c.punti}`;
+    const verso = era > c.posizione ? 'sale' : 'scende';
+    return `${c.posizione}. ${c.nome} — ${c.punti} (${verso}, era ${era}°)`;
+  }).join('\n');
+
+  const gironi = (r.gironiCoppa ?? []).map((g) => [
+    g.gruppo ? `Gruppo ${g.gruppo}` : 'Coppa',
+    ...g.righe.map((c) => `${c.posizione}. ${c.nome} — ${c.punti}`),
+  ].join('\n')).join('\n\n');
 
   const tipster = r.tipster
     .map((t) => `- ${t.nome}: ${t.punti} punti, ${t.azzeccate}/${t.giocate} azzeccate`
@@ -139,16 +164,17 @@ Ogni sfida ha il suo tono indicato sotto: dove non è successo niente, non forza
 4. Italiano parlato, vivo, niente burocratese sportivo. Niente elenchi puntati dentro i pezzi.
 5. Usa i soprannomi delle squadre quando ci stanno.
 6. Non mettere mai a confronto due giocatori di ruolo diverso come se uno potesse prendere il posto dell'altro: al fantacalcio si sostituisce solo fra pari ruolo. Un portiere non toglie il posto a un difensore. Dove uno spunto ti dà un ruolo, resta dentro quel ruolo.
-${r.paroleVietate.length ? `7. Parole vietate, non usarle mai: ${r.paroleVietate.join(', ')}.\n` : ''}
+7. Dentro il racconto di ogni sfida cita la classifica almeno una volta: che posto occupano adesso, chi ha scavalcato chi, cosa valeva quella partita. Usa SOLO le posizioni scritte qui sotto — nella classifica e negli spunti — e per le sfide di coppa usa il girone, non la classifica di campionato. Se per una sfida non trovi nessuna posizione qui sotto, non parlare di classifica in quel pezzo.
+${r.paroleVietate.length ? `8. Parole vietate, non usarle mai: ${r.paroleVietate.join(', ')}.\n` : ''}
 ## Le squadre
 ${schede}
 
 ## Le sfide
 ${sfide}
 
-## Classifica dopo la giornata
+## Classifica dopo la giornata${r.classificaUfficiale ? ' (quella ufficiale della lega)' : ''}
 ${classifica}
-
+${gironi ? `\n## Coppa Mansarda — la fase a gruppi dopo la giornata\n${gironi}\n` : ''}
 ## Torneo dei Tipster
 ${tipster || 'nessuna schedina giocata'}
 
@@ -161,7 +187,7 @@ Solo JSON, senza testo intorno e senza blocchi di codice, in questa forma:
 {
   "apertura": "3-4 righe che danno il titolo alla giornata",
   "sfide": [{ "fixtureId": "<esattamente quello indicato sopra>", "testo": "almeno ${r.minParole} parole" }],
-  "classifica": "un paragrafo su com'è messa la classifica",
+  "classifica": "il riepilogo della classifica: chi comanda e con quanti punti, chi insegue, chi si è mosso in questa giornata e chi sta in fondo${r.gironiCoppa?.length ? ", e poi due righe sui gironi di coppa" : ''}. Nomi e numeri solo quelli dati sopra",
   "tipster": "un paragrafo sul Torneo dei Tipster"
 }
 
@@ -270,9 +296,17 @@ export class ScrittoreTemplate implements Scrittore {
         };
       }),
 
+      // il ripiego non deve essere brillante, deve essere completo: la
+      // classifica per intero, che è l'informazione che tutti cercano
       classifica: r.classifica.length
-        ? `In testa ${r.classifica[0].nome} con ${r.classifica[0].punti} punti; `
-          + `chiude ${r.classifica[r.classifica.length - 1].nome} a ${r.classifica[r.classifica.length - 1].punti}.`
+        ? [
+          `In testa ${r.classifica[0].nome} con ${r.classifica[0].punti} punti; `
+            + `chiude ${r.classifica[r.classifica.length - 1].nome} a ${r.classifica[r.classifica.length - 1].punti}.`,
+          r.classifica.map((c) => `${c.posizione}. ${c.nome} ${c.punti}`).join(' · '),
+          ...(r.gironiCoppa ?? []).map((g) =>
+            (g.gruppo ? `Coppa, gruppo ${g.gruppo}: ` : 'Coppa: ')
+            + g.righe.map((c) => `${c.posizione}. ${c.nome} ${c.punti}`).join(' · ')),
+        ].join('\n')
         : '',
 
       tipster: r.tipster.length

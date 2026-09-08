@@ -47,12 +47,41 @@ export interface SfidaGrezza {
   testo?: string;
 }
 
+export type TipoCompetizione = 'campionato' | 'coppa';
+
+/** Una riga di classifica come la scrive la lega, senza nostri ricalcoli. */
+export interface RigaClassificaGrezza {
+  posizione: number | null;
+  squadra: string;
+  giocate: number | null;
+  vinte: number | null;
+  pari: number | null;
+  perse: number | null;
+  golFatti: number | null;
+  golSubiti: number | null;
+  differenza: number | null;
+  punti: number | null;
+  fantapunti: number | null;
+}
+
+export interface ClassificaGrezza {
+  competizioneId: string | null;
+  competizione: string | null;
+  tipo: TipoCompetizione | null;
+  /** 'A' o 'B' nella fase a gruppi della coppa, altrimenti null */
+  gruppo: string | null;
+  righe: RigaClassificaGrezza[];
+}
+
 export interface PayloadImport {
   lega: string;
   competizione: string | null;
+  competizioneNome?: string | null;
+  tipo?: TipoCompetizione | null;
   giornata: number | null;
   raccoltoIl: string;
   versioneEstrattore: number;
+  classifiche?: ClassificaGrezza[];
   sfide: SfidaGrezza[];
 }
 
@@ -75,6 +104,12 @@ export function validaPayload(x: unknown): Esito<PayloadImport> {
   if (!Array.isArray(p.sfide) || !p.sfide.length) return { ok: false, errore: 'nessuna sfida nel payload' };
   if (p.giornata != null && !eNumero(p.giornata)) return { ok: false, errore: 'giornata non numerica' };
   if (p.sfide.length > 12) return { ok: false, errore: 'troppe sfide: ' + p.sfide.length };
+  if (p.tipo != null && p.tipo !== 'campionato' && p.tipo !== 'coppa') {
+    return { ok: false, errore: `competizione di tipo sconosciuto: ${String(p.tipo)}` };
+  }
+  if (p.classifiche != null && !Array.isArray(p.classifiche)) {
+    return { ok: false, errore: 'le classifiche non sono un elenco' };
+  }
 
   for (const s of p.sfide as unknown[]) {
     if (!s || typeof s !== 'object') return { ok: false, errore: 'sfida malformata' };
@@ -91,6 +126,35 @@ export function validaPayload(x: unknown): Esito<PayloadImport> {
     }
   }
   return { ok: true, valore: x as unknown as PayloadImport };
+}
+
+/**
+ * Le classifiche utilizzabili del payload.
+ *
+ * A differenza del tabellino, qui una tabella storta non ferma l'import: la
+ * classifica è un di più, e senza si ricade su quella che calcoliamo noi. Si
+ * tiene quello che ha forma di classifica e si butta il resto, in silenzio ma
+ * con il conteggio che torna a chi guarda l'esito.
+ */
+export function classificheLeggibili(p: PayloadImport): ClassificaGrezza[] {
+  if (!Array.isArray(p.classifiche)) return [];
+  const buone: ClassificaGrezza[] = [];
+  for (const c of p.classifiche) {
+    if (!c || typeof c !== 'object' || !Array.isArray(c.righe)) continue;
+    const righe = c.righe.filter(
+      (r) => r && typeof r.squadra === 'string' && r.squadra.trim() !== '' && eNumero(r.posizione),
+    );
+    if (righe.length < 2) continue;
+    const tipo = c.tipo === 'coppa' || c.tipo === 'campionato' ? c.tipo : null;
+    buone.push({
+      competizioneId: typeof c.competizioneId === 'string' ? c.competizioneId : null,
+      competizione: typeof c.competizione === 'string' ? c.competizione : null,
+      tipo,
+      gruppo: typeof c.gruppo === 'string' && /^[A-Z]$/.test(c.gruppo) ? c.gruppo : null,
+      righe,
+    });
+  }
+  return buone;
 }
 
 // =====================================================================

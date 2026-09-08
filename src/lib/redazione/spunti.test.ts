@@ -38,6 +38,9 @@ function contesto(extra: Partial<ContestoGiornata> = {}): ContestoGiornata {
     precedenti: extra.precedenti ?? [],
     classificaPrima: extra.classificaPrima ?? [],
     classificaDopo: extra.classificaDopo ?? [],
+    classificaUfficiale: extra.classificaUfficiale,
+    gironiCoppa: extra.gironiCoppa,
+    gironiCoppaPrima: extra.gironiCoppaPrima,
     tipster: extra.tipster ?? [],
     sogliaBigMoney: extra.sogliaBigMoney,
   };
@@ -378,5 +381,151 @@ describe('ordinamento e numeri leciti', () => {
     expect(n.has(44)).toBe(true);
     expect(n.has(0.5)).toBe(true);      // lo scarto, che nasce dagli spunti
     expect(n.has(12345)).toBe(false);
+  });
+});
+
+// =====================================================================
+// La classifica dentro le singole sfide
+// =====================================================================
+
+describe('la classifica dentro le sfide', () => {
+  /** Otto squadre: la classifica di riferimento, con Alfa e Beta agli estremi. */
+  const otto = (ordine: [string, string, number][]) =>
+    ordine.map(([teamId, nome, punti], i) => ({ teamId, nome, punti, posizione: i + 1 }));
+
+  const PRIMA = otto([
+    ['a', 'Alfa', 9], ['b', 'Beta', 7], ['c', 'Gamma', 6], ['d', 'Delta', 5],
+    ['e', 'Epsilon', 4], ['f', 'Zeta', 3], ['g', 'Eta', 2], ['h', 'Theta', 0],
+  ]);
+
+  it('riconosce lo scontro d\'alta classifica', () => {
+    const ctx = contesto({
+      classificaPrima: PRIMA, classificaDopo: PRIMA,
+      sfide: [sfida(
+        squadra('Alfa', 2, 80, { teamId: 'a' }),
+        squadra('Beta', 1, 74, { teamId: 'b' }),
+      )],
+    });
+    const s = trova(ctx, 'scontro_alta')!;
+    expect(s.fixtureId).toBe('f1');
+    expect(s.dati.posCasa).toBe(1);
+    expect(s.dati.posOspite).toBe(2);
+  });
+
+  it('non lo chiama scontro d\'alta se una delle due è a metà', () => {
+    const ctx = contesto({
+      classificaPrima: PRIMA, classificaDopo: PRIMA,
+      sfide: [sfida(
+        squadra('Alfa', 2, 80, { teamId: 'a' }),
+        squadra('Epsilon', 1, 74, { teamId: 'e' }),
+      )],
+    });
+    expect(codici(ctx)).not.toContain('scontro_alta');
+  });
+
+  it('racconta il sorpasso diretto fra le due che si sono affrontate', () => {
+    const dopo = otto([
+      ['b', 'Beta', 10], ['a', 'Alfa', 9], ['c', 'Gamma', 6], ['d', 'Delta', 5],
+      ['e', 'Epsilon', 4], ['f', 'Zeta', 3], ['g', 'Eta', 2], ['h', 'Theta', 0],
+    ]);
+    const ctx = contesto({
+      classificaPrima: PRIMA, classificaDopo: dopo,
+      sfide: [sfida(
+        squadra('Alfa', 0, 70, { teamId: 'a' }),
+        squadra('Beta', 2, 78, { teamId: 'b' }),
+      )],
+    });
+    const s = trova(ctx, 'sorpasso_diretto')!;
+    expect(s.dati.sale).toBe('Beta');
+    expect(s.dati.scende).toBe('Alfa');
+    expect(s.dati.posSale).toBe(1);
+  });
+
+  it('dà più peso all\'ultima che batte la prima', () => {
+    const ctx = contesto({
+      classificaPrima: PRIMA, classificaDopo: PRIMA,
+      sfide: [sfida(
+        squadra('Alfa', 0, 66, { teamId: 'a' }),
+        squadra('Theta', 1, 70, { teamId: 'h' }),
+      )],
+    });
+    const s = trova(ctx, 'primo_contro_ultimo')!;
+    expect(s.dati.vinceIlBasso).toBe(true);
+    expect(s.peso).toBeGreaterThan(70);
+  });
+
+  it('segna la scalata solo se vale almeno due posizioni', () => {
+    const dopoUno = otto([
+      ['b', 'Beta', 10], ['a', 'Alfa', 9], ['c', 'Gamma', 6], ['d', 'Delta', 5],
+      ['e', 'Epsilon', 4], ['f', 'Zeta', 3], ['g', 'Eta', 2], ['h', 'Theta', 0],
+    ]);
+    const unaSola = contesto({
+      classificaPrima: PRIMA, classificaDopo: dopoUno,
+      sfide: [sfida(
+        squadra('Alfa', 0, 70, { teamId: 'a' }),
+        squadra('Beta', 2, 78, { teamId: 'b' }),
+      )],
+    });
+    expect(codici(unaSola)).not.toContain('scalata');
+
+    const dopoTre = otto([
+      ['d', 'Delta', 11], ['a', 'Alfa', 9], ['b', 'Beta', 7], ['c', 'Gamma', 6],
+      ['e', 'Epsilon', 4], ['f', 'Zeta', 3], ['g', 'Eta', 2], ['h', 'Theta', 0],
+    ]);
+    const tre = contesto({
+      classificaPrima: PRIMA, classificaDopo: dopoTre,
+      sfide: [sfida(
+        squadra('Delta', 3, 88, { teamId: 'd' }),
+        squadra('Eta', 0, 60, { teamId: 'g' }),
+      )],
+    });
+    const s = trova(tre, 'scalata')!;
+    expect(s.dati.da).toBe(4);
+    expect(s.dati.a).toBe(1);
+  });
+
+  it('per la coppa guarda il girone, non la classifica di campionato', () => {
+    const ctx = contesto({
+      classificaPrima: PRIMA, classificaDopo: PRIMA,
+      gironiCoppa: [{
+        gruppo: 'A',
+        righe: [
+          { teamId: 'h', nome: 'Theta', punti: 3, posizione: 1 },
+          { teamId: 'a', nome: 'Alfa', punti: 0, posizione: 2 },
+        ],
+      }],
+      sfide: [{
+        fixtureId: 'c1', competizione: 'coppa',
+        casa: squadra('Theta', 2, 75, { teamId: 'h' }),
+        ospite: squadra('Alfa', 1, 71, { teamId: 'a' }),
+      }],
+    });
+    const s = trova(ctx, 'girone_coppa')!;
+    expect(s.fixtureId).toBe('c1');
+    expect(s.dati.gruppo).toBe('A');
+    expect(s.dati.posCasa).toBe(1);
+    // e la sfida di coppa non finisce dentro gli spunti di campionato
+    expect(codici(ctx)).not.toContain('scontro_alta');
+  });
+
+  it('aggancia per nome quando la lega dà una squadra che non riconosciamo', () => {
+    const senzaId = PRIMA.map((r) => ({ ...r, teamId: `nome:${r.nome}` }));
+    const ctx = contesto({
+      classificaPrima: senzaId, classificaDopo: senzaId,
+      sfide: [sfida(
+        squadra('Alfa', 2, 80, { teamId: 'a' }),
+        squadra('Beta', 1, 74, { teamId: 'b' }),
+      )],
+    });
+    expect(trova(ctx, 'scontro_alta')!.dati.posOspite).toBe(2);
+  });
+
+  it('mette le posizioni dei gironi fra i numeri leciti', () => {
+    const ctx = contesto({
+      gironiCoppa: [{ gruppo: 'B', righe: [{ teamId: 'x', nome: 'Iota', punti: 4, posizione: 3 }] }],
+    });
+    const leciti = numeriLeciti(ctx, []);
+    expect(leciti.has(4)).toBe(true);
+    expect(leciti.has(3)).toBe(true);
   });
 });

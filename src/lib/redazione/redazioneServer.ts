@@ -17,7 +17,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import {
   numeriLeciti, trovaSpunti,
-  type ContestoGiornata, type GiocatoreInCampo, type PrecedenteSquadra,
+  type ContestoGiornata, type GiocatoreInCampo, type GironeCoppa, type PrecedenteSquadra,
   type RigaClassifica, type SfidaInGiornata, type SquadraInSfida, type TipsterGiornata,
 } from './spunti';
 import {
@@ -157,15 +157,31 @@ export async function costruisciMateriale(matchdayId: string): Promise<Materiale
     }
   }
 
-  const classificaPrima = classifica(tutteLeSfide.filter((s) => s.fanta < fanta), nomeDi);
-  const classificaDopo = classifica(tutteLeSfide.filter((s) => s.fanta <= fanta), nomeDi);
+  /*
+   * La classifica: prima quella della lega, la nostra solo se non c'è.
+   *
+   * La nostra la ricava dai risultati con la regola classica — tre punti,
+   * uno, i fantapunti a spareggio — e per una lega senza sorprese coincide.
+   * Ma penalità, punti extra e partite a tavolino la lega li applica e noi
+   * non li vediamo: quando la fotografia c'è, vince lei, perché è quella che
+   * i partecipanti hanno sotto gli occhi mentre leggono il pezzo.
+   */
+  const ufficiali = await leggiClassificheUfficiali(leagueId, matchdayId, Number(md.serie_a));
+  const classificaPrima = ufficiali.prima
+    ?? classifica(tutteLeSfide.filter((s) => s.fanta < fanta), nomeDi);
+  const classificaDopo = ufficiali.dopo
+    ?? classifica(tutteLeSfide.filter((s) => s.fanta <= fanta), nomeDi);
 
   // ---- il torneo dei tipster
   const tipster = await leggiTipster(matchdayId, sfide, nomeDi);
 
   const contesto: ContestoGiornata = {
     fanta, serieA: Number(md.serie_a), sfide, precedenti,
-    classificaPrima, classificaDopo, tipster,
+    classificaPrima, classificaDopo,
+    classificaUfficiale: ufficiali.dopo != null,
+    gironiCoppa: ufficiali.gironi,
+    gironiCoppaPrima: ufficiali.gironiPrima,
+    tipster,
   };
 
   const spunti = trovaSpunti(contesto);
@@ -196,10 +212,102 @@ export async function costruisciMateriale(matchdayId: string): Promise<Materiale
     minParole: Number(lega?.redazione_min_parole ?? 150),
     paroleVietate: (lega?.redazione_parole_vietate as string[] | undefined) ?? [],
     squadre: schede, sfide: daRaccontare, spunti,
-    classifica: classificaDopo, tipster,
+    classifica: classificaDopo,
+    classificaPrima,
+    classificaUfficiale: ufficiali.dopo != null,
+    gironiCoppa: ufficiali.gironi,
+    tipster,
   };
 
   return { leagueId, matchdayId, contesto, richiesta };
+}
+
+/**
+ * Le classifiche che la lega scriveva quando abbiamo importato.
+ *
+ * `dopo` è la fotografia di questa giornata; `prima` è la più recente delle
+ * fotografie precedenti — non necessariamente quella della giornata appena
+ * passata, perché una giornata può essere stata importata senza classifica o
+ * non essere stata importata affatto. Confrontarle è quello che permette di
+ * dire «scavalca» senza rifare i conti.
+ *
+ * Se la fotografia di oggi non c'è, si restituisce null su tutto e chi chiama
+ * ricade sulla classifica calcolata: mezza verità ufficiale e mezza nostra
+ * sarebbe peggio di entrambe, perché il sorpasso verrebbe da un confronto fra
+ * due modi diversi di contare.
+ */
+async function leggiClassificheUfficiali(
+  leagueId: string, matchdayId: string, serieA: number,
+): Promise<{
+  prima: RigaClassifica[] | null;
+  dopo: RigaClassifica[] | null;
+  gironi: GironeCoppa[];
+  gironiPrima: GironeCoppa[];
+}> {
+  const vuoto = { prima: null, dopo: null, gironi: [], gironiPrima: [] };
+  const db = supabaseAdmin();
+
+  const { data } = await db.from('standings_snapshots')
+    .select('matchday_id, competition, group_name, team_name, team_id, posizione, punti, matchdays!inner(serie_a)')
+    .eq('league_id', leagueId)
+    .lte('matchdays.serie_a', serieA);
+  if (!data?.length) return vuoto;
+
+  type Riga = {
+    matchdayId: string; serieA: number; competition: string; gruppo: string;
+    teamId: string | null; nome: string; posizione: number; punti: number;
+  };
+  const righe: Riga[] = data.map((r) => {
+    const x = r as unknown as Record<string, unknown>;
+    return {
+      matchdayId: x.matchday_id as string,
+      serieA: Number((x.matchdays as { serie_a: number }).serie_a),
+      competition: x.competition as string,
+      gruppo: (x.group_name as string | null) ?? '',
+      teamId: (x.team_id as string | null) ?? null,
+      nome: x.team_name as string,
+      posizione: Number(x.posizione),
+      punti: Number(x.punti ?? 0),
+    };
+  });
+
+  const inClassifica = (r: Riga): RigaClassifica => ({
+    // senza aggancio si tiene il nome come identità: sul pezzo conta quello,
+    // e una riga in meno falserebbe le posizioni
+    teamId: r.teamId ?? `nome:${r.nome}`,
+    nome: r.nome, punti: r.punti, posizione: r.posizione,
+  });
+  const ordina = (l: Riga[]) => l.sort((a, b) => a.posizione - b.posizione).map(inClassifica);
+
+  const campionatoOggi = righe.filter((r) => r.matchdayId === matchdayId && r.competition === 'campionato');
+  if (!campionatoOggi.length) return vuoto;
+
+  const precedenti = righe.filter((r) => r.matchdayId !== matchdayId && r.competition === 'campionato');
+  const ultimaPrima = precedenti.length ? Math.max(...precedenti.map((r) => r.serieA)) : null;
+
+  const gironiDi = (dove: (r: Riga) => boolean): GironeCoppa[] => {
+    const per = new Map<string, Riga[]>();
+    for (const r of righe.filter((x) => x.competition === 'coppa' && dove(x))) {
+      const k = r.gruppo || '—';
+      const l = per.get(k) ?? [];
+      l.push(r);
+      per.set(k, l);
+    }
+    return [...per.entries()].sort(([a], [b]) => a.localeCompare(b))
+      .map(([gruppo, l]) => ({ gruppo: gruppo === '—' ? null : gruppo, righe: ordina(l) }));
+  };
+
+  const coppaOggi = righe.filter((r) => r.competition === 'coppa' && r.matchdayId === matchdayId);
+  const coppaPrima = righe.filter((r) => r.competition === 'coppa' && r.matchdayId !== matchdayId);
+  const ultimaCoppaPrima = coppaPrima.length ? Math.max(...coppaPrima.map((r) => r.serieA)) : null;
+
+  return {
+    dopo: ordina(campionatoOggi),
+    prima: ultimaPrima == null ? null
+      : ordina(precedenti.filter((r) => r.serieA === ultimaPrima)),
+    gironi: coppaOggi.length ? gironiDi((r) => r.matchdayId === matchdayId) : [],
+    gironiPrima: ultimaCoppaPrima == null ? [] : gironiDi((r) => r.serieA === ultimaCoppaPrima && r.matchdayId !== matchdayId),
+  };
 }
 
 /** Tre punti a vittoria, uno a pareggio; a parità contano i fantapunti totali. */

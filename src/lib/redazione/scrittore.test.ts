@@ -238,3 +238,72 @@ describe('contaParole', () => {
     expect(contaParole('  una   due \n tre ')).toBe(3);
   });
 });
+
+// =====================================================================
+// La classifica dentro il prompt
+// =====================================================================
+
+describe('la classifica nel prompt', () => {
+  const base = richiesta({
+    classifica: [
+      { teamId: 'a', nome: 'Alfa', punti: 10, posizione: 1 },
+      { teamId: 'b', nome: 'Beta', punti: 9, posizione: 2 },
+    ],
+    classificaPrima: [
+      { teamId: 'b', nome: 'Beta', punti: 9, posizione: 1 },
+      { teamId: 'a', nome: 'Alfa', punti: 7, posizione: 2 },
+    ],
+  });
+
+  it('scrive il movimento invece di lasciarlo indovinare', () => {
+    const p = costruisciPrompt(base);
+    expect(p).toContain('1. Alfa — 10 (sale, era 2°)');
+    expect(p).toContain('2. Beta — 9 (scende, era 1°)');
+  });
+
+  it('senza la classifica di prima non inventa nessuna freccia', () => {
+    const p = costruisciPrompt(richiesta({ classifica: base.classifica }));
+    expect(p).toContain('1. Alfa — 10');
+    expect(p).not.toContain('sale');
+  });
+
+  it('dice quando la classifica è quella ufficiale della lega', () => {
+    expect(costruisciPrompt({ ...base, classificaUfficiale: true }))
+      .toContain('quella ufficiale della lega');
+    expect(costruisciPrompt(base)).not.toContain('quella ufficiale della lega');
+  });
+
+  it('mette i gironi di coppa solo quando ci sono', () => {
+    expect(costruisciPrompt(base)).not.toContain('fase a gruppi');
+    const p = costruisciPrompt({
+      ...base,
+      gironiCoppa: [{ gruppo: 'A', righe: [{ teamId: 'a', nome: 'Alfa', punti: 3, posizione: 1 }] }],
+    });
+    expect(p).toContain('fase a gruppi');
+    expect(p).toContain('Gruppo A');
+    expect(p).toContain('1. Alfa — 3');
+  });
+
+  it('chiede di agganciare ogni sfida alla classifica', () => {
+    expect(costruisciPrompt(base)).toContain('cita la classifica almeno una volta');
+  });
+});
+
+describe('il ripiego dei template', () => {
+  it('scrive comunque la classifica per intero', async () => {
+    const r = richiesta({
+      classifica: [
+        { teamId: 'a', nome: 'Alfa', punti: 10, posizione: 1 },
+        { teamId: 'b', nome: 'Beta', punti: 9, posizione: 2 },
+      ],
+      gironiCoppa: [{
+        gruppo: 'A',
+        righe: [{ teamId: 'a', nome: 'Alfa', punti: 3, posizione: 1 }],
+      }],
+    });
+    const pezzo = await new ScrittoreTemplate().scrivi(r);
+    expect(pezzo.classifica).toContain('1. Alfa 10');
+    expect(pezzo.classifica).toContain('2. Beta 9');
+    expect(pezzo.classifica).toContain('Coppa, gruppo A');
+  });
+});

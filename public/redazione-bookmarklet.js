@@ -20,6 +20,12 @@
  * la sua verifica dei conti. La somma dei fantavoti di chi è sceso in campo
  * deve fare il totale scritto dalla lega. Se torna, la regola è stata
  * applicata bene — ed è una dimostrazione, non un indizio.
+ *
+ * Funziona su qualsiasi competizione della lega: campionato o coppa, la
+ * pagina è la stessa e la competizione aperta si legge in testa. Alla fine
+ * si prendono anche le classifiche — quelle vere della lega, non ricalcolate
+ * da noi — di tutte le competizioni, così il pezzo può parlare di posizioni
+ * senza che nessuno debba fidarsi della nostra aritmetica.
  */
 (function () {
   'use strict';
@@ -221,28 +227,203 @@
     };
   }
 
-  /** Carica una sfida in un iframe nascosto e la estrae. */
-  function leggiSfida(indice, sfida) {
+  /**
+   * Carica una pagina della lega in un iframe nascosto e la legge quando è
+   * pronta. `pronto(doc, testo)` decide quando smettere di aspettare: ogni
+   * pagina ha il suo segnale, e aspettare il segnale sbagliato vuol dire
+   * leggere una tabella ancora vuota.
+   */
+  function leggiPagina(url, pronto, tentativiMax) {
     return new Promise(function (risolvi) {
       var f = document.createElement('iframe');
       f.setAttribute('aria-hidden', 'true');
       f.style.cssText = 'position:fixed;left:-99999px;top:0;width:1280px;height:2400px;border:0';
-      f.src = location.pathname + '?i=' + indice;
+      f.src = url;
       var tentativi = 0;
       var t = setInterval(function () {
         tentativi++;
         var doc = null, testo = '';
         try { doc = f.contentDocument; testo = (doc && doc.body && doc.body.innerText) || ''; } catch (e) { /* non ancora */ }
-        var pronto = testo.indexOf('Totale parziali') >= 0 && doc && doc.querySelector('ui-match-player');
-        if (pronto || tentativi > 40) {
+        var ok = false;
+        try { ok = !!(doc && pronto(doc, testo)); } catch (e) { ok = false; }
+        if (ok || tentativi > (tentativiMax || 40)) {
           clearInterval(t);
-          var dati = pronto ? estrai(doc, testo, sfida) : { errore: 'la pagina non ha finito di caricare' };
-          f.remove();
-          risolvi({ indice: indice, sfida: sfida, testo: testo, dati: dati });
+          // il documento vive finché l'iframe è attaccato: chi riceve questo
+          // oggetto legge quello che gli serve e poi chiama `chiudi()`
+          risolvi({ ok: ok, doc: doc, testo: testo, chiudi: function () { f.remove(); } });
         }
       }, 500);
       document.body.appendChild(f);
     });
+  }
+
+  /** L'indirizzo di una sfida: `?i=N`, senza perdere la competizione scelta. */
+  function indirizzoSfida(indice) {
+    var q = new URLSearchParams(location.search);
+    q.set('i', String(indice));
+    return location.pathname + '?' + q.toString();
+  }
+
+  /** Carica una sfida in un iframe nascosto e la estrae. */
+  function leggiSfida(indice, sfida) {
+    return leggiPagina(indirizzoSfida(indice), function (doc, testo) {
+      return testo.indexOf('Totale parziali') >= 0 && doc.querySelector('ui-match-player');
+    }, 40).then(function (p) {
+      var dati = p.ok
+        ? estrai(p.doc, p.testo, sfida)
+        : { errore: 'la pagina non ha finito di caricare' };
+      var testo = p.testo;
+      p.chiudi();
+      return { indice: indice, sfida: sfida, testo: testo, dati: dati };
+    });
+  }
+
+  // =================================================================
+  // 2 bis · le competizioni e le loro classifiche
+  // =================================================================
+
+  /**
+   * Le competizioni della lega, con il loro id.
+   *
+   * La lega le tiene tutte nel menù di riordino: lì dentro ogni voce porta
+   * `data-id` e il nome. È l'unico posto dove id e nome stanno insieme, ed è
+   * quello che ci serve per andare a prendere una classifica che non è quella
+   * aperta adesso.
+   */
+  function leggiCompetizioni(doc) {
+    var d = doc || document;
+    var voci = d.querySelectorAll('#competitionSettingsModal .list-group-item-league[data-id]');
+    var fuori = [], visti = {};
+    for (var i = 0; i < voci.length; i++) {
+      var id = voci[i].getAttribute('data-id');
+      var n = voci[i].querySelector('.competition-name');
+      var nome = (n ? n.innerText : voci[i].innerText).trim();
+      if (!id || visti[id]) continue;
+      visti[id] = true;
+      fuori.push({ id: id, nome: nome, tipo: /coppa/i.test(nome) ? 'coppa' : 'campionato' });
+    }
+    return fuori;
+  }
+
+  /** Quale competizione è aperta adesso: la lega la scrive in testa alla pagina. */
+  function competizioneCorrente(elenco) {
+    var e = document.querySelector('.competition-current-name');
+    var nome = e ? e.innerText.trim() : '';
+    var perNome = null, i;
+    for (i = 0; i < elenco.length; i++) if (elenco[i].nome === nome) perNome = elenco[i];
+    var id = new URLSearchParams(location.search).get('id');
+    if (id) for (i = 0; i < elenco.length; i++) if (elenco[i].id === id) return elenco[i];
+    if (perNome) return perNome;
+    return nome
+      ? { id: id, nome: nome, tipo: /coppa/i.test(nome) ? 'coppa' : 'campionato' }
+      : { id: id, nome: null, tipo: null };
+  }
+
+  /** La prima riga non vuota di una cella. */
+  function primaRiga(testo) {
+    var righe = String(testo == null ? '' : testo).split('\n');
+    for (var i = 0; i < righe.length; i++) {
+      var v = righe[i].trim().replace(/\s+/g, ' ');
+      if (v !== '') return v;
+    }
+    return '';
+  }
+
+  /**
+   * Una tabella di classifica, riga per riga.
+   *
+   * Le celle vuote della lega (lo stemma, i bottoncini in fondo) si buttano:
+   * quello che resta è sempre nello stesso ordine — posizione, squadra, poi i
+   * numeri. Se una riga non ha quella forma non si indovina: si salta.
+   *
+   * Della cella del nome si prende **solo la prima riga**: sotto al nome la
+   * lega ci mette la penalità in punti, che in pagina è nascosta ma dentro un
+   * iframe no. Presa tutta, la squadra si chiamerebbe «DEPORTIVO APERITIVO 0»
+   * e non la riconoscerebbe più nessuno.
+   */
+  function leggiTabellaClassifica(tabella) {
+    var righe = [];
+    var tr = tabella.querySelectorAll('tbody tr');
+    for (var i = 0; i < tr.length; i++) {
+      var celle = [];
+      var td = tr[i].querySelectorAll('td');
+      for (var j = 0; j < td.length; j++) {
+        var v = td[j].innerText.trim().replace(/\s+/g, ' ');
+        if (v !== '') celle.push(primaRiga(td[j].innerText));
+      }
+      if (celle.length < 11) continue;
+      righe.push({
+        posizione: numero(celle[0]), squadra: celle[1],
+        giocate: numero(celle[2]), vinte: numero(celle[3]),
+        pari: numero(celle[4]), perse: numero(celle[5]),
+        golFatti: numero(celle[6]), golSubiti: numero(celle[7]),
+        differenza: numero(celle[8]), punti: numero(celle[9]),
+        fantapunti: numero(celle[10]),
+      });
+    }
+    return righe;
+  }
+
+  /**
+   * Il gruppo di una tabella di classifica.
+   *
+   * L'intestazione da sola non basta: dentro un iframe la lega scrive «Gruppo
+   * A» anche sopra la classifica del campionato, che gruppi non ne ha. Il
+   * segnale vero è che le tabelle siano più d'una — una classifica sola è la
+   * classifica e basta. Quando i gruppi ci sono, il nome si legge; se non si
+   * legge, si conta: prima tabella A, seconda B.
+   */
+  function gruppoDellaTabella(tabella, indice, quante) {
+    if (quante < 2) return null;
+    var th = tabella.querySelector('thead th');
+    var g = (th ? th.innerText : '').match(/gruppo\s+([A-Z])\b/i);
+    if (g) return g[1].toUpperCase();
+    return String.fromCharCode(65 + indice);
+  }
+
+  /**
+   * Le classifiche di tutte le competizioni.
+   *
+   * La lega tiene la competizione scelta nella sessione, non nell'indirizzo:
+   * aprire `?id=` la cambia davvero, anche per la scheda che hai davanti. Per
+   * questo quella corrente si legge **per ultima**: quando il preferito
+   * finisce, la lega è tornata dov'era.
+   */
+  function leggiClassifiche(corrente, elenco) {
+    var ordine = elenco.filter(function (c) { return !corrente.id || c.id !== corrente.id; });
+    if (corrente.id) {
+      for (var i = 0; i < elenco.length; i++) if (elenco[i].id === corrente.id) ordine.push(elenco[i]);
+    }
+    if (!ordine.length) ordine = [corrente];
+
+    var raccolte = [];
+    function prossima(i) {
+      if (i >= ordine.length) return Promise.resolve(raccolte);
+      var c = ordine[i];
+      var base = '/' + location.pathname.split('/')[1] + '/classifica';
+      var url = c.id ? base + '?id=' + encodeURIComponent(c.id) : base;
+      return leggiPagina(url, function (doc) {
+        var t = doc.querySelectorAll('table.smart-table');
+        return t.length && t[0].querySelectorAll('tbody tr').length;
+      }, 30).then(function (p) {
+        if (p.ok) {
+          var tabelle = p.doc.querySelectorAll('table.smart-table');
+          for (var k = 0; k < tabelle.length; k++) {
+            var righe = leggiTabellaClassifica(tabelle[k]);
+            if (righe.length) {
+              raccolte.push({
+                competizioneId: c.id, competizione: c.nome, tipo: c.tipo,
+                gruppo: gruppoDellaTabella(tabelle[k], k, tabelle.length),
+                righe: righe,
+              });
+            }
+          }
+        }
+        p.chiudi();
+        return prossima(i + 1);
+      });
+    }
+    return prossima(0);
   }
 
   // =================================================================
@@ -277,9 +458,11 @@
 
   var testa = el('div', 'padding:18px 22px;border-bottom:1px solid ' + BORDO);
   testa.appendChild(el('div', 'font-size:16px;font-weight:600', 'La Redazione · raccolta della giornata'));
-  testa.appendChild(el('div', 'color:' + SPENTO + ';margin-top:2px', tab.giornata
-    ? 'Giornata ' + tab.giornata + ' · ' + tab.sfide.length + ' sfide'
-    : 'Giornata non riconosciuta'));
+  var nomeComp = (document.querySelector('.competition-current-name') || {}).innerText;
+  testa.appendChild(el('div', 'color:' + SPENTO + ';margin-top:2px',
+    (nomeComp ? nomeComp.trim() + ' · ' : '') + (tab.giornata
+      ? 'Giornata ' + tab.giornata + ' · ' + tab.sfide.length + ' sfide'
+      : 'Giornata non riconosciuta')));
   box.appendChild(testa);
 
   var corpo = el('div', 'padding:14px 22px;overflow:auto;flex:1');
@@ -301,10 +484,19 @@
   }
 
   var raccolte = [];
+  var competizioni = leggiCompetizioni(document);
+  var corrente = competizioneCorrente(competizioni);
+  var classifiche = [];
   stato.textContent = 'Leggo le sfide…';
 
   (function prossima(i) {
-    if (i >= tab.sfide.length) { mostra(); return; }
+    if (i >= tab.sfide.length) {
+      stato.textContent = 'Leggo le classifiche…';
+      leggiClassifiche(corrente, competizioni)
+        .then(function (c) { classifiche = c; mostra(); })
+        .catch(function () { mostra(); });
+      return;
+    }
     stato.textContent = 'Leggo la sfida ' + (i + 1) + ' di ' + tab.sfide.length + '…';
     leggiSfida(i, tab.sfide[i]).then(function (r) { raccolte.push(r); prossima(i + 1); });
   })(0);
@@ -383,20 +575,41 @@
       corpo.appendChild(carta);
     });
 
+    if (classifiche.length) {
+      var carta = el('div', 'background:' + CARTA + ';border:1px solid ' + BORDO
+        + ';border-left:3px solid ' + VERDE + ';border-radius:10px;padding:12px 14px;margin-bottom:10px');
+      carta.appendChild(el('div', 'font-weight:600', 'Classifiche lette dalla lega'));
+      classifiche.forEach(function (c) {
+        var testa = (c.competizione || 'competizione') + (c.gruppo ? ' · gruppo ' + c.gruppo : '');
+        carta.appendChild(el('div', 'font-size:13px;color:' + SPENTO + ';margin-top:6px',
+          testa + ': ' + c.righe.map(function (r) {
+            return r.posizione + '. ' + r.squadra + ' ' + r.punti;
+          }).join('  ·  ')));
+      });
+      corpo.appendChild(carta);
+    }
+
     var payload = {
       lega: location.pathname.split('/')[1],
-      competizione: (location.pathname.match(/competition\/(\d+)/) || [])[1] || null,
+      competizione: corrente.id
+        || (location.pathname.match(/competition\/(\d+)/) || [])[1] || null,
+      competizioneNome: corrente.nome,
+      tipo: corrente.tipo,
       giornata: tab.giornata,
       raccoltoIl: new Date().toISOString(),
-      versioneEstrattore: 2,
+      versioneEstrattore: 3,
+      classifiche: classifiche,
       sfide: raccolte.map(function (r) {
         return { indice: r.indice, dati: r.dati, testo: r.testo };
       }),
     };
 
-    stato.textContent = rotte
+    var coda = classifiche.length
+      ? ' · ' + classifiche.length + (classifiche.length === 1 ? ' classifica letta' : ' classifiche lette')
+      : ' · nessuna classifica letta';
+    stato.textContent = (rotte
       ? rotte + ' ' + (rotte === 1 ? 'sfida' : 'sfide') + ' con i conti che non tornano'
-      : raccolte.length + ' sfide lette, i conti tornano tutti';
+      : raccolte.length + ' sfide lette, i conti tornano tutti') + coda;
     stato.style.color = rotte ? ROSSO : VERDE;
 
     var annulla = el('button', bottone(false), 'Annulla');

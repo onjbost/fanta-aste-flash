@@ -83,11 +83,17 @@ export async function POST(request: NextRequest) {
 }
 
 function riepilogo(e: Awaited<ReturnType<typeof importaGiornata>>): string {
+  const titolo = e.competizione === 'coppa'
+    ? `📥 COPPA · ${e.giornata ?? '?'}° TURNO IMPORTATO`
+    : `📥 GIORNATA ${e.giornata ?? '?'} IMPORTATA`;
   const righe = [
-    `📥 GIORNATA ${e.giornata ?? '?'} IMPORTATA`,
+    titolo,
     '',
     `${e.sfideScritte} sfide su ${e.sfideLette} · ${e.giocatori} giocatori, ${e.agganciati} agganciati al listone`,
   ];
+  if (e.classificheScritte) {
+    righe.push(`Classifiche prese dalla lega: ${e.classificheScritte}`);
+  }
   if (e.schedine) {
     righe.push(`Schedine: ${e.schedine.schedine} · ${e.schedine.giocate} giocate, ${e.schedine.azzeccate} azzeccate`
       + (e.schedine.inAttesa ? ` · ${e.schedine.inAttesa} in attesa` : ''));

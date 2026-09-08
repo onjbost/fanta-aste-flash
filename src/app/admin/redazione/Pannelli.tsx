@@ -342,6 +342,10 @@ export function AzioniImport({ importId, stato }: { importId: string; stato: str
             {pRif ? 'Rifaccio…' : 'Rifai'}
           </button>
         </form>
+        <a className="btn" href={`/admin/redazione/correggi/${importId}`}
+           title="Apri il grezzo, sistema i numeri che mancano e rimandalo">
+          Correggi
+        </a>
         {stato !== 'scartato' && (
           <form action={aSca}>
             <input type="hidden" name="importId" value={importId} />

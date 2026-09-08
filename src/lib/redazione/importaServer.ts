@@ -17,17 +17,19 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { chiudiGiornata, type EsitoChiusura } from '@/lib/tipsterServer';
 import {
-  MAX_SOSTITUZIONI, oraInvio, righeTabellino, validaPayload, verificaSfida,
-  type PayloadImport, type SquadraGrezza,
+  MAX_SOSTITUZIONI, classificheLeggibili, oraInvio, righeTabellino, validaPayload, verificaSfida,
+  type ClassificaGrezza, type PayloadImport, type SquadraGrezza, type TipoCompetizione,
 } from './tabellino';
 
 export interface EsitoImport {
   importId: string;
   giornata: number | null;
+  competizione: TipoCompetizione;
   sfideLette: number;
   sfideScritte: number;
   giocatori: number;
   agganciati: number;
+  classificheScritte: number;
   problemi: string[];
   schedine: EsitoChiusura | null;
 }
@@ -70,16 +72,51 @@ export async function importaGiornata(grezzo: unknown): Promise<EsitoImport> {
   const leagueId = lega.id as string;
 
   if (payload.giornata == null) return scarta('la pagina non diceva che giornata fosse');
-  const { data: giornata } = await db.from('matchdays')
-    .select('id, fanta, serie_a').eq('league_id', leagueId).eq('fanta', payload.giornata).maybeSingle();
-  if (!giornata) return scarta(`la giornata ${payload.giornata} non esiste nel calendario`);
-  const matchdayId = giornata.id as string;
+
+  /*
+   * Che competizione sia lo dice l'estrattore, che l'ha letta in testa alla
+   * pagina della lega. Chi non lo dice — i grezzi raccolti prima che il
+   * preferito imparasse a guardarla — è campionato: fino ad allora era
+   * l'unica cosa che si riusciva a importare.
+   */
+  const tipo: TipoCompetizione = payload.tipo === 'coppa' ? 'coppa' : 'campionato';
+
+  /*
+   * La stessa parola «giornata» conta due cose diverse.
+   *
+   * Nel campionato è la giornata di fanta, e quella sta scritta su
+   * `matchdays.fanta`. In coppa è il turno del girone, che vive su
+   * `fixtures.round_number` e cade in una giornata di Serie A che con quel
+   * numero non c'entra niente: la prima di coppa si gioca alla terza di
+   * Serie A. Cercare la coppa fra i `matchdays.fanta` trova la giornata
+   * sbagliata o non trova niente — ed è esattamente il motivo per cui fin
+   * qui la coppa non entrava.
+   */
+  let matchdayId: string;
+  if (tipo === 'coppa') {
+    const { data: turno } = await db.from('fixtures')
+      .select('matchday_id')
+      .eq('league_id', leagueId).eq('competition', 'coppa')
+      .eq('round_number', payload.giornata)
+      .limit(1).maybeSingle();
+    if (!turno) return scarta(`il ${payload.giornata}° turno di coppa non esiste nel calendario`);
+    matchdayId = turno.matchday_id as string;
+  } else {
+    const { data: giornata } = await db.from('matchdays')
+      .select('id').eq('league_id', leagueId).eq('fanta', payload.giornata).maybeSingle();
+    if (!giornata) return scarta(`la giornata ${payload.giornata} non esiste nel calendario`);
+    matchdayId = giornata.id as string;
+  }
 
   const { data: squadre } = await db.from('teams').select('id, name').eq('league_id', leagueId);
   const perNome = new Map((squadre ?? []).map((t) => [normalizza(t.name as string), t.id as string]));
 
+  // solo le sfide della competizione che stiamo importando: nella stessa
+  // giornata campionato e coppa possono avere lo stesso accoppiamento, e
+  // scriverlo sulla riga sbagliata è un errore che nessuno nota più
   const { data: sfide } = await db.from('fixtures')
-    .select('id, competition, home_team_id, away_team_id').eq('matchday_id', matchdayId);
+    .select('id, competition, home_team_id, away_team_id')
+    .eq('matchday_id', matchdayId).eq('competition', tipo);
 
   await db.from('redazione_imports').update({ league_id: leagueId, matchday_id: matchdayId })
     .eq('id', importId);
@@ -112,14 +149,17 @@ export async function importaGiornata(grezzo: unknown): Promise<EsitoImport> {
       (f) => f.home_team_id === casaId && f.away_team_id === ospiteId,
     );
     if (!candidate.length) {
-      problemi.push(`${s.casa.nome} – ${s.ospite.nome}: non è in calendario alla giornata ${payload.giornata}`);
+      problemi.push(
+        `${s.casa.nome} – ${s.ospite.nome}: non è in calendario `
+        + (tipo === 'coppa' ? `al ${payload.giornata}° turno di coppa` : `alla giornata ${payload.giornata}`),
+      );
       continue;
     }
-    // campionato e coppa possono ospitare lo stesso accoppiamento: si sceglie
-    // il campionato e lo si dice, invece di indovinare in silenzio
-    const fixture = candidate.find((f) => f.competition === 'campionato') ?? candidate[0];
+    // dentro la stessa competizione lo stesso accoppiamento non si ripete:
+    // se succede, il calendario ha qualcosa che non va e va detto
+    const fixture = candidate[0];
     if (candidate.length > 1) {
-      problemi.push(`${s.casa.nome} – ${s.ospite.nome}: due competizioni con lo stesso accoppiamento, ho scritto sul ${fixture.competition}`);
+      problemi.push(`${s.casa.nome} – ${s.ospite.nome}: due righe di ${tipo} con lo stesso accoppiamento, ho scritto sulla prima`);
     }
     const fixtureId = fixture.id as string;
 
@@ -163,7 +203,12 @@ export async function importaGiornata(grezzo: unknown): Promise<EsitoImport> {
     sfideScritte++;
   }
 
-  // ---- 6 · le schedine si chiudono da sole ------------------------------
+  // ---- 6 · le classifiche vere della lega -------------------------------
+  const classificheScritte = await scriviClassifiche(
+    leagueId, matchdayId, classificheLeggibili(payload), perNome, problemi,
+  );
+
+  // ---- 7 · le schedine si chiudono da sole ------------------------------
   let schedine: EsitoChiusura | null = null;
   if (sfideScritte) {
     try { schedine = await chiudiGiornata(matchdayId); }
@@ -177,10 +222,62 @@ export async function importaGiornata(grezzo: unknown): Promise<EsitoImport> {
   }).eq('id', importId);
 
   return {
-    importId, giornata: payload.giornata,
+    importId, giornata: payload.giornata, competizione: tipo,
     sfideLette: payload.sfide.length, sfideScritte,
-    giocatori, agganciati, problemi, schedine,
+    giocatori, agganciati, classificheScritte, problemi, schedine,
   };
+}
+
+/**
+ * Archivia le classifiche lette dalla lega come fotografia di questa giornata.
+ *
+ * Sono un di più, non una condizione: se la pagina della classifica non si è
+ * caricata in tempo, o la lega ne cambia la forma, l'import della giornata è
+ * andato lo stesso e il pezzo ricade sulla classifica che calcoliamo noi. Per
+ * questo qui non si scarta mai niente: si scrive quello che c'è e si segnala.
+ *
+ * La squadra si aggancia per nome ma il nome si conserva comunque: se domani
+ * qualcuno si rinomina, la fotografia resta quella che la lega mostrava quel
+ * giorno.
+ */
+async function scriviClassifiche(
+  leagueId: string,
+  matchdayId: string,
+  classifiche: ClassificaGrezza[],
+  perNome: Map<string, string>,
+  problemi: string[],
+): Promise<number> {
+  if (!classifiche.length) return 0;
+  const db = supabaseAdmin();
+  const rilevatoIl = new Date().toISOString();
+  let scritte = 0;
+
+  for (const c of classifiche) {
+    const competition: TipoCompetizione = c.tipo
+      ?? (/coppa/i.test(c.competizione ?? '') ? 'coppa' : 'campionato');
+    const righe = c.righe.map((r) => ({
+      league_id: leagueId, matchday_id: matchdayId,
+      competition, group_name: c.gruppo ?? '',
+      team_name: r.squadra.trim(),
+      team_id: perNome.get(normalizza(r.squadra)) ?? null,
+      posizione: r.posizione,
+      giocate: r.giocate, vinte: r.vinte, pari: r.pari, perse: r.perse,
+      gol_fatti: r.golFatti, gol_subiti: r.golSubiti, differenza: r.differenza,
+      punti: r.punti, fantapunti: r.fantapunti,
+      rilevato_il: rilevatoIl,
+    }));
+
+    const { error } = await db.from('standings_snapshots').upsert(righe, {
+      onConflict: 'matchday_id,competition,group_name,team_name',
+    });
+    if (error) {
+      const dove = (c.competizione ?? competition) + (c.gruppo ? ` gruppo ${c.gruppo}` : '');
+      problemi.push(`classifica ${dove}: ${error.message}`);
+      continue;
+    }
+    scritte++;
+  }
+  return scritte;
 }
 
 /**

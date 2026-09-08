@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  oraInvio, ricostruisci, righeTabellino, traduciEventi, validaPayload, verificaSfida,
-  type GiocatoreGrezzo, type Ruolo, type SquadraGrezza,
+  classificheLeggibili, oraInvio, ricostruisci, righeTabellino, traduciEventi,
+  validaPayload, verificaSfida,
+  type ClassificaGrezza, type GiocatoreGrezzo, type PayloadImport, type Ruolo, type SquadraGrezza,
 } from './tabellino';
 
 // =====================================================================
@@ -232,6 +233,73 @@ describe('validaPayload', () => {
   it('lascia passare una sfida che il browser ha segnato come non letta', () => {
     const r = validaPayload({ ...buono, sfide: [{ indice: 0, dati: { errore: 'non caricata' } }] });
     expect(r.ok).toBe(true);
+  });
+
+  it('accetta un grezzo di coppa', () => {
+    expect(validaPayload({ ...buono, tipo: 'coppa' }).ok).toBe(true);
+  });
+
+  it('rifiuta una competizione che non sappiamo dove scrivere', () => {
+    const r = validaPayload({ ...buono, tipo: 'supercoppa' });
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.errore).toContain('supercoppa');
+  });
+
+  it('accetta i grezzi vecchi, che la competizione non la dicevano', () => {
+    expect(validaPayload(buono).ok).toBe(true);
+    expect((buono as { tipo?: unknown }).tipo).toBeUndefined();
+  });
+});
+
+describe('classificheLeggibili', () => {
+  const riga = (posizione: number, squadra: string, punti: number) => ({
+    posizione, squadra, giocate: 2, vinte: 1, pari: 0, perse: 1,
+    golFatti: 3, golSubiti: 2, differenza: 1, punti, fantapunti: 140,
+  });
+  const con = (classifiche: unknown[]): PayloadImport =>
+    ({ lega: 'x', competizione: null, giornata: 1, raccoltoIl: '', versioneEstrattore: 3,
+       classifiche, sfide: [] } as unknown as PayloadImport);
+
+  it('tiene una classifica ben formata', () => {
+    const c = classificheLeggibili(con([{
+      competizioneId: '1', competizione: 'Superlega', tipo: 'campionato', gruppo: null,
+      righe: [riga(1, 'Alfa', 6), riga(2, 'Beta', 3)],
+    }]));
+    expect(c).toHaveLength(1);
+    expect(c[0].righe[0].squadra).toBe('Alfa');
+  });
+
+  it('butta le righe senza nome o senza posizione, non tutta la tabella', () => {
+    const c = classificheLeggibili(con([{
+      competizioneId: null, competizione: null, tipo: null, gruppo: null,
+      righe: [riga(1, 'Alfa', 6), { ...riga(2, '', 3) }, { ...riga(3, 'Gamma', 1), posizione: null }],
+    }]));
+    expect(c).toHaveLength(0);   // ne resta una sola: sotto due righe non è una classifica
+  });
+
+  it('scarta una tabella con una riga sola invece di raccontarla come classifica', () => {
+    expect(classificheLeggibili(con([{ righe: [riga(1, 'Alfa', 6)] }]))).toHaveLength(0);
+  });
+
+  it('tiene il gruppo solo se è una lettera', () => {
+    const c = classificheLeggibili(con([
+      { gruppo: 'A', righe: [riga(1, 'Alfa', 3), riga(2, 'Beta', 0)] },
+      { gruppo: 'gruppo A', righe: [riga(1, 'Gamma', 3), riga(2, 'Delta', 0)] },
+    ]));
+    expect(c[0].gruppo).toBe('A');
+    expect(c[1].gruppo).toBeNull();
+  });
+
+  it('non si fa fermare da un payload senza classifiche', () => {
+    expect(classificheLeggibili(con([]))).toEqual([]);
+    expect(classificheLeggibili({ sfide: [] } as unknown as PayloadImport)).toEqual([]);
+  });
+
+  it('conserva il tipo dichiarato dall\'estrattore', () => {
+    const c: ClassificaGrezza[] = classificheLeggibili(con([{
+      tipo: 'coppa', gruppo: 'B', righe: [riga(1, 'Alfa', 3), riga(2, 'Beta', 1)],
+    }]));
+    expect(c[0].tipo).toBe('coppa');
   });
 });
 

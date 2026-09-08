@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { rifaiImport, ImportRifiutato } from '@/lib/redazione/importaServer';
+import { importaGiornata, rifaiImport, ImportRifiutato } from '@/lib/redazione/importaServer';
 import { generaArticolo, segnaInviato } from '@/lib/redazione/redazioneServer';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { notifyAdminPlain } from '@/lib/telegram';
@@ -21,6 +21,10 @@ async function requireAdmin() {
 
 const esito = (e: unknown): ActionState =>
   ({ ok: false, message: e instanceof Error ? e.message : String(e) });
+
+/** Le classifiche sono un di più: si dicono quando ci sono, senza allarmare quando no. */
+const classifiche = (n: number): string =>
+  n ? ` · ${n} ${n === 1 ? 'classifica presa' : 'classifiche prese'} dalla lega` : '';
 
 // =====================================================================
 // Import
@@ -46,7 +50,56 @@ export async function rifaiImportAction(_p: ActionState, form: FormData): Promis
     return {
       ok: e.sfideScritte > 0,
       message: e.sfideScritte
-        ? `${e.sfideScritte} sfide su ${e.sfideLette}, ${e.agganciati}/${e.giocatori} giocatori agganciati${coda}.`
+        ? `${e.competizione}: ${e.sfideScritte} sfide su ${e.sfideLette}, `
+          + `${e.agganciati}/${e.giocatori} giocatori agganciati${classifiche(e.classificheScritte)}${coda}.`
+        : `Nessuna sfida scritta${coda}.`,
+    };
+  } catch (e) {
+    if (e instanceof ImportRifiutato) return { ok: false, message: e.message };
+    return esito(e);
+  }
+}
+
+/**
+ * Manda all'app una copia corretta a mano di un import.
+ *
+ * Il grezzo originale non si tocca: resta in archivio com'era arrivato, e la
+ * versione corretta entra come import nuovo. Se un domani l'estrattore impara
+ * a leggere quel caso, si può rifare l'originale e confrontare.
+ *
+ * I conti li rifà comunque il server: quello che arriva da questa pagina è un
+ * payload come un altro, e passa dalla stessa porta di controllo.
+ */
+export async function correggiImportAction(_p: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    await requireAdmin();
+
+    let payload: unknown;
+    try {
+      payload = JSON.parse(String(form.get('payload') ?? ''));
+    } catch {
+      return { ok: false, message: 'La correzione non è arrivata leggibile, riprova.' };
+    }
+
+    const origine = String(form.get('importId') ?? '');
+    const e = await importaGiornata(payload);
+
+    if (origine) {
+      await supabaseAdmin().from('redazione_imports')
+        .update({ stato: 'corretto', errore: `corretto a mano · import ${e.importId}` })
+        .eq('id', origine);
+    }
+
+    revalidatePath('/admin/redazione');
+    revalidatePath('/admin/schedine');
+    revalidatePath('/schedine/classifica');
+
+    const coda = e.problemi.length ? ` · da guardare: ${e.problemi.join(' · ')}` : '';
+    return {
+      ok: e.sfideScritte > 0,
+      message: e.sfideScritte
+        ? `Scritte ${e.sfideScritte} sfide su ${e.sfideLette} in ${e.competizione}, `
+          + `${e.agganciati}/${e.giocatori} giocatori agganciati${classifiche(e.classificheScritte)}${coda}.`
         : `Nessuna sfida scritta${coda}.`,
     };
   } catch (e) {

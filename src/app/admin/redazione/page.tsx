@@ -43,7 +43,7 @@ export default async function AdminRedazionePage() {
   ]);
 
   const tono = Number(impostazioni?.redazione_tono ?? 4);
-  const minParole = Number(impostazioni?.redazione_min_parole ?? 150);
+  const minParole = Number(impostazioni?.redazione_min_parole ?? 70);
   const vietate = (impostazioni?.redazione_parole_vietate as string[] | undefined) ?? [];
   const flavourDi = new Map((flavour ?? []).map((f) => [f.team_id as string, f]));
 

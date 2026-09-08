@@ -306,12 +306,11 @@ export interface SchedinaStorico {
   inviataIl: string;
   punti: number | null;
   conclusa: boolean;
-  condivisa: boolean;
   giocate: GiocataStorico[];
 }
 
 const SELECT_SCHEDINA = `
-  id, submitted_at, points, shared,
+  id, submitted_at, points,
   matchdays(id, fanta, serie_a, match_date, status),
   picks(
     fixture_id, market, selection, price, outcome, points,
@@ -364,7 +363,7 @@ export async function storicoSchedine(
   if (error) return { schedine: [], errore: error.message };
 
   type Row = {
-    id: string; submitted_at: string; points: number | null; shared: boolean;
+    id: string; submitted_at: string; points: number | null;
     matchdays: { fanta: number | null; serie_a: number; match_date: string; status: string } | null;
     picks: PickRow[] | null;
   };
@@ -377,7 +376,6 @@ export async function storicoSchedine(
     inviataIl: s.submitted_at,
     punti: s.points == null ? null : Number(s.points),
     conclusa: s.matchdays?.status === 'settled',
-    condivisa: !!s.shared,
     giocate: giocateDaRighe(s.picks),
   }));
   return { schedine, errore: null };
@@ -398,16 +396,20 @@ export interface GiornataAltrui {
 }
 
 /**
- * Le schedine che gli altri hanno deciso di condividere, raggruppate per
- * giornata. Chi non condivide non compare: è una scelta sua, non un buco.
+ * Le schedine di tutti gli altri, raggruppate per giornata.
+ *
+ * Non c'è più niente da filtrare: nel Torneo dei Tipster una schedina è
+ * pubblica dal momento in cui viene giocata. Chi non compare qui non è uno
+ * che si è tenuto le carte coperte — è uno che quella giornata non ha
+ * giocato, che è un'informazione diversa e va detta com'è.
  */
-export async function schedineCondivise(
+export async function schedineDegliAltri(
   leagueId: string, escludiTeamId: string,
 ): Promise<{ giornate: GiornataAltrui[]; errore: string | null }> {
   const db = supabaseAdmin();
   const { data, error } = await db.from('slips')
     .select(`${SELECT_SCHEDINA}, teams(name)`)
-    .eq('league_id', leagueId).eq('shared', true).neq('team_id', escludiTeamId);
+    .eq('league_id', leagueId).neq('team_id', escludiTeamId);
 
   if (error) return { giornate: [], errore: error.message };
 

@@ -209,7 +209,7 @@ export async function costruisciMateriale(matchdayId: string): Promise<Materiale
   const richiesta: RichiestaPezzo = {
     giornata: fanta, serieA: Number(md.serie_a),
     tono: Number(lega?.redazione_tono ?? 4),
-    minParole: Number(lega?.redazione_min_parole ?? 150),
+    minParole: Number(lega?.redazione_min_parole ?? 70),
     paroleVietate: (lega?.redazione_parole_vietate as string[] | undefined) ?? [],
     squadre: schede, sfide: daRaccontare, spunti,
     classifica: classificaDopo,

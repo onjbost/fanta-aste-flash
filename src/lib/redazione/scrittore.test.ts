@@ -330,3 +330,20 @@ describe('il ripiego dei template', () => {
     expect(pezzo.classifica).toContain('Coppa, gruppo A');
   });
 });
+
+describe('il minimo di parole', () => {
+  it('è quello che gli passa la lega, e finisce nel prompt', () => {
+    const p = costruisciPrompt(richiesta({ minParole: 70 }));
+    expect(p).toContain('almeno 70 parole');
+  });
+
+  it('boccia una sfida sotto il minimo e promuove quella sopra', () => {
+    const r = richiesta({ minParole: 70 });
+    const corta = verificaPezzo(pezzo({ sfide: [{ fixtureId: 'f1', testo: lungo(69) }] }), r, new Set());
+    expect(corta.ok).toBe(false);
+    expect(corta.problemi.join(' ')).toContain('69 parole invece di 70');
+
+    const giusta = verificaPezzo(pezzo({ sfide: [{ fixtureId: 'f1', testo: lungo(70) }] }), r, new Set());
+    expect(giusta.problemi.join(' ')).not.toContain('parole invece di');
+  });
+});

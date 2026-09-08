@@ -1,6 +1,5 @@
 import { storicoSchedine } from '@/lib/tipsterServer';
 import { ElencoGiocate } from './giocate';
-import { Condividi } from './Condividi';
 
 export async function Storico({ teamId }: { teamId: string }) {
   const { schedine, errore } = await storicoSchedine(teamId);
@@ -29,8 +28,8 @@ export async function Storico({ teamId }: { teamId: string }) {
     <>
       <p className="sub" style={{ marginBottom: 12 }}>
         {schedine.length} {schedine.length === 1 ? 'schedina giocata' : 'schedine giocate'}.
-        Tocca una riga per vedere cosa avevi giocato. «Condividi» la mostra agli altri
-        allenatori nella loro tab; finché non lo fai la vedi solo tu.
+        Tocca una riga per vedere cosa avevi giocato. Le schedine sono pubbliche:
+        appena la salvi, gli altri allenatori la vedono nella loro tab.
       </p>
 
       {schedine.map((s) => {
@@ -49,7 +48,6 @@ export async function Storico({ teamId }: { teamId: string }) {
                   </span>
                 </div>
                 <div className="storico-esito">
-                  <Condividi slipId={s.slipId} condivisa={s.condivisa} />
                   <span className="storico-n">
                     {s.giocate.length} {s.giocate.length === 1 ? 'giocata' : 'giocate'}
                   </span>

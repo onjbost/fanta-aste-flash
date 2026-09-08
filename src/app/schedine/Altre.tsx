@@ -1,17 +1,20 @@
-import { schedineCondivise } from '@/lib/tipsterServer';
+import { schedineDegliAltri } from '@/lib/tipsterServer';
 import { ElencoGiocate } from './giocate';
 
 /**
- * Le schedine che gli altri hanno voluto mostrare, a tendine annidate:
- * giornata → squadra → giocate. Chi non condivide non compare.
+ * Le schedine degli altri, a tendine annidate: giornata → squadra → giocate.
+ *
+ * Ci sono tutte: nel Torneo dei Tipster una schedina è pubblica da quando
+ * viene giocata. Se una squadra non compare in una giornata, quella giornata
+ * non l'ha giocata.
  */
 export async function Altre({ teamId, leagueId }: { teamId: string; leagueId: string }) {
-  const { giornate, errore } = await schedineCondivise(leagueId, teamId);
+  const { giornate, errore } = await schedineDegliAltri(leagueId, teamId);
 
   if (errore) {
     return (
       <div className="callout crit">
-        <b>Non riesco a leggere le schedine condivise.</b><br />
+        <b>Non riesco a leggere le schedine degli altri.</b><br />
         {errore}<br />
         Se parla di una colonna che non esiste, manca una migrazione su Supabase.
       </div>
@@ -22,8 +25,8 @@ export async function Altre({ teamId, leagueId }: { teamId: string; leagueId: st
     return (
       <div className="panel">
         <div className="empty">
-          Nessuno ha ancora condiviso una schedina.<br />
-          Puoi cominciare tu: in «Le mie schedine» c'è il tasto Condividi.
+          Nessun altro allenatore ha ancora giocato una schedina.<br />
+          Appena lo fanno, le trovi qui.
         </div>
       </div>
     );
@@ -32,7 +35,7 @@ export async function Altre({ teamId, leagueId }: { teamId: string; leagueId: st
   return (
     <>
       <p className="sub" style={{ marginBottom: 12 }}>
-        Solo le schedine che gli altri hanno scelto di mostrare.
+        Tutte le schedine degli altri allenatori, giornata per giornata.
       </p>
 
       {giornate.map((g) => (

@@ -2,12 +2,22 @@
  * L'anteprima di giornata — il messaggio delle quote appena pubblicate.
  *
  * È il gemello anteriore del pezzo di fine giornata: stessa meccanica, tempo
- * verbale opposto. Là si racconta cos'è successo, qui cosa sta per succedere,
- * e la notizia è che la lavagna è aperta e si può giocare.
+ * verbale opposto. Là si racconta cos'è successo, qui si lancia quello che
+ * sta per succedere.
+ *
+ * **Non è una schedina.** La prima versione metteva in chiaro la favorita e
+ * la sua quota sfida per sfida: informazione onesta, ma il messaggio veniva
+ * lungo e si leggeva come un pronostico da bookmaker invece che come un
+ * annuncio della lega. Le quote stanno nell'app, chi gioca le guarda lì. Qui
+ * ci va il racconto: chi comanda, chi va da chi, cosa c'è in ballo.
+ *
+ * E ci va **un blocco solo**: tutta la giornata in un paragrafo che scorre,
+ * non quattro schedine incolonnate. Lungo il giusto per essere una lettura —
+ * una quindicina di righe — ma senza titoletti e senza elenchi in mezzo, che
+ * è quello che trasforma un annuncio in un modulo da compilare.
  *
  * Funzioni pure, nessun accesso al database. Il materiale lo raccoglie
- * `anteprimaServer.ts`; qui c'è come si chiede al modello, come si controlla
- * quello che risponde, e come si monta il messaggio da inoltrare.
+ * `anteprimaServer.ts`.
  */
 
 import { tono } from './modello';
@@ -26,7 +36,6 @@ export interface RigaAnteprima {
 }
 
 export interface SfidaDaPresentare {
-  fixtureId: string;
   casa: string;
   ospite: string;
   competizione: 'campionato' | 'coppa';
@@ -35,11 +44,6 @@ export interface SfidaDaPresentare {
   /** posizione in classifica delle due, quando ce l'hanno */
   posCasa: number | null;
   posOspite: number | null;
-  /** chi il modello delle quote dà favorito, e a quanto paga */
-  favorita: string | null;
-  quotaFavorita: number | null;
-  /** quanto paga il pareggio: serve a far capire se è una sfida aperta */
-  quotaPari: number | null;
   scontro: Scontro;
 }
 
@@ -64,14 +68,25 @@ export interface RichiestaAnteprima {
 }
 
 export interface Anteprima {
+  /** una o due righe: la lavagna è aperta */
   apertura: string;
-  classifica: string;
-  sfide: { fixtureId: string; testo: string }[];
+  /** il racconto della giornata, tutte le sfide dentro un blocco solo */
+  panoramica: string;
+  /** una riga per mandare a giocare */
   chiusura: string;
 }
 
-/** Un lancio, non una cronaca: due o tre righe bastano. */
-export const MIN_PAROLE_SFIDA = 25;
+/**
+ * Quanto può essere lunga la panoramica.
+ *
+ * Su un telefono una riga di WhatsApp sta sulle nove o dieci parole, quindi
+ * centocinquanta parole fanno la quindicina di righe chiesta e trecento ne
+ * fanno una trentina. Il minimo serve a non farsi liquidare in tre frasi; il
+ * massimo esiste perché un paragrafo unico che supera lo schermo due volte
+ * smette di essere un racconto e diventa un muro.
+ */
+export const MIN_PAROLE = 150;
+export const MAX_PAROLE = 300;
 
 // =====================================================================
 // Gli scontri caldi
@@ -106,55 +121,56 @@ export function etichettaScontro(s: Scontro): string | null {
 // Il prompt
 // =====================================================================
 
-const quota = (q: number | null) => (q == null ? '—' : q.toFixed(2).replace('.', ','));
-
-/** I punti dei tipster sono decimali: in italiano si scrivono con la virgola. */
+/** I punti sono decimali: in italiano si scrivono con la virgola. */
 const punti = (n: number) => String(Math.round(n * 10) / 10).replace('.', ',');
+
+/** Tutte le squadre che scendono in campo, senza ripetizioni. */
+export function squadreInCampo(r: RichiestaAnteprima): string[] {
+  const viste: string[] = [];
+  for (const s of r.sfide) {
+    for (const n of [s.casa, s.ospite]) if (!viste.includes(n)) viste.push(n);
+  }
+  return viste;
+}
 
 export function costruisciPromptAnteprima(r: RichiestaAnteprima): string {
   const classifica = r.classifica
     .map((c) => `${c.posizione}. ${c.nome} — ${c.punti} punti`).join('\n');
 
   const sfide = r.sfide.map((s) => {
-    const righe = [
-      `### ${s.casa} – ${s.ospite}  (${s.competizione}${s.gruppo ? `, gruppo ${s.gruppo}` : ''})`,
-      `fixtureId: ${s.fixtureId}`,
-      `in classifica: ${s.casa} ${s.posCasa ?? '—'}° · ${s.ospite} ${s.posOspite ?? '—'}°`,
-      s.favorita
-        ? `favorita secondo le quote: ${s.favorita}, quota ${quota(s.quotaFavorita)} (il pari paga ${quota(s.quotaPari)})`
-        : 'quote non disponibili per questa sfida',
-    ];
+    const dove = s.competizione === 'coppa'
+      ? `coppa${s.gruppo ? `, gruppo ${s.gruppo}` : ''}`
+      : 'campionato';
     const e = etichettaScontro(s.scontro);
-    if (e) righe.push(`nota: ${e}`);
-    return righe.join('\n');
-  }).join('\n\n');
+    return `- ${s.casa} (${s.posCasa ?? '—'}°) contro ${s.ospite} (${s.posOspite ?? '—'}°)`
+      + ` · ${dove}${e ? ` · ${e}` : ''}`;
+  }).join('\n');
 
-  const tipster = r.tipster
-    .map((t) => `${t.posizione}. ${t.nome} — ${t.punti} punti`).join('\n');
+  const capo = r.tipster[0];
 
   return `Sei il cronista della lega di fantacalcio "Fanta Mansarda". Le quote della giornata ${r.giornata} (Serie A ${r.serieA}) sono appena state pubblicate: scrivi l'annuncio per il gruppo WhatsApp della lega.
 
-Non è la cronaca di una giornata finita: è la presentazione di una che deve cominciare. Non sai com'è andata, sai solo chi parte favorito e come sono messi in classifica.
+Non è la cronaca di una giornata finita: è il lancio di una che deve cominciare. Non sai com'è andata — non si è ancora giocato — e non devi pronosticare come andrà.
 
 ## Tono
 ${r.tono}/5 — ${tono(r.tono)}.
-Si sfotte la SQUADRA e il suo allenatore in quanto fantallenatore, mai la persona.
+Racconta e sfida: il tono è quello di chi presenta gli incroci della settimana e provoca chi deve giocarli. Si sfotte la SQUADRA e il suo allenatore in quanto fantallenatore, mai la persona.
 
 ## Regole assolute
-1. Non scrivere MAI un numero che non ti ho dato: né medie, né percentuali, né statistiche calcolate da te. Se un numero non è qui sotto, non esiste.
-2. Non dare per avvenuto niente. Nessun risultato, nessun gol, nessuna prestazione di questa giornata: non si è ancora giocato.
-3. Ogni sfida deve avere almeno ${MIN_PAROLE_SFIDA} parole. È un lancio, non un pezzo: due o tre righe.
-4. Italiano parlato e vivo, niente burocratese sportivo, niente elenchi puntati dentro i testi.
-5. Le quote sono quelle del nostro modello, non di un bookmaker: parlane come di un pronostico della lega, non di una verità.
+1. **Niente pronostici.** Non dire chi vincerà, chi è favorito, chi parte meglio. Puoi dire come stanno in classifica, cosa hanno da perdere, cosa si giocano: quello è raccontare, non prevedere.
+2. Non scrivere MAI un numero che non ti ho dato: né medie, né percentuali, né statistiche calcolate da te. Se un numero non è qui sotto, non esiste.
+3. Non dare per avvenuto niente: nessun risultato, nessun gol, nessuna prestazione di questa giornata.
+4. La panoramica è **un paragrafo solo** per tutta la giornata, fra ${MIN_PAROLE} e ${MAX_PAROLE} parole — una quindicina di righe. Deve nominare **tutte** le squadre che giocano e dedicare qualche riga a ciascuna sfida, ma dentro un testo continuo: niente elenchi puntati, niente titoletti, niente «a capo» fra una partita e l'altra. Devono legarsi l'una all'altra come in un pezzo di giornale.
+5. Italiano parlato e vivo, niente burocratese sportivo.
 ${r.paroleVietate.length ? `6. Parole vietate, non usarle mai: ${r.paroleVietate.join(', ')}.\n` : ''}
 ## Classifica adesso
 ${classifica || 'non si è ancora giocato'}
 
-## Le sfide da presentare
+## Chi gioca con chi
 ${sfide}
 
-## Torneo dei Tipster, la classifica adesso
-${tipster || 'nessuna schedina giocata finora'}
+## Torneo dei Tipster
+${capo ? `guida ${capo.nome} con ${punti(capo.punti)} punti` : 'nessuna schedina giocata finora'}
 
 ## Quando si chiude
 ${r.chiusura}
@@ -163,13 +179,10 @@ ${r.chiusura}
 Solo JSON, senza testo intorno e senza blocchi di codice, in questa forma:
 
 {
-  "apertura": "3-4 righe: che le quote sono pubblicate e si può giocare, e che giornata è",
-  "classifica": "un paragrafo su com'è messa la classifica adesso e cosa c'è in ballo",
-  "sfide": [{ "fixtureId": "<esattamente quello indicato sopra>", "testo": "almeno ${MIN_PAROLE_SFIDA} parole" }],
-  "chiusura": "una riga per invitare a giocare prima della chiusura"
-}
-
-L'array "sfide" deve contenere tutte e ${r.sfide.length} le sfide, con i fixtureId esatti.${
+  "apertura": "una o due righe: le quote sono in lavagna e si può giocare",
+  "panoramica": "il paragrafo unico sulla giornata, ${MIN_PAROLE}-${MAX_PAROLE} parole, tutte le squadre nominate, nessun a capo dentro",
+  "chiusura": "una riga sola per mandare a giocare prima della chiusura"
+}${
   r.correzioni?.length
     ? `\n\n## Il tentativo precedente è stato respinto\n${r.correzioni.map((c) => `- ${c}`).join('\n')}\nRiscrivi tutto correggendo questi punti.`
     : ''
@@ -179,14 +192,12 @@ L'array "sfide" deve contenere tutte e ${r.sfide.length} le sfide, con i fixture
 /** Dal JSON del modello all'anteprima, coi campi messi in forma. */
 export function daJsonAnteprima(grezzo: unknown): Anteprima {
   const p = (grezzo ?? {}) as Partial<Anteprima>;
-  if (!Array.isArray(p.sfide)) throw new Error('la risposta non contiene l\'elenco delle sfide');
+  if (typeof p.panoramica !== 'string' || !p.panoramica.trim()) {
+    throw new Error('la risposta non contiene la panoramica');
+  }
   return {
     apertura: String(p.apertura ?? '').trim(),
-    classifica: String(p.classifica ?? '').trim(),
-    sfide: p.sfide.map((s) => ({
-      fixtureId: String((s as { fixtureId?: unknown }).fixtureId ?? ''),
-      testo: String((s as { testo?: unknown }).testo ?? '').trim(),
-    })),
+    panoramica: p.panoramica.trim(),
     chiusura: String(p.chiusura ?? '').trim(),
   };
 }
@@ -199,14 +210,14 @@ export interface EsitoAnteprima {
   ok: boolean;
   problemi: string[];
   inventati: number[];
+  parole: number;
 }
 
 /**
- * I numeri che l'anteprima ha il diritto di citare.
- *
- * Le quote entrano sia col punto sia con la virgola, perché il modello
- * scrive «1,93» e il controllo legge numeri: senza, ogni quota citata
- * sembrerebbe inventata e il pezzo verrebbe bocciato sempre.
+ * I numeri che l'anteprima ha il diritto di citare: le posizioni e i punti
+ * di classifica, i punti di chi guida il torneo, la giornata. Le quote non
+ * ci sono più — e siccome non gliele diamo, se ne cita una viene bocciata,
+ * che è esattamente il comportamento voluto.
  */
 export function numeriLecitiAnteprima(r: RichiestaAnteprima): Set<number> {
   const n = new Set<number>();
@@ -216,42 +227,30 @@ export function numeriLecitiAnteprima(r: RichiestaAnteprima): Set<number> {
   metti(r.serieA);
   for (const c of r.classifica) { metti(c.punti); metti(c.posizione); }
   for (const t of r.tipster) { metti(t.punti); metti(t.posizione); }
-  for (const s of r.sfide) {
-    metti(s.posCasa); metti(s.posOspite);
-    metti(s.quotaFavorita); metti(s.quotaPari);
-    // le quote arrotondate come le scriverebbe una persona
-    if (s.quotaFavorita != null) metti(Math.round(s.quotaFavorita * 100) / 100);
-    if (s.quotaPari != null) metti(Math.round(s.quotaPari * 100) / 100);
-  }
+  for (const s of r.sfide) { metti(s.posCasa); metti(s.posOspite); }
   return n;
 }
 
 export function verificaAnteprima(a: Anteprima, r: RichiestaAnteprima): EsitoAnteprima {
   const problemi: string[] = [];
+  const parole = contaParole(a.panoramica);
 
-  const attesi = new Set(r.sfide.map((s) => s.fixtureId));
-  const arrivati = new Set(a.sfide.map((s) => s.fixtureId));
-  for (const id of attesi) {
-    if (!arrivati.has(id)) {
-      const s = r.sfide.find((x) => x.fixtureId === id)!;
-      problemi.push(`manca il lancio di ${s.casa} – ${s.ospite}`);
-    }
-  }
-  for (const id of arrivati) {
-    if (!attesi.has(id)) problemi.push(`c'è un lancio su una sfida che non esiste (${id})`);
-  }
+  if (parole < MIN_PAROLE) problemi.push(`la panoramica ha ${parole} parole invece di ${MIN_PAROLE}`);
+  if (parole > MAX_PAROLE) problemi.push(`la panoramica ha ${parole} parole, il massimo è ${MAX_PAROLE}`);
 
-  for (const s of a.sfide) {
-    const nome = r.sfide.find((x) => x.fixtureId === s.fixtureId);
-    const n = contaParole(s.testo);
-    if (n < MIN_PAROLE_SFIDA) {
-      problemi.push(
-        `${nome ? `${nome.casa} – ${nome.ospite}` : s.fixtureId}: ${n} parole invece di ${MIN_PAROLE_SFIDA}`,
-      );
-    }
-  }
+  /*
+   * Che ci siano tutte le sfide, senza un elenco di sfide.
+   *
+   * Nella versione a blocchi bastava contare i `fixtureId`. Qui il testo è
+   * uno solo, e il controllo diventa: ogni squadra che scende in campo deve
+   * essere nominata. Serve a non farsi consegnare un paragrafo che racconta
+   * due partite e si dimentica le altre due.
+   */
+  const dentro = a.panoramica.toLowerCase();
+  const mancanti = squadreInCampo(r).filter((n) => !dentro.includes(n.toLowerCase()));
+  if (mancanti.length) problemi.push(`non nomina: ${mancanti.join(', ')}`);
 
-  const tutto = [a.apertura, a.classifica, ...a.sfide.map((s) => s.testo), a.chiusura].join('\n');
+  const tutto = [a.apertura, a.panoramica, a.chiusura].join('\n');
   const inventati = numeriInventati(tutto, numeriLecitiAnteprima(r));
   if (inventati.length) problemi.push(`numeri che non ti ho dato: ${inventati.join(', ')}`);
 
@@ -261,41 +260,47 @@ export function verificaAnteprima(a: Anteprima, r: RichiestaAnteprima): EsitoAnt
 
   if (!a.apertura.trim()) problemi.push('manca l\'apertura');
 
-  return { ok: problemi.length === 0, problemi, inventati };
+  return { ok: problemi.length === 0, problemi, inventati, parole };
 }
 
 // =====================================================================
 // Il ripiego
 // =====================================================================
 
+/** «Alfa, Beta e Gamma» — la congiunzione al posto giusto. */
+function elenco(nomi: string[]): string {
+  if (nomi.length <= 1) return nomi[0] ?? '';
+  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
+}
+
 /**
  * L'anteprima senza modello: asciutta, ma completa e sempre corretta.
  *
- * Non deve essere brillante, deve partire. Se Gemini non risponde di
- * giovedì sera il gruppo riceve comunque l'annuncio con dentro tutto quello
- * che serve per giocare — ed è per costruzione impossibile che citi un
- * numero che non le abbiamo dato.
+ * Non deve essere brillante, deve partire. Se Gemini non risponde di giovedì
+ * sera il gruppo riceve comunque l'annuncio con dentro quello che serve, ed è
+ * per costruzione impossibile che citi un numero che non gli abbiamo dato.
  */
 export function anteprimaDiRipiego(r: RichiestaAnteprima): Anteprima {
   const capo = r.classifica[0];
   const guida = r.tipster[0];
 
+  const incroci = r.sfide
+    .map((s) => `${s.casa} – ${s.ospite}`)
+    .join('; ');
+  const caldi = r.sfide
+    .map((s) => ({ s, e: etichettaScontro(s.scontro) }))
+    .filter((x) => x.e)
+    .map((x) => `${x.s.casa} – ${x.s.ospite} è ${x.e}`);
+
   return {
-    apertura: `Le quote della giornata ${r.giornata} sono in lavagna: si può giocare.`
-      + (capo ? ` In testa al campionato ${capo.nome} con ${capo.punti} punti.` : ''),
-    classifica: capo
-      ? `Comanda ${capo.nome} con ${capo.punti} punti; chiude `
-        + `${r.classifica[r.classifica.length - 1].nome} a `
-        + `${r.classifica[r.classifica.length - 1].punti}.`
-      : '',
-    sfide: r.sfide.map((s) => ({
-      fixtureId: s.fixtureId,
-      testo: s.favorita
-        ? `Le quote danno avanti ${s.favorita} a ${quota(s.quotaFavorita)}, col pari a ${quota(s.quotaPari)}.`
-        : 'Sfida senza quote.',
-    })),
+    apertura: `Quote in lavagna per la giornata ${r.giornata}: si gioca.`,
+    panoramica: [
+      capo ? `Comanda ${capo.nome} con ${capo.punti} punti.` : '',
+      `In campo: ${incroci}.`,
+      caldi.length ? `${elenco(caldi)}.` : '',
+    ].filter(Boolean).join(' '),
     chiusura: guida
-      ? `Nel Torneo dei Tipster guida ${guida.nome} con ${punti(guida.punti)} punti.`
+      ? `Nel Torneo dei Tipster guida ${guida.nome} con ${punti(guida.punti)} punti: c'è da riprenderlo.`
       : 'Si comincia: la prima schedina vale già.',
   };
 }
@@ -313,46 +318,13 @@ export function montaAnteprima(a: Anteprima, r: RichiestaAnteprima): string {
     RIGA,
     '',
     a.apertura,
+    '',
+    a.panoramica,
   ];
 
   if (r.classifica.length) {
-    righe.push('', '📊 COME SIAMO MESSI', '',
-      r.classifica.map((c) => `${c.posizione}. ${c.nome} ${punti(c.punti)}`).join(' · '));
-    if (a.classifica) righe.push('', a.classifica);
+    righe.push('', `📊 ${r.classifica.map((c) => `${c.posizione}. ${c.nome} ${punti(c.punti)}`).join(' · ')}`);
   }
-
-  const blocco = (s: SfidaDaPresentare) => {
-    const testo = a.sfide.find((x) => x.fixtureId === s.fixtureId)?.testo;
-    if (!testo) return;
-    const e = etichettaScontro(s.scontro);
-    righe.push(
-      '',
-      `⚽ ${s.casa} – ${s.ospite}`,
-      s.favorita
-        ? `   favorita: ${s.favorita} @ ${quota(s.quotaFavorita)}${e ? ` · ${e}` : ''}`
-        : (e ? `   ${e}` : '   quote non disponibili'),
-      '',
-      testo,
-    );
-  };
-
-  const campionato = r.sfide.filter((s) => s.competizione !== 'coppa');
-  const coppa = r.sfide.filter((s) => s.competizione === 'coppa');
-
-  if (campionato.length) {
-    if (coppa.length) righe.push('', '📅 CAMPIONATO');
-    campionato.forEach(blocco);
-  }
-  if (coppa.length) {
-    righe.push('', RIGA, '🥇 COPPA MANSARDA');
-    coppa.forEach(blocco);
-  }
-
-  if (r.tipster.length) {
-    righe.push('', '🎯 TORNEO DEI TIPSTER', '',
-      r.tipster.map((t) => `${t.posizione}. ${t.nome} ${punti(t.punti)}`).join(' · '));
-  }
-
   if (a.chiusura) righe.push('', a.chiusura);
   righe.push('', `🔒 Si gioca fino a ${r.chiusura}`);
 

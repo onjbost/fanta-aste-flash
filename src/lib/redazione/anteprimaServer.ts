@@ -85,44 +85,20 @@ export async function costruisciMaterialeAnteprima(matchdayId: string): Promise<
     return x.casa && x.ospite;                 // semifinali ancora vuote: fuori
   });
 
-  const { data: quoteRighe } = sfideRighe.length
-    ? await db.from('odds')
-      .select('fixture_id, selection, price')
-      .in('fixture_id', sfideRighe.map((f) => (f as unknown as { id: string }).id))
-      .eq('market', '1x2')
-    : { data: [] as never[] };
-
   const posDi = new Map(classifica.map((c) => [c.nome, c.posizione]));
 
   const sfide: SfidaDaPresentare[] = sfideRighe.map((f) => {
     const x = f as unknown as Record<string, unknown>;
-    const id = String(x.id);
     const casa = String((x.casa as { name: string }).name);
     const ospite = String((x.ospite as { name: string }).name);
-
-    const mie = (quoteRighe ?? []).filter((q) => (q as { fixture_id: string }).fixture_id === id);
-    const prezzo = (sel: string) => {
-      const q = mie.find((r) => (r as { selection: string }).selection === sel);
-      return q ? Number((q as { price: number }).price) : null;
-    };
-    const uno = prezzo('1');
-    const due = prezzo('2');
-    // favorita è chi paga meno: se una delle due manca, non si indovina
-    const favorita = uno != null && due != null
-      ? (uno <= due ? casa : ospite)
-      : null;
-
     const posCasa = posDi.get(casa) ?? null;
     const posOspite = posDi.get(ospite) ?? null;
 
     return {
-      fixtureId: id, casa, ospite,
+      casa, ospite,
       competizione: x.competition as 'campionato' | 'coppa',
       gruppo: (x.group_name as string | null) || null,
       posCasa, posOspite,
-      favorita,
-      quotaFavorita: favorita == null ? null : Math.min(uno!, due!),
-      quotaPari: prezzo('X'),
       // gli scontri caldi valgono solo in campionato: in coppa la classifica
       // che conta è quella del girone, e quella qui non la guardiamo
       scontro: x.competition === 'coppa'

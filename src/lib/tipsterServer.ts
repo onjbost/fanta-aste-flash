@@ -2,7 +2,8 @@ import 'server-only';
 import { supabaseAdmin } from './supabase';
 import {
   forzaClub, stimaSquadra, quoteSfida, risolviSchedina,
-  type ContestoClub, type GiocatoreTipster, type Mercato, type StimaSquadra,
+  type ContestoClub, type GiocatoreTipster, type GiornataGiocata,
+  type Mercato, type StimaSquadra,
 } from './tipster';
 
 /**
@@ -150,10 +151,62 @@ async function contestiDiGiornata(matchdayId: string): Promise<Record<string, Co
   return ctx;
 }
 
+/**
+ * Quello che ogni squadra ha fatto davvero nelle giornate già archiviate,
+ * prima di quella che si sta quotando.
+ *
+ * Due cose su cui è facile sbagliare, e che qui sono decise una volta sola:
+ *
+ * 1. **Solo campionato.** Nelle giornate di coppa le stesse squadre giocano
+ *    due sfide con gli **stessi identici fantapunti**: contarle entrambe
+ *    raddoppierebbe il peso di quella domenica senza aggiungere un solo dato.
+ * 2. **Solo giornate precedenti.** Se entrasse la giornata in corso, si
+ *    quoterebbe sapendo già com'è andata.
+ */
+async function storicoSquadre(
+  leagueId: string, finoAllaGiornataEsclusa: number,
+): Promise<Map<string, GiornataGiocata[]>> {
+  const db = supabaseAdmin();
+  const { data } = await db.from('fixtures')
+    .select('home_team_id, away_team_id, home_fp, away_fp, matchdays!inner(fanta)')
+    .eq('league_id', leagueId)
+    .eq('competition', 'campionato')
+    .not('home_fp', 'is', null)
+    .lt('matchdays.fanta', finoAllaGiornataEsclusa);
+
+  const per = new Map<string, GiornataGiocata[]>();
+  const aggiungi = (teamId: string | null, fanta: number | null, fp: unknown) => {
+    if (!teamId || fanta == null || fp == null) return;
+    const l = per.get(teamId) ?? [];
+    l.push({ fanta, fantapunti: Number(fp) });
+    per.set(teamId, l);
+  };
+
+  for (const r of data ?? []) {
+    const x = r as unknown as Record<string, unknown>;
+    const fanta = (x.matchdays as { fanta: number | null } | null)?.fanta ?? null;
+    aggiungi(x.home_team_id as string | null, fanta, x.home_fp);
+    aggiungi(x.away_team_id as string | null, fanta, x.away_fp);
+  }
+  return per;
+}
+
+export interface StimaPubblicata {
+  teamId: string;
+  mu: number;
+  sd: number;
+  /** la forza secondo il solo listone, prima di guardare il campo */
+  baseListone: number;
+  /** la media pesata delle giornate giocate, null se non ne ha giocate */
+  osservata: number | null;
+  /** quante giornate sono entrate nel conto */
+  giornate: number;
+}
+
 export interface QuoteGenerate {
   sfide: number;
   esiti: number;
-  stime: { teamId: string; mu: number; sd: number }[];
+  stime: StimaPubblicata[];
 }
 
 /**
@@ -169,10 +222,26 @@ export async function generaQuote(leagueId: string, matchdayId: string): Promise
     db.from('players').select('club, quotation').eq('league_id', leagueId),
   ]);
 
-  const { data: lega } = await db.from('leagues')
-    .select('tipster_correzione_media').eq('id', leagueId).maybeSingle();
-  const correzioneMedia = Number((lega as { tipster_correzione_media?: number } | null)
-    ?.tipster_correzione_media ?? 0);
+  const [{ data: lega }, { data: md }] = await Promise.all([
+    db.from('leagues')
+      .select('tipster_correzione_media, tipster_peso_listone').eq('id', leagueId).maybeSingle(),
+    db.from('matchdays').select('fanta').eq('id', matchdayId).maybeSingle(),
+  ]);
+  const impostazioni = lega as
+    { tipster_correzione_media?: number; tipster_peso_listone?: number } | null;
+  const correzioneMedia = Number(impostazioni?.tipster_correzione_media ?? 0);
+  const pesoListone = impostazioni?.tipster_peso_listone == null
+    ? undefined : Number(impostazioni.tipster_peso_listone);
+
+  /*
+   * Senza il numero di giornata non si sa dove tagliare lo storico, e
+   * tagliarlo male vorrebbe dire quotare con dentro il risultato. Meglio
+   * quotare col solo listone, come si faceva prima, che quotare sapendo.
+   */
+  const giornata = (md as { fanta: number | null } | null)?.fanta ?? null;
+  const storico = giornata == null
+    ? new Map<string, GiornataGiocata[]>()
+    : await storicoSquadre(leagueId, giornata);
 
   const forza = forzaClub((listone ?? []).map((p) => ({
     club: String(p.club), quotazione: Number(p.quotation ?? 1),
@@ -180,7 +249,10 @@ export async function generaQuote(leagueId: string, matchdayId: string): Promise
 
   const stime = new Map<string, StimaSquadra>();
   for (const [teamId, rosa] of rose) {
-    stime.set(teamId, stimaSquadra(rosa, contesti, { forzaClub: forza, correzioneMedia }));
+    stime.set(teamId, stimaSquadra(rosa, contesti, {
+      forzaClub: forza, correzioneMedia, pesoListone,
+      storico: storico.get(teamId) ?? [],
+    }));
   }
 
   const righe: Record<string, unknown>[] = [];
@@ -210,7 +282,10 @@ export async function generaQuote(leagueId: string, matchdayId: string): Promise
   return {
     sfide: quotate,
     esiti: righe.length,
-    stime: [...stime].map(([teamId, s]) => ({ teamId, mu: s.mu, sd: s.sd })),
+    stime: [...stime].map(([teamId, s]) => ({
+      teamId, mu: s.mu, sd: s.sd,
+      baseListone: s.baseListone, osservata: s.osservata, giornate: s.giornate,
+    })),
   };
 }
 

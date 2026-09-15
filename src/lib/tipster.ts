@@ -307,6 +307,92 @@ export interface ContestoClub {
   rinviata?: boolean;
 }
 
+// =====================================================================
+// 5 bis · quello che è successo davvero
+// =====================================================================
+
+/** Una giornata già archiviata di questa squadra. */
+export interface GiornataGiocata {
+  fanta: number;
+  fantapunti: number;
+}
+
+/**
+ * Quante giornate «vale» la stima da listone nella fusione.
+ *
+ * Non è un numero scelto a sentimento. Con i dati delle prime giornate della
+ * lega, la differenza vera di forza fra le squadre vale circa 2,8 fantapunti
+ * di deviazione, mentre il rumore di una singola giornata ne vale circa 6. Il
+ * rapporto fra le due varianze — 36 su 8 — dice quanto peso dare al prior, e
+ * viene poco sopra il 4. Rivedibile quando ci saranno più giornate: è per
+ * questo che è un'impostazione di lega e non una costante murata nel codice.
+ */
+export const PESO_LISTONE = 4;
+
+/**
+ * Quanto scende il peso di una giornata per ogni giornata di distanza.
+ *
+ * Serve a far contare l'ultima domenica più della prima, senza inseguirla:
+ * con 0,85 la giornata scorsa pesa 1, quella prima 0,85, quella prima ancora
+ * 0,72. Una squadra che cambia passo si vede in due o tre giornate.
+ */
+export const DECADIMENTO = 0.85;
+
+export interface OpzioniFusione {
+  pesoListone?: number;
+  decadimento?: number;
+}
+
+export interface Fusione {
+  /** la base dopo la fusione: è questa che finisce nella stima */
+  base: number;
+  /** la media pesata di quello che la squadra ha fatto davvero, se ha giocato */
+  osservata: number | null;
+  /** quante giornate sono entrate nel conto */
+  giornate: number;
+}
+
+/**
+ * Fonde la forza stimata dal listone con quella dimostrata sul campo.
+ *
+ * `base` pesa quanto `pesoListone` giornate; ogni giornata giocata pesa uno.
+ * Con quattro giornate in archivio le due contano uguale, con dodici comanda
+ * il campo. È lo schema classico dello scostamento verso la media: con pochi
+ * dati non si crede a una squadra che ha fatto novanta una volta sola, con
+ * tanti dati non si continua a crederle sulla parola del listone.
+ *
+ * Il decadimento sposta la **stima**, non la **fiducia**: i pesi si
+ * rinormalizzano perché la loro somma resti il numero di giornate giocate.
+ * Altrimenti la fiducia si fermerebbe a un tetto — con 0,85 non supererebbe
+ * mai le 6,7 giornate equivalenti — e il listone non si toglierebbe più di
+ * mezzo nemmeno a stagione finita.
+ */
+export function fondiConLoStorico(
+  base: number, storico: GiornataGiocata[], opt: OpzioniFusione = {},
+): Fusione {
+  const k = opt.pesoListone ?? PESO_LISTONE;
+  const decadimento = opt.decadimento ?? DECADIMENTO;
+  const giocate = (storico as GiornataGiocata[]).filter((g) => Number.isFinite(g.fantapunti));
+  const n = giocate.length;
+  if (!n) return { base, osservata: null, giornate: 0 };
+
+  const piuRecente = Math.max(...giocate.map((g) => g.fanta));
+  let pesi = 0;
+  let somma = 0;
+  for (const g of giocate) {
+    const w = Math.pow(decadimento, Math.max(0, piuRecente - g.fanta));
+    pesi += w;
+    somma += w * g.fantapunti;
+  }
+  const osservata = somma / pesi;
+
+  return {
+    base: (n * osservata + k * base) / (n + k),
+    osservata: Math.round(osservata * 100) / 100,
+    giornate: n,
+  };
+}
+
 export interface OpzioniStima {
   /** forza di ogni club di Serie A, in z-score (0 = media) */
   forzaClub?: Record<string, number>;
@@ -321,14 +407,37 @@ export interface OpzioniStima {
    * È la manopola di taratura: quando avremo qualche giornata vera, si
    * confronta la media stimata con quella osservata e si sposta di qui.
    * Non cambia chi è favorito, cambia quanti gol ci si aspetta.
+   *
+   * Si applica alla base **prima** della fusione con lo storico: dopo
+   * sarebbe una correzione su un numero che lo storico ha già corretto, e
+   * si conterebbe due volte lo stesso livello.
    */
   correzioneMedia?: number;
+  /**
+   * Le giornate già giocate da questa squadra, per correggere la stima con
+   * quello che è successo davvero. Solo giornate **precedenti** a quella che
+   * si sta quotando: mettere dentro la giornata in corso vorrebbe dire
+   * quotare sapendo il risultato.
+   */
+  storico?: GiornataGiocata[];
+  /** quante giornate vale il listone nella fusione (default PESO_LISTONE) */
+  pesoListone?: number;
+  /** quanto scende il peso di una giornata per ogni giornata indietro */
+  decadimento?: number;
 }
 
 export interface StimaSquadra extends Distribuzione {
   undici: GiocatoreTipster[];
   /** contributo atteso di ogni titolare, per capire da dove viene la media */
   contributi: { playerId: string; fantavoto: number }[];
+  /** la forza neutra secondo il solo listone, taratura compresa */
+  baseListone: number;
+  /** quella usata davvero, dopo la fusione con le giornate giocate */
+  base: number;
+  /** la media pesata delle giornate giocate, o null se non ne ha giocate */
+  osservata: number | null;
+  /** quante giornate sono entrate nella fusione */
+  giornate: number;
 }
 
 /**
@@ -363,6 +472,16 @@ export function forzaClub(listone: { club: string; quotazione: number }[]): Reco
  * deviazione viene dalla dispersione dei singoli voti più un termine di
  * incertezza del modello: senza quello, le quote sarebbero più sicure di
  * quanto il modello abbia diritto di essere.
+ *
+ * Con `storico` entra anche quello che la squadra ha fatto davvero, e qui c'è
+ * l'unica finezza che conta. La media osservata è mediata su avversari
+ * diversi; la correzione di giornata riguarda l'avversario di adesso. Sommare
+ * le due sarebbe mescolare una cosa generale con una specifica. Quindi la
+ * media si scompone in due pezzi — una **base neutra**, che è la forza della
+ * rosa senza avversario né campo, e un **aggiustamento** che vale solo per
+ * questa giornata — si fonde con lo storico la sola base, e l'aggiustamento
+ * si riapplica sopra. Così una squadra in forma resta in forma anche quando
+ * le capita l'avversario duro, che è come deve essere.
  */
 export function stimaSquadra(
   rosa: GiocatoreTipster[],
@@ -384,10 +503,12 @@ export function stimaSquadra(
       .slice(0, MODULO[r]));
   });
 
-  let mu = 0;
+  let neutra = 0;                 // la rosa senza avversario né campo
+  let aggiustamento = 0;          // quanto la sposta questa giornata
   let varianza = 0;
   const contributi = undici.map((p) => {
     const ctx = contesti[p.club];
+    const nudo = fantamediaAttesa(p.role, p.quotazione);
     let fv: number;
     if (ctx?.seiPolitico) {
       fv = 6;                       // niente voto, niente bonus: 6 secco
@@ -395,17 +516,27 @@ export function stimaSquadra(
     } else {
       const zAvv = ctx ? (forza[ctx.avversario] ?? 0) : 0;
       const casa = ctx?.inCasa ? bonusCasa : 0;
-      fv = fantamediaAttesa(p.role, p.quotazione) - peso * zAvv + casa;
+      fv = nudo - peso * zAvv + casa;
       varianza += ANCORE[p.role].sd ** 2;
     }
-    mu += fv;
+    neutra += nudo;
+    aggiustamento += fv - nudo;
     return { playerId: p.playerId, fantavoto: Math.round(fv * 100) / 100 };
   });
 
+  const baseListone = neutra + correzione;
+  const fusa = fondiConLoStorico(baseListone, opt.storico ?? [], {
+    pesoListone: opt.pesoListone, decadimento: opt.decadimento,
+  });
+
   return {
-    mu: Math.round((mu + correzione) * 100) / 100,
+    mu: Math.round((fusa.base + aggiustamento) * 100) / 100,
     sd: Math.round(Math.sqrt(varianza + sdModello ** 2) * 100) / 100,
     undici,
     contributi,
+    baseListone: Math.round(baseListone * 100) / 100,
+    base: Math.round(fusa.base * 100) / 100,
+    osservata: fusa.osservata,
+    giornate: fusa.giornate,
   };
 }

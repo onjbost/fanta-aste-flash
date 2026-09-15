@@ -2,8 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   golDaFantapunti, distribuzioneGol, griglia, mercatiDaGriglia, quoteSfida,
   quotaDaProbabilita, risolvi, puntiGiocata, risolviSchedina,
-  fantamediaAttesa, forzaClub, stimaSquadra, MOLTIPLICATORE, ESATTI_FISSI, ALTRO,
-  type GiocatoreTipster, type ContestoClub,
+  fantamediaAttesa, forzaClub, stimaSquadra, fondiConLoStorico,
+  MOLTIPLICATORE, ESATTI_FISSI, ALTRO, PESO_LISTONE, DECADIMENTO,
+  type GiocatoreTipster, type ContestoClub, type GiornataGiocata,
 } from './tipster';
 
 const somma = (xs: number[]) => xs.reduce((s, x) => s + x, 0);
@@ -365,5 +366,173 @@ describe('lavagna fissa dei risultati esatti', () => {
   it('anche «altro» vale dieci punti attesi', () => {
     const a = esatti.find((e) => e.selection === ALTRO)!;
     expect(a.probability * puntiGiocata(a.price, 1)).toBeCloseTo(MOLTIPLICATORE, 1);
+  });
+});
+
+// =====================================================================
+// La fusione con quello che è successo davvero
+// =====================================================================
+
+describe('fusione fra listone e giornate giocate', () => {
+  const g = (fanta: number, fantapunti: number): GiornataGiocata => ({ fanta, fantapunti });
+
+  it('senza giornate giocate non tocca niente', () => {
+    const f = fondiConLoStorico(74, []);
+    expect(f.base).toBe(74);
+    expect(f.osservata).toBeNull();
+    expect(f.giornate).toBe(0);
+  });
+
+  it('pesa il listone come quattro giornate', () => {
+    expect(PESO_LISTONE).toBe(4);
+    // una sola giornata a 90: la base si sposta di un quinto della distanza
+    const f = fondiConLoStorico(70, [g(1, 90)]);
+    expect(f.osservata).toBe(90);
+    expect(f.base).toBeCloseTo((1 * 90 + 4 * 70) / 5, 6);
+  });
+
+  it('a quattro giornate listone e campo pesano uguale', () => {
+    const f = fondiConLoStorico(70, [g(1, 80), g(2, 80), g(3, 80), g(4, 80)]);
+    expect(f.base).toBeCloseTo(75, 6);          // esattamente a metà strada
+  });
+
+  it('più si gioca, più conta il campo', () => {
+    // dieci fantapunti di distanza fra listone e campo: guardo quanta ne copre
+    const copertura = (quante: number) => {
+      const storico = Array.from({ length: quante }, (_, i) => g(i + 1, 80));
+      return (fondiConLoStorico(70, storico).base - 70) / 10;
+    };
+    expect(copertura(2)).toBeCloseTo(2 / 6, 6);        // un terzo
+    expect(copertura(4)).toBeCloseTo(4 / 8, 6);        // metà
+    expect(copertura(12)).toBeCloseTo(12 / 16, 6);     // tre quarti
+    expect(copertura(2)).toBeLessThan(copertura(4));
+    expect(copertura(4)).toBeLessThan(copertura(12));
+  });
+
+  it('le giornate recenti pesano più delle vecchie', () => {
+    const inCrescita = fondiConLoStorico(70, [g(1, 60), g(2, 70), g(3, 80)]);
+    const inCalo = fondiConLoStorico(70, [g(1, 80), g(2, 70), g(3, 60)]);
+    expect(inCrescita.osservata!).toBeGreaterThan(70);
+    expect(inCalo.osservata!).toBeLessThan(70);
+    // stesse tre giornate, ordine opposto: le medie sono simmetriche attorno a 70
+    expect(inCrescita.osservata! - 70).toBeCloseTo(70 - inCalo.osservata!, 6);
+  });
+
+  it('il decadimento sposta la stima ma non la fiducia', () => {
+    const tre = [g(1, 60), g(2, 70), g(3, 80)];
+    // con tre giornate il peso del campo è 3 su 3+4, qualunque sia il decadimento
+    expect(fondiConLoStorico(70, tre).giornate).toBe(3);
+    expect(fondiConLoStorico(70, tre, { decadimento: 1 }).giornate).toBe(3);
+  });
+
+  it('con decadimento 1 è la media semplice', () => {
+    const f = fondiConLoStorico(70, [g(1, 60), g(2, 90)], { decadimento: 1 });
+    expect(f.osservata).toBeCloseTo(75, 6);
+  });
+
+  it('il peso del listone si può cambiare senza toccare il codice', () => {
+    const prudente = fondiConLoStorico(70, [g(1, 90)], { pesoListone: 10 });
+    const reattivo = fondiConLoStorico(70, [g(1, 90)], { pesoListone: 1 });
+    expect(prudente.base).toBeLessThan(reattivo.base);
+    expect(reattivo.base).toBeCloseTo(80, 6);      // metà e metà
+  });
+
+  it('un peso listone a zero si fida solo del campo', () => {
+    const f = fondiConLoStorico(70, [g(1, 90)], { pesoListone: 0 });
+    expect(f.base).toBeCloseTo(90, 6);
+  });
+
+  it('la costante del decadimento è quella dichiarata', () => {
+    expect(DECADIMENTO).toBeCloseTo(0.85, 6);
+  });
+});
+
+describe('la stima di squadra guarda anche il campo', () => {
+  const forza = { Inter: 1.8, Milan: 1.2, Lecce: -1.1, Venezia: -1.4 };
+  const rosa: GiocatoreTipster[] = [
+    { playerId: 'p1', role: 'P', club: 'Milan', quotazione: 18 },
+    { playerId: 'd1', role: 'D', club: 'Milan', quotazione: 24 },
+    { playerId: 'd2', role: 'D', club: 'Milan', quotazione: 20 },
+    { playerId: 'd3', role: 'D', club: 'Milan', quotazione: 12 },
+    { playerId: 'c1', role: 'C', club: 'Milan', quotazione: 40 },
+    { playerId: 'c2', role: 'C', club: 'Milan', quotazione: 30 },
+    { playerId: 'c3', role: 'C', club: 'Milan', quotazione: 20 },
+    { playerId: 'c4', role: 'C', club: 'Milan', quotazione: 10 },
+    { playerId: 'a1', role: 'A', club: 'Milan', quotazione: 60 },
+    { playerId: 'a2', role: 'A', club: 'Milan', quotazione: 30 },
+    { playerId: 'a3', role: 'A', club: 'Milan', quotazione: 12 },
+  ];
+  const contesti: Record<string, ContestoClub> = { Milan: { avversario: 'Venezia', inCasa: true } };
+  const opt = { forzaClub: forza };
+
+  it('senza storico dà esattamente le quote di prima', () => {
+    const prima = stimaSquadra(rosa, contesti, opt);
+    const dopo = stimaSquadra(rosa, contesti, { ...opt, storico: [] });
+    expect(dopo.mu).toBe(prima.mu);
+    expect(dopo.sd).toBe(prima.sd);
+    expect(dopo.giornate).toBe(0);
+    expect(dopo.osservata).toBeNull();
+  });
+
+  it('chi ha fatto più del previsto viene stimato più in alto', () => {
+    const base = stimaSquadra(rosa, contesti, opt);
+    const forte = stimaSquadra(rosa, contesti, {
+      ...opt, storico: [{ fanta: 1, fantapunti: base.base + 20 }],
+    });
+    const debole = stimaSquadra(rosa, contesti, {
+      ...opt, storico: [{ fanta: 1, fantapunti: base.base - 20 }],
+    });
+    expect(forte.mu).toBeGreaterThan(base.mu);
+    expect(debole.mu).toBeLessThan(base.mu);
+    expect(forte.mu - base.mu).toBeCloseTo(base.mu - debole.mu, 6);
+  });
+
+  /*
+   * Il punto delicato dell'innesto: la media osservata è mediata su avversari
+   * diversi, la correzione di giornata riguarda l'avversario di adesso. Si
+   * fondono le basi neutre, poi si riapplica la correzione — altrimenti una
+   * squadra con lo storico perderebbe il vantaggio dell'avversario facile.
+   */
+  it('lo storico non mangia la correzione per l\'avversario', () => {
+    const storico = [{ fanta: 1, fantapunti: 80 }, { fanta: 2, fantapunti: 80 }];
+    const facile = stimaSquadra(rosa, { Milan: { avversario: 'Venezia', inCasa: true } }, { ...opt, storico });
+    const dura = stimaSquadra(rosa, { Milan: { avversario: 'Inter', inCasa: false } }, { ...opt, storico });
+    expect(facile.mu).toBeGreaterThan(dura.mu);
+
+    // e lo scarto fra i due è lo stesso che si avrebbe senza storico
+    const facileNudo = stimaSquadra(rosa, { Milan: { avversario: 'Venezia', inCasa: true } }, opt);
+    const duraNuda = stimaSquadra(rosa, { Milan: { avversario: 'Inter', inCasa: false } }, opt);
+    expect(facile.mu - dura.mu).toBeCloseTo(facileNudo.mu - duraNuda.mu, 6);
+  });
+
+  it('la correzione di taratura entra prima della fusione, non dopo', () => {
+    const storico = [{ fanta: 1, fantapunti: 80 }];
+    const senza = stimaSquadra(rosa, contesti, { ...opt, storico });
+    const con = stimaSquadra(rosa, contesti, { ...opt, storico, correzioneMedia: -10 });
+    // -10 sulla base, che pesa 4 su 5: lo spostamento finale è -8, non -10
+    expect(con.mu).toBeCloseTo(senza.mu - 8, 6);
+  });
+
+  it('racconta da dove viene la stima', () => {
+    const s = stimaSquadra(rosa, contesti, {
+      ...opt, storico: [{ fanta: 1, fantapunti: 90 }, { fanta: 2, fantapunti: 90 }],
+    });
+    expect(s.giornate).toBe(2);
+    expect(s.osservata).toBe(90);
+    expect(s.base).toBeGreaterThan(0);
+    expect(s.baseListone).toBeLessThan(s.base);    // il campo ha tirato su la base
+  });
+
+  it('una squadra che va forte diventa favorita contro una identica che arranca', () => {
+    const chiVaForte = stimaSquadra(rosa, contesti, {
+      ...opt, storico: [{ fanta: 1, fantapunti: 85 }, { fanta: 2, fantapunti: 85 }, { fanta: 3, fantapunti: 85 }],
+    });
+    const chiArranca = stimaSquadra(rosa, contesti, {
+      ...opt, storico: [{ fanta: 1, fantapunti: 65 }, { fanta: 2, fantapunti: 65 }, { fanta: 3, fantapunti: 65 }],
+    });
+    const uno = quoteSfida(chiVaForte, chiArranca).find((e) => e.selection === '1')!;
+    const due = quoteSfida(chiVaForte, chiArranca).find((e) => e.selection === '2')!;
+    expect(uno.probability).toBeGreaterThan(due.probability);
+    expect(uno.price).toBeLessThan(due.price);
   });
 });

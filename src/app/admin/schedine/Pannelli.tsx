@@ -9,7 +9,16 @@ import { Coppa } from '../../Icone';
 
 function Messaggio({ state }: { state: ActionState }) {
   if (!state) return null;
-  return <div className={`callout${state.ok ? '' : ' crit'}`} style={{ marginTop: 10 }}>{state.message}</div>;
+  return (
+    <div className={`callout${state.ok ? '' : ' crit'}`} style={{ marginTop: 10 }}>
+      {state.message}
+      {state.dettaglio?.length ? (
+        <ul style={{ margin: '8px 0 0', paddingLeft: 18, fontSize: '.84rem', lineHeight: 1.6 }}>
+          {state.dettaglio.map((r) => <li key={r}>{r}</li>)}
+        </ul>
+      ) : null}
+    </div>
+  );
 }
 
 /** I due pulsanti che governano la giornata: genera e pubblica. */
@@ -38,8 +47,8 @@ export function Quote({ matchdayId, pubblicate, esiti }: {
         </span>
       </div>
       <p style={{ fontSize: '.86rem', color: 'var(--muted)', margin: '10px 0 0' }}>
-        Le quote si calcolano sulle rose di adesso: dopo un'asta o un import nuovo, rigenerale.
-        Chi ha già giocato tiene la quota che aveva.
+        Le quote si calcolano sulle rose di adesso e sulle giornate già archiviate: dopo un&apos;asta,
+        un import nuovo o una giornata in più, rigenerale. Chi ha già giocato tiene la quota che aveva.
       </p>
       <Messaggio state={sGen} />
       <Messaggio state={sPub} />

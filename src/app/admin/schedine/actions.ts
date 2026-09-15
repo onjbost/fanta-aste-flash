@@ -3,9 +3,15 @@
 import { revalidatePath } from 'next/cache';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { generaQuote, chiudiGiornata, giornataDaRiga } from '@/lib/tipsterServer';
+import { supabaseAdmin as admin } from '@/lib/supabase';
 import { notifyAdminPlain } from '@/lib/telegram';
 
-export type ActionState = { ok: boolean; message: string } | null;
+export type ActionState = {
+  ok: boolean;
+  message: string;
+  /** righe di dettaglio, una per squadra: da dove viene la stima */
+  dettaglio?: string[];
+} | null;
 
 async function requireAdmin() {
   const db = await supabaseServer();
@@ -28,11 +34,33 @@ export async function generaQuoteAction(_p: ActionState, form: FormData): Promis
     const matchdayId = String(form.get('matchdayId'));
     const r = await generaQuote(leagueId, matchdayId);
     revalidatePath('/admin/schedine');
+
+    /*
+     * Il dettaglio non è decorazione: da quando le quote tengono conto delle
+     * giornate giocate, guardando solo la quota non si capisce più se una
+     * squadra è favorita per la rosa o per come sta andando. Qui si vedono
+     * tutti e due i numeri e quello che ne è uscito.
+     */
+    const { data: squadre } = await admin().from('teams')
+      .select('id, name').eq('league_id', leagueId);
+    const nomeDi = new Map((squadre ?? []).map((t) => [t.id as string, t.name as string]));
+
+    const dettaglio = [...r.stime]
+      .sort((a, b) => b.mu - a.mu)
+      .map((s) => {
+        const nome = nomeDi.get(s.teamId) ?? '?';
+        const campo = s.osservata == null
+          ? 'nessuna giornata in archivio'
+          : `campo ${s.osservata.toFixed(1)} su ${s.giornate} ${s.giornate === 1 ? 'giornata' : 'giornate'}`;
+        return `${nome}: listone ${s.baseListone.toFixed(1)} · ${campo} → attesi ${s.mu.toFixed(1)} fp`;
+      });
+
     return {
       ok: true,
       message: r.sfide === 0
         ? 'Nessuna sfida da quotare: mancano gli accoppiamenti.'
         : `Quote generate: ${r.sfide} sfide, ${r.esiti} esiti. Guardale e poi pubblicale.`,
+      dettaglio: r.sfide === 0 ? undefined : dettaglio,
     };
   } catch (e) { return esito(e); }
 }

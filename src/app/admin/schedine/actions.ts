@@ -5,6 +5,7 @@ import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { generaQuote, chiudiGiornata, giornataDaRiga } from '@/lib/tipsterServer';
 import { supabaseAdmin as admin } from '@/lib/supabase';
 import { notifyAdminPlain } from '@/lib/telegram';
+import { generaAnteprima } from '@/lib/redazione/anteprimaServer';
 
 export type ActionState = {
   ok: boolean;
@@ -83,15 +84,47 @@ export async function pubblicaQuote(_p: ActionState, form: FormData): Promise<Ac
       .update({ odds_published_at: new Date().toISOString(), status: 'open' })
       .eq('id', matchdayId);
 
-    const g = giornataDaRiga(md);
-    await notifyAdminPlain(
-      `📋 QUOTE PUBBLICATE\n\nGiornata ${g.fanta} (Serie A ${g.serieA}).\n`
-      + `Si gioca fino a ${new Date(g.lockAt).toLocaleString('it-IT')}.`,
-    );
-
     revalidatePath('/admin/schedine');
     revalidatePath('/schedine');
-    return { ok: true, message: 'Quote pubblicate: in lega si può giocare.' };
+
+    /*
+     * Pubblicare e annunciare sono due cose.
+     *
+     * Le quote a questo punto sono già in lavagna e la lega può giocare: se
+     * l'anteprima non si genera — il modello non risponde, Telegram è giù —
+     * si dice com'è andata, ma non si annulla la pubblicazione. Il contrario
+     * sarebbe la cosa peggiore: quote pubblicate e admin convinto di no.
+     */
+    const g = giornataDaRiga(md);
+    try {
+      const a = await generaAnteprima(matchdayId);
+      const r = await notifyAdminPlain(a.testo);
+      if (!r.sent) {
+        return {
+          ok: true,
+          message: `Quote pubblicate: in lega si può giocare. L'anteprima però non è partita `
+            + `su Telegram (${r.reason}): rigenerala da lì o scrivila a mano.`,
+        };
+      }
+      const come = a.provider === 'gemini'
+        ? 'scritta dal modello'
+        : `a template${a.problemi.length ? ` (${a.problemi[0]})` : ''}`;
+      return {
+        ok: true,
+        message: `Quote pubblicate: in lega si può giocare. Anteprima ${come} mandata su `
+          + 'Telegram: copiala nel gruppo.',
+      };
+    } catch (e) {
+      await notifyAdminPlain(
+        `📋 QUOTE PUBBLICATE\n\nGiornata ${g.fanta} (Serie A ${g.serieA}).\n`
+        + `Si gioca fino a ${new Date(g.lockAt).toLocaleString('it-IT')}.`,
+      );
+      return {
+        ok: true,
+        message: 'Quote pubblicate: in lega si può giocare. L\'anteprima non è venuta ('
+          + (e as Error).message + '): su Telegram è partito l\'avviso secco.',
+      };
+    }
   } catch (e) { return esito(e); }
 }
 

@@ -54,6 +54,18 @@ export function contaParole(testo: string): number {
   return testo.trim().split(/\s+/).filter(Boolean).length;
 }
 
+/**
+ * I numeri che il testo cita e che nessuno gli aveva dato.
+ *
+ * È il controllo che conta davvero: in un gruppo di fantacalcio l'unico
+ * errore che qualcuno nota è un numero sbagliato detto con sicurezza. Sta
+ * qui, fuori da `verificaPezzo`, perché lo usano tutti e due i generatori —
+ * il pezzo di fine giornata e l'anteprima di quella che comincia.
+ */
+export function numeriInventati(testo: string, ammessi: Set<number>): number[] {
+  return [...new Set(numeriDelTesto(testo))].filter((n) => !ammessi.has(n));
+}
+
 export function verificaPezzo(
   pezzo: Pezzo, r: RichiestaPezzo, leciti: Set<number>,
 ): EsitoVerifica {
@@ -93,7 +105,7 @@ export function verificaPezzo(
   // ---- numeri inventati
   const tutto = [pezzo.apertura, ...pezzo.sfide.map((s) => s.testo), pezzo.classifica, pezzo.tipster]
     .join('\n');
-  const inventati = [...new Set(numeriDelTesto(tutto))].filter((n) => !ammessi.has(n));
+  const inventati = numeriInventati(tutto, ammessi);
   if (inventati.length) {
     problemi.push(`numeri che non ti ho dato: ${inventati.join(', ')}`);
   }

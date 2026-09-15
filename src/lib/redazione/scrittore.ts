@@ -12,6 +12,7 @@
  * Vercel senza toccare il repo.
  */
 
+import { ModelloGemini, leggiJson, tono, type Modello } from './modello';
 import type { GironeCoppa, RigaClassifica, Spunto, TipsterGiornata } from './spunti';
 
 export interface SfidaDaRaccontare {
@@ -74,14 +75,6 @@ export interface Scrittore {
 // =====================================================================
 // Il prompt
 // =====================================================================
-
-const TONI: Record<number, string> = {
-  1: 'affettuoso, nessuna presa in giro',
-  2: 'ironico ma bonario: battute leggere, nessuno si sente attaccato',
-  3: 'sfottò da gruppo WhatsApp: chi perde viene punzecchiato, chi vince ridimensionato',
-  4: 'cronaca sportiva velenosa: sarcasmo marcato, il perdente viene smontato pezzo per pezzo',
-  5: 'nessuna pietà: insulto sportivo pieno',
-};
 
 /**
  * Il tono non è uguale per tutte le sfide.
@@ -153,7 +146,7 @@ export function costruisciPrompt(r: RichiestaPezzo): string {
   return `Sei il cronista della lega di fantacalcio "Fanta Mansarda". Scrivi il pezzo della giornata ${r.giornata} (Serie A ${r.serieA}) per il gruppo WhatsApp della lega.
 
 ## Tono
-${r.tono}/5 — ${TONI[r.tono] ?? TONI[3]}.
+${r.tono}/5 — ${tono(r.tono)}.
 Si sfotte la SQUADRA e il suo allenatore in quanto fantallenatore, mai la persona.
 Ogni sfida ha il suo tono indicato sotto: dove non è successo niente, non forzare.
 
@@ -202,39 +195,16 @@ L'array "sfide" deve contenere tutte e ${r.sfide.length} le sfide, con i fixture
 // Gemini
 // =====================================================================
 
-const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
-
 export class ScrittoreGemini implements Scrittore {
   readonly nome = 'gemini' as const;
-  constructor(readonly modello: string, private readonly chiave: string) {}
+  private readonly tramite: Modello;
+
+  constructor(readonly modello: string, chiave: string) {
+    this.tramite = new ModelloGemini(modello, chiave);
+  }
 
   async scrivi(r: RichiestaPezzo): Promise<Pezzo> {
-    const res = await fetch(`${ENDPOINT}/${this.modello}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': this.chiave },
-      body: JSON.stringify({
-        contents: [{ role: 'user', parts: [{ text: costruisciPrompt(r) }] }],
-        generationConfig: {
-          temperature: 1.0,
-          maxOutputTokens: 8192,
-          responseMimeType: 'application/json',
-        },
-      }),
-      // domenica sera nessuno aspetta due minuti: oltre, si va di template
-      signal: AbortSignal.timeout(90_000),
-    });
-
-    if (!res.ok) {
-      const corpo = await res.text().catch(() => '');
-      throw new Error(`Gemini ha risposto ${res.status}: ${corpo.slice(0, 200)}`);
-    }
-
-    const dati = await res.json() as {
-      candidates?: { content?: { parts?: { text?: string }[] } }[];
-    };
-    const testo = dati.candidates?.[0]?.content?.parts?.map((p) => p.text ?? '').join('') ?? '';
-    if (!testo.trim()) throw new Error('Gemini ha risposto senza testo');
-    return leggiPezzo(testo);
+    return daJson(await this.tramite.chiedi(costruisciPrompt(r)));
   }
 }
 
@@ -243,14 +213,12 @@ export class ScrittoreGemini implements Scrittore {
  * blocco di codice o ci mette una riga davanti. Si ripesca la graffa.
  */
 export function leggiPezzo(testo: string): Pezzo {
-  let grezzo = testo.trim();
-  const blocco = grezzo.match(/```(?:json)?\s*([\s\S]*?)```/);
-  if (blocco) grezzo = blocco[1].trim();
-  const apre = grezzo.indexOf('{');
-  const chiude = grezzo.lastIndexOf('}');
-  if (apre < 0 || chiude <= apre) throw new Error('nella risposta non c\'è JSON');
+  return daJson(leggiJson(testo));
+}
 
-  const p = JSON.parse(grezzo.slice(apre, chiude + 1)) as Partial<Pezzo>;
+/** Dal JSON già ripescato al pezzo, con i campi messi in forma. */
+function daJson(grezzo: unknown): Pezzo {
+  const p = (grezzo ?? {}) as Partial<Pezzo>;
   if (!Array.isArray(p.sfide)) throw new Error('la risposta non contiene l\'elenco delle sfide');
 
   return {

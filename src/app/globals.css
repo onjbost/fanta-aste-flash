@@ -651,3 +651,81 @@ th.ordinabile .livello{
   .caricamento-centro{animation:centro-compare .01s linear 2.5s forwards}
   .caricamento-nota{animation:nota-compare .01s linear 5s forwards}
 }
+
+/* =====================================================================
+ * Il menù dell'area admin
+ * ===================================================================== */
+
+/*
+ * Il bottone è fisso in alto a sinistra e ci resta anche a pagina scorsa:
+ * su un telefono, in fondo a una tabella di rose, la barra in cima non c'è
+ * più e il menù deve esserci lo stesso. Sta sopra al velo (60 contro 70 del
+ * cassetto) perché da aperto diventa la croce per chiudere.
+ */
+.menu-admin-apri{
+  position:fixed;top:10px;left:10px;z-index:80;
+  width:40px;height:40px;padding:0;border-radius:var(--r);
+  display:grid;place-items:center;
+  background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);
+}
+.menu-admin-apri svg{
+  width:20px;height:20px;fill:none;stroke:currentColor;
+  stroke-width:1.8;stroke-linecap:round;
+}
+.menu-admin-apri:active{transform:scale(.94)}
+
+/*
+ * La rientranza per il bottone serve solo quando il contenuto arriva
+ * davvero fin sotto di lui.
+ *
+ * Il guscio è largo al massimo 940px e centrato: oltre i 1024 di finestra
+ * comincia a più di 58px dal bordo e il bottone gli resta a sinistra, in
+ * mezzo al margine. Mettere la rientranza anche lì sposterebbe solo il
+ * marchio, lasciandolo disallineato rispetto al titolo sotto — un difetto
+ * che si vede subito e che non risolve niente.
+ */
+@media (max-width:1023px){
+  .area-admin .topbar{padding-left:52px}
+}
+
+.menu-admin-velo{
+  position:fixed;inset:0;z-index:70;
+  background:rgba(10,14,12,.5);
+  opacity:0;pointer-events:none;transition:opacity .25s ease;
+}
+.menu-admin-velo.aperto{opacity:1;pointer-events:auto}
+
+.menu-admin{
+  position:fixed;top:0;left:0;bottom:0;z-index:75;
+  width:min(290px,82vw);
+  background:var(--surface);border-right:1px solid var(--border);
+  box-shadow:var(--shadow);
+  padding:calc(12px + env(safe-area-inset-top)) 0 16px;
+  overflow-y:auto;
+  transform:translateX(-100%);
+  transition:transform .28s cubic-bezier(.22,.61,.36,1);
+}
+.menu-admin.aperto{transform:none}
+.menu-admin:focus{outline:none}
+
+.menu-admin-testa{
+  font-size:.68rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--muted);padding:12px 20px 10px 60px;
+  border-bottom:1px solid var(--border);margin-bottom:6px;
+}
+
+.menu-admin ul{list-style:none;margin:0;padding:0}
+.menu-admin a{
+  display:block;padding:11px 20px;
+  color:var(--ink);font-size:.92rem;font-weight:600;
+  border-left:3px solid transparent;
+}
+.menu-admin a:hover{background:var(--surface-2);text-decoration:none;color:var(--accent)}
+.menu-admin a[aria-current="page"]{
+  color:var(--accent);border-left-color:var(--accent);background:var(--accent-soft);
+}
+
+@media (prefers-reduced-motion:reduce){
+  .menu-admin{transition:none}
+  .menu-admin-velo{transition:none}
+}

@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
@@ -63,15 +62,6 @@ export default async function AdminPage() {
       <p className="eyebrow">Pannello admin</p>
       <h1>Da decidere</h1>
       <TelegramCheck configured={telegramConfigured()} />
-      <div className="filters" style={{ marginTop: 0 }}>
-        <Link className="btn" href="/admin/rose">Rose e import</Link>
-        <Link className="btn" href="/admin/allenatori">Allenatori</Link>
-        <Link className="btn" href="/admin/messaggi">Centro messaggi</Link>
-        <Link className="btn" href="/admin/schedine">Tipster</Link>
-        <Link className="btn" href="/admin/redazione">La redazione</Link>
-        <Link className="btn" href="/asta/sala">Sala d&apos;asta</Link>
-        <Link className="btn" href="/admin/prova">Sala di prova</Link>
-      </div>
       <p className="sub">
         {requests.length === 0
           ? 'Nessuna richiesta in attesa.'

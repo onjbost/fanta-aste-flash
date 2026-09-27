@@ -14,18 +14,10 @@
 
 const ENDPOINT = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-/** I toni di lega, condivisi dai due generatori: la voce è la stessa. */
-export const TONI: Record<number, string> = {
-  1: 'affettuoso, nessuna presa in giro',
-  2: 'ironico ma bonario: battute leggere, nessuno si sente attaccato',
-  3: 'sfottò da gruppo WhatsApp: chi perde viene punzecchiato, chi vince ridimensionato',
-  4: 'cronaca sportiva velenosa: sarcasmo marcato, il perdente viene smontato pezzo per pezzo',
-  5: 'nessuna pietà: insulto sportivo pieno',
-};
-
-export function tono(n: number): string {
-  return TONI[n] ?? TONI[3];
-}
+// TONI e tono vivono in ./toni, un modulo senza `fetch` né variabili
+// d'ambiente: riesportati qui perché chi già li importava da `modello.ts`
+// (i due generatori di pezzi) non deve cambiare una riga.
+export { TONI, tono } from './toni';
 
 /**
  * Il modello dovrebbe restituire JSON puro, ma ogni tanto lo incarta in un

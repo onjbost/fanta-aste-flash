@@ -311,6 +311,59 @@ tbody tr.in-testa:hover{background:var(--accent-soft)}
 .conguaglio-nota{margin:0 0 8px;font-size:.8rem;color:var(--muted)}
 .scambio-form .callout{margin:14px 0 4px}
 
+/* I giocatori scelti da ciascun lato. Si usa dal telefono, quindi la voce è
+   una riga alta da toccare senza mirare: 44px è la misura sotto la quale il
+   pollice comincia a sbagliare. Nessun riquadro nuovo — un filetto fra le
+   voci, come nelle tabelle. */
+.scambio-lista{list-style:none;margin:0 0 10px;padding:0;display:grid}
+.scambio-voce{
+  display:flex;align-items:center;gap:10px;min-height:44px;
+  padding:6px 0;border-bottom:1px solid var(--border);font-size:.9rem;
+}
+.scambio-voce:first-child{border-top:1px solid var(--border)}
+.scambio-chi{display:flex;flex-direction:column;min-width:0;flex:1}
+.scambio-chi b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.scambio-riga{font-size:.78rem;color:var(--muted);margin:0}
+/* Il bersaglio è quadrato e pieno anche se la croce è piccola. 44px come la
+   voce che lo contiene: è un bottone che cancella, sotto quella misura il
+   pollice toglie il giocatore sbagliato o non lo toglie affatto. */
+.scambio-togli{
+  flex:0 0 auto;width:44px;height:44px;padding:0;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--muted);border-radius:var(--r);
+}
+.scambio-togli:hover{color:var(--crit)}
+.scambio-vuota{margin:0 0 10px;font-size:.82rem;color:var(--muted)}
+/* la tendina «aggiungi giocatore…» è l'azione del lato: larga come lui */
+.scambio-aggiungi{width:100%}
+
+/* L'effetto sulle rose, prima di confermarlo. */
+.scambio-anteprima{margin-top:4px;padding-top:14px;border-top:1px solid var(--border)}
+.scambio-coppia{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.scambio-dopo{min-width:0}
+.scambio-conteggio{margin:0 0 4px;font-size:.86rem;font-weight:600}
+.scambio-marcato{color:var(--warn)}
+.scambio-esiti{padding:0 16px}
+.scambio-esiti .callout{margin:0 0 12px}
+/* l'anteprima congelata sta fuori dal form, dove il filetto di stacco non
+   serve: sopra ha già il bordo del testo generato */
+.scambio-esiti .scambio-anteprima{margin:0 0 12px;padding-top:0;border-top:0}
+.scambio-nota-anteprima{margin:-6px 0 8px}
+
+/* Le note per il giudizio: un blocco a sé, staccato dai due lati come il
+   conguaglio, e il contatore è una nota secondaria — non un'altra etichetta. */
+.scambio-note{margin:4px 0 0;padding-top:14px;border-top:1px solid var(--border)}
+.scambio-note textarea{resize:vertical}
+.scambio-contatore{margin:4px 0 0;font-size:.8rem;color:var(--muted)}
+
+/* Disfare è distruttivo: il bottone lo dice col colore, non con la forma. */
+.scambio-disfa{color:var(--crit);border-color:var(--border)}
+
+@media (max-width:560px){
+  /* le due rose stanno una sopra l'altra, come i due lati dello scambio */
+  .scambio-coppia{grid-template-columns:1fr;gap:14px}
+}
+
 @media (max-width:560px){
   .scambio{grid-template-columns:1fr;gap:4px}
   /* in colonna le due parti stanno una sopra l'altra: la freccia gira con loro */

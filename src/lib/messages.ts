@@ -282,12 +282,12 @@ export function msgResults(s: MsgSession, lots: MsgLot[], nextSessionAt?: string
 export interface MsgTrade {
   /** chi ha proposto lo scambio */
   fromTeam: string;
-  /** il giocatore che la richiedente mette sul piatto */
-  fromPlayer: string;
+  /** i giocatori che la richiedente mette sul piatto */
+  fromPlayers: string[];
   /** chi ha accettato */
   toTeam: string;
-  /** il giocatore che l'accettante mette sul piatto */
-  toPlayer: string;
+  /** i giocatori che l'accettante mette sul piatto */
+  toPlayers: string[];
   /** crediti di conguaglio; assente o 0 significa scambio alla pari */
   settlement?: number;
   /** chi versa il conguaglio: la richiedente o l'accettante */
@@ -297,14 +297,23 @@ export interface MsgTrade {
 /**
  * 6 · rubrica fantacalciomercato: uno scambio chiuso fra due squadre.
  *
- * L'app non gestisce gli scambi — restano come li fa la lega, e il registro
- * ufficiale è sempre Leghe Fantacalcio. Qui si scrive solo l'annuncio, con lo
- * stesso taglio del riepilogo di giornata, così la rubrica sembra una rubrica.
+ * Il **ripiego**, da quando l'app registra gli scambi per davvero: l'annuncio
+ * secco — chi cede cosa, il conguaglio, come restano le rose — senza giudizio
+ * e senza note. Lo si manda quando il modello non risponde o quando la
+ * verifica boccia il suo pezzo, e l'app lo dice in chiaro all'admin, perché
+ * il giudizio era l'unica ragione per cui questo messaggio esiste. Un
+ * template non ragiona su un infortunio, e se stampasse le note le
+ * trascriverebbe: esattamente ciò che non si vuole.
+ *
+ * Lo usa anche il pezzo buono, per la testata e per l'elenco delle rose:
+ * `montaScambio` in `mercato/scambio.ts` ci infila in mezzo il racconto, così
+ * nel gruppo le due versioni si leggono come la stessa rubrica.
  */
 export function msgTrade(t: MsgTrade): string {
   const conguaglio = t.settlement && t.settlement > 0 ? t.settlement : 0;
   const paga = t.settlementPayer === 'to' ? t.toTeam : t.fromTeam;
   const incassa = t.settlementPayer === 'to' ? t.fromTeam : t.toTeam;
+  const elenco = (n: string[]) => n.join(', ');
 
   const righe = [
     testata('FANTACALCIOMERCATO'),
@@ -313,8 +322,8 @@ export function msgTrade(t: MsgTrade): string {
       : `Scambio chiuso fra ${t.fromTeam} e ${t.toTeam}, alla pari.`,
     '',
     `🔁 ${t.fromTeam}  ⇄  ${t.toTeam}`,
-    `   ${t.fromTeam} cede ${t.fromPlayer}`,
-    `   ${t.toTeam} cede ${t.toPlayer}`,
+    `   ${t.fromTeam} cede ${elenco(t.fromPlayers)}`,
+    `   ${t.toTeam} cede ${elenco(t.toPlayers)}`,
   ];
 
   if (conguaglio) {
@@ -324,8 +333,8 @@ export function msgTrade(t: MsgTrade): string {
   }
 
   righe.push('', sezione('📋 COME RESTANO LE ROSE', [
-    `${t.fromTeam}: fuori ${t.fromPlayer}, dentro ${t.toPlayer}`,
-    `${t.toTeam}: fuori ${t.toPlayer}, dentro ${t.fromPlayer}`,
+    `${t.fromTeam}: fuori ${elenco(t.fromPlayers)}, dentro ${elenco(t.toPlayers)}`,
+    `${t.toTeam}: fuori ${elenco(t.toPlayers)}, dentro ${elenco(t.fromPlayers)}`,
   ]));
 
   return righe.join('\n');

@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { MESSAGE_LABEL, type MessageKind } from '@/lib/messages';
+import { giocatoriBloccati, rosePerScambio } from '@/lib/mercato/scambioServer';
 import { TopBar } from '../../TopBar';
 import { MessageCard } from './MessageCard';
 import { TradeForm } from './TradeForm';
@@ -24,12 +25,20 @@ export default async function MessaggiPage() {
         .eq('session_id', session.id).order('created_at', { ascending: false })
     : { data: [] };
 
-  // La rubrica non appartiene a nessuna asta: uno scambio può chiudersi in
-  // qualunque momento della stagione, anche a mercato degli svincolati fermo.
-  const [{ data: teams }, { data: trades }] = await Promise.all([
-    db.from('teams').select('name').eq('league_id', ctx.team.leagueId).order('name'),
-    db.from('messages').select('id, body, created_at')
-      .eq('league_id', ctx.team.leagueId).eq('kind', 'trade')
+  // Il fantacalciomercato non appartiene a nessuna asta: uno scambio può
+  // chiudersi in qualunque momento della stagione, anche a mercato degli
+  // svincolati fermo. Le rose intere servono al selettore dei giocatori e al
+  // conto di «come resteranno le rose», che il form fa da sé senza tornare
+  // al server: i dati li ha già tutti qui.
+  const [rose, bloccati, { data: trades }] = await Promise.all([
+    rosePerScambio(ctx.team.leagueId),
+    giocatoriBloccati(ctx.team.leagueId),
+    // `spunti` sono i fatti congelati al momento della scrittura (`salvaScambio`):
+    // sono loro che permettono di rivedere l'effetto di uno scambio ripreso
+    // dopo un ricarico, quando la scelta non è più nel browser
+    db.from('trades')
+      .select('id, body, created_at, applied_at, reverted_at, settlement, settlement_payer, spunti')
+      .eq('league_id', ctx.team.leagueId)
       .order('created_at', { ascending: false }).limit(20),
   ]);
 
@@ -68,14 +77,34 @@ export default async function MessaggiPage() {
 
       <h2>Fantacalciomercato</h2>
       <p className="sub">
-        Uno scambio già chiuso fra due squadre, raccontato al gruppo. L&apos;app non
-        gestisce gli scambi e non tocca rose né crediti: le rose restano quelle di
-        Leghe Fantacalcio, qui si scrive solo l&apos;annuncio.
+        Uno scambio fra due squadre, raccontato al gruppo e registrato sul serio.
+        Si fa in due tempi: prima l&apos;annuncio e le rose come resteranno, poi la
+        conferma, che è il momento in cui contratti e crediti si muovono. Finché non
+        confermi, non ho toccato niente.
       </p>
 
       <TradeForm
-        teams={(teams ?? []).map((t) => t.name)}
-        saved={(trades ?? []).map((m) => ({ id: m.id, body: m.body, createdAt: m.created_at }))}
+        rose={rose.map((l) => ({
+          teamId: l.teamId,
+          nome: l.nome,
+          crediti: l.crediti,
+          // `rosePerScambio` mette la rosa intera dentro `cede`: qui diventa
+          // la rosa da cui pescare, e al client basta il minimo per
+          // disegnarla — niente fantamedie né presenze
+          rosa: l.cede.map((g) => ({
+            playerId: g.playerId, nome: g.nome, ruolo: g.ruolo, club: g.club, prezzo: g.prezzo,
+          })),
+        }))}
+        bloccati={[...bloccati]}
+        saved={(trades ?? []).map((t) => ({
+          id: t.id, body: t.body ?? '', createdAt: t.created_at,
+          appliedAt: t.applied_at, revertedAt: t.reverted_at,
+          settlement: Number(t.settlement ?? 0),
+          settlementPayer: t.settlement_payer === 'to'
+            ? 'to' as const
+            : t.settlement_payer === 'from' ? 'from' as const : null,
+          spunti: t.spunti as unknown,
+        }))}
       />
     </div>
   );

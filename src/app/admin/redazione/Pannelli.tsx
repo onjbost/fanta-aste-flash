@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import {
   inviaPezzoAction, rifaiImportAction, salvaFlavourAction, salvaImpostazioniAction,
   scartaImportAction, scriviPezzoAction, type ActionState,
 } from './actions';
+import { codiceBookmarklet } from '@/lib/redazione/preferito';
 
 function Messaggio({ state }: { state: ActionState }) {
   if (!state) return null;
@@ -269,6 +270,19 @@ function TabVersioni({ g }: { g: GiornataVista }) {
  */
 export function Preferito({ sito, segreto }: { sito: string; segreto: string | null }) {
   const [copiato, setCopiato] = useState(false);
+  const link = useRef<HTMLAnchorElement>(null);
+
+  const codice = segreto ? codiceBookmarklet(sito, segreto) : '';
+
+  // React sanifica gli href `javascript:` e al loro posto mette un
+  // `throw new Error(...)`: il preferito trascinato nella barra risultava
+  // quindi rotto, e cliccarlo non faceva niente. L'attributo va scritto sul
+  // nodo dopo il montaggio, dove il sanificatore non arriva. Il testo nella
+  // casella qui sotto era invece sempre stato giusto: per questo «Copia il
+  // codice» funzionava e il trascinamento no.
+  useEffect(() => {
+    if (codice) link.current?.setAttribute('href', codice);
+  }, [codice]);
 
   if (!segreto) {
     return (
@@ -281,10 +295,6 @@ export function Preferito({ sito, segreto }: { sito: string; segreto: string | n
     );
   }
 
-  const codice = `javascript:(function(){window.__FANTA_REDAZIONE={app:'${sito}',secret:'${segreto}'};`
-    + `var s=document.createElement('script');s.src='${sito}/redazione-bookmarklet.js?v='+Date.now();`
-    + `document.body.appendChild(s);})()`;
-
   return (
     <div style={{ padding: '4px 2px 2px' }}>
       <p style={{ margin: '0 0 10px', fontSize: '.9rem' }}>
@@ -293,7 +303,7 @@ export function Preferito({ sito, segreto }: { sito: string; segreto: string | n
       </p>
 
       {/* eslint-disable-next-line jsx-a11y/anchor-is-valid */}
-      <a href={codice} className="btn" onClick={(e) => e.preventDefault()}
+      <a ref={link} className="btn" onClick={(e) => e.preventDefault()}
         style={{ display: 'inline-block', marginBottom: 12 }}>
         📥 Importa giornata
       </a>

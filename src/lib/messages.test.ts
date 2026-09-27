@@ -185,8 +185,8 @@ describe('5 · risultati', () => {
 
 describe('6 · fantacalciomercato', () => {
   const base = {
-    fromTeam: 'Montester United', fromPlayer: 'KOLASINAC',
-    toTeam: 'Real Sballo', toPlayer: 'BIRAGHI',
+    fromTeam: 'Montester United', fromPlayers: ['KOLASINAC'],
+    toTeam: 'Real Sballo', toPlayers: ['BIRAGHI'],
   };
 
   it('usa la stessa testata della rubrica di giornata', () => {
@@ -198,6 +198,24 @@ describe('6 · fantacalciomercato', () => {
     expect(m).toContain('🔁 Montester United  ⇄  Real Sballo');
     expect(m).toContain('Montester United cede KOLASINAC');
     expect(m).toContain('Real Sballo cede BIRAGHI');
+  });
+
+  it('elenca tutti i giocatori di ogni parte, in uno scambio a più giocatori', () => {
+    const t = msgTrade({
+      fromTeam: 'Montester', fromPlayers: ['RAIMONDO', 'DYBALA'],
+      toTeam: 'Joga Benito', toPlayers: ['YILDIZ'],
+    });
+    expect(t).toContain('RAIMONDO');
+    expect(t).toContain('DYBALA');
+    expect(t).toContain('YILDIZ');
+  });
+
+  it('non dà nessun giudizio: è il ripiego', () => {
+    const t = msgTrade({
+      fromTeam: 'Montester', fromPlayers: ['RAIMONDO'],
+      toTeam: 'Joga Benito', toPlayers: ['YILDIZ'],
+    });
+    expect(t.toLowerCase()).not.toMatch(/affare|meglio|peggio|vincitore/);
   });
 
   it('senza conguaglio lo dichiara alla pari e non apre la sezione', () => {

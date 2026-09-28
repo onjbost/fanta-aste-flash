@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { giorniDiStop, leggiIndisponibili, stimaRientro, testoDiHtml } from './pagina';
+import {
+  durataLeggibile, giorniDiStop, leggiIndisponibili, nuoviInfortunati, stimaRientro, testoDiHtml,
+} from './pagina';
 
 // Testo copiato dalla pagina vera di fantacalcio.it il 27 settembre 2026.
 // Non inventato: è la forma su cui il parser deve reggere.
@@ -127,5 +129,76 @@ describe('testoDiHtml', () => {
   });
   it('rimette le lettere accentate scritte come entità', () => {
     expect(testoDiHtml('<p>met&agrave; di ottobre</p>')).toBe('metà di ottobre');
+  });
+});
+
+describe('nuoviInfortunati', () => {
+  const r = (nome: string, categoria: 'infortunato' | 'in_dubbio' = 'infortunato', playerId?: string) =>
+    ({ nome, categoria, playerId: playerId ?? null });
+
+  it('segnala solo chi prima non era fermo', () => {
+    const prima = [r('Kossounou'), r('Hien')];
+    const adesso = [r('Kossounou'), r('Hien'), r('Lukaku')];
+    expect(nuoviInfortunati(prima, adesso).map((x) => x.nome)).toEqual(['Lukaku']);
+  });
+
+  it('non ripete ogni settimana lo stesso infortunio lungo', () => {
+    const uguale = [r('Felici')];
+    expect(nuoviInfortunati(uguale, uguale)).toEqual([]);
+  });
+
+  it('segnala chi da «in dubbio» diventa infortunato', () => {
+    expect(nuoviInfortunati([r('Dybala', 'in_dubbio')], [r('Dybala')]).map((x) => x.nome))
+      .toEqual(['Dybala']);
+  });
+
+  it('non segnala chi è guarito: è una buona notizia, non un allarme', () => {
+    expect(nuoviInfortunati([r('Hien')], [])).toEqual([]);
+  });
+
+  it('riconosce lo stesso giocatore dall\'id anche se la fonte cambia il nome', () => {
+    const prima = [r('Sulemana K.', 'infortunato', 'p1')];
+    const adesso = [r('Sulemana Ka.', 'infortunato', 'p1')];
+    expect(nuoviInfortunati(prima, adesso)).toEqual([]);
+  });
+});
+
+describe('durataLeggibile', () => {
+  it('parla in mesi quando sono mesi', () => {
+    expect(durataLeggibile(61)).toBe('circa 2 mesi (61 giorni)');
+  });
+  it('non finge una precisione che non ha', () => {
+    expect(durataLeggibile(null)).toBe('durata non dichiarata dalla fonte');
+  });
+  it('dice «imminente» invece di un numero negativo', () => {
+    expect(durataLeggibile(-3)).toBe('rientro imminente');
+  });
+});
+
+describe('stimaRientro — casi trovati sui dati veri del 28 settembre', () => {
+  const OGGI2 = new Date('2026-09-28T00:00:00Z');
+
+  it('legge «lo terrà ai box fino alla metà di ottobre»', () => {
+    // Rovella: l'unico dei 48 indisponibili veri in cui la data c'era e non
+    // veniva presa. «fino a» non era fra le parole che accendono la ricerca.
+    expect(stimaRientro(
+      'KO il 30 agosto contro il Genoa vittima di una lesione muscolare al polpaccio che lo terrà ai box fino alla metà di ottobre.',
+      OGGI2)?.data).toBe('2026-10-15');
+  });
+
+  it('continua a NON leggere le frasi che una data non ce l\'hanno', () => {
+    // le altre dieci senza data: sono corrette così, non vanno «aggiustate»
+    for (const f of [
+      'da valutare nei prossimi allenamenti le possibilità di convocazione',
+      'Proverà a recuperare a pieno durante la sosta',
+      'Tempi di recupero da valutare',
+      'rimane da valutare quotidianamente',
+      'Punta a recuperare nella sosta',
+    ]) expect(stimaRientro(f, OGGI2), f).toBeNull();
+  });
+
+  it('non prende la data della partita in cui si è fatto male', () => {
+    expect(stimaRientro('KO il 7 settembre contro il Lecce, rottura del crociato.', OGGI2)).toBeNull();
+    expect(stimaRientro('non convocato per Genova (12 settembre) a causa di una sindrome.', OGGI2)).toBeNull();
   });
 });

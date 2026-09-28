@@ -13,8 +13,10 @@ import 'server-only';
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { notifyAdminPlain } from '@/lib/telegram';
 import {
-  giorniDiStop, leggiIndisponibili, testoDiHtml, type Indisponibile,
+  durataLeggibile, giorniDiStop, leggiIndisponibili, nuoviInfortunati,
+  testoDiHtml, type Indisponibile,
 } from './pagina';
 
 const FONTE = 'https://www.fantacalcio.it/indisponibili-serie-a';
@@ -84,6 +86,10 @@ export async function raccogliIndisponibili(): Promise<EsitoRaccolta> {
   const conId = righe.map((r) => ({ r, playerId: perNome.get(chiave(r.nome)) ?? null }));
   const agganciate = conId.filter((x) => x.playerId).length;
 
+  // la fotografia di prima va letta adesso, perché fra un attimo quella
+  // «ultima» sarà questa e il confronto non avrebbe più niente con cui farsi
+  const precedenti = await indisponibiliAttuali();
+
   const { data: report, error } = await db.from('injury_reports')
     .insert({ fonte: FONTE, righe: righe.length, agganciate })
     .select('id').single();
@@ -107,6 +113,8 @@ export async function raccogliIndisponibili(): Promise<EsitoRaccolta> {
   if (righe.length && agganciate / righe.length < 0.5) {
     problemi.push(`agganciati solo ${agganciate} su ${righe.length}: controlla i nomi`);
   }
+
+  await avvisaDeiNuovi(precedenti, conId.map(({ r, playerId }) => ({ ...r, playerId })));
 
   return { reportId: report.id as string, righe: righe.length, agganciate, problemi };
 }
@@ -211,4 +219,54 @@ export async function svincoliProponibili(leagueId: string): Promise<SvincoloPro
       };
     })
     .sort((a, b) => b.giorni - a.giorni);
+}
+
+/**
+ * Un messaggio su Telegram all'admin per ogni infortunato nuovo.
+ *
+ * Solo i nuovi, non tutti i fermi: altrimenti ogni mercoledì arriverebbe lo
+ * stesso crociato di ottobre, e dopo tre settimane l'admin smette di leggere.
+ *
+ * Solo chi è in una rosa della lega, e per il resto della Serie A una riga
+ * di riepilogo: un infortunio che non è di nessuno non cambia una decisione,
+ * ma sapere quanti ce n'erano dice se la raccolta ha funzionato.
+ *
+ * Non blocca mai: un Telegram che non risponde non deve far fallire la
+ * raccolta, che è la cosa che serviva davvero.
+ */
+async function avvisaDeiNuovi(
+  prima: IndisponibileNostro[],
+  adesso: (Indisponibile & { playerId: string | null })[],
+): Promise<void> {
+  const nuovi = nuoviInfortunati(prima, adesso);
+  if (!nuovi.length) return;
+
+  const db = supabaseAdmin();
+  const oggi = new Date();
+  const ids = nuovi.map((n) => n.playerId).filter((x): x is string => Boolean(x));
+  const { data: inRosa } = ids.length
+    ? await db.from('v_roster').select('player_id, teams:team_id(name)').in('player_id', ids)
+    : { data: [] as { player_id: string; teams: unknown }[] };
+
+  const squadraDi = new Map((inRosa ?? []).map((r) => [
+    r.player_id as string,
+    (r.teams as unknown as { name: string } | null)?.name ?? null,
+  ]));
+
+  const nostri = nuovi.filter((n) => n.playerId && squadraDi.has(n.playerId));
+
+  for (const n of nostri) {
+    const durata = durataLeggibile(giorniDiStop(n.rientroStimato, oggi));
+    await notifyAdminPlain(
+      `🚑 ${n.nome} (${n.club}) si è fermato.\n`
+      + `In rosa a ${squadraDi.get(n.playerId as string)}.\n`
+      + `Durata: ${durata}.\n`
+      + (n.rientroTesto ? `La fonte dice: «${n.rientroTesto}».` : `La fonte non dà una stima.`),
+    );
+  }
+
+  const altri = nuovi.length - nostri.length;
+  if (altri > 0) {
+    await notifyAdminPlain(`Altri ${altri} nuovi infortunati in Serie A, nessuno in rosa nella lega.`);
+  }
 }

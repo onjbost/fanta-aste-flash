@@ -57,7 +57,8 @@ export function stimaRientro(
   // si prende la data dell'infortunio («KO il 7 settembre») per quella del
   // ritorno, che è l'errore più facile e più grave di tutto il parser
   const re = new RegExp(
-    `(rientr\\w*|torn\\w*|recuperabil\\w*|arruolabil\\w*|disponibil\\w*|convocabil\\w*|rivederlo|riverderlo|stop fino|out fino)`
+    `(rientr\\w*|torn\\w*|recuperabil\\w*|arruolabil\\w*|disponibil\\w*|convocabil\\w*`
+    + `|rivederlo|riverderlo|fino a|fino al|fino alla)`
     + `[^.;]{0,80}?`
     + `(inizio|metà|meta|fine|prima metà|seconda metà)?\\s*(?:di\\s+|del\\s+)?`
     + `(${MESI.join('|')})`,
@@ -182,4 +183,43 @@ export function testoDiHtml(html: string): string {
     .replace(/&agrave;/g, 'à').replace(/&egrave;/g, 'è').replace(/&eacute;/g, 'é')
     .replace(/&igrave;/g, 'ì').replace(/&ograve;/g, 'ò').replace(/&ugrave;/g, 'ù')
     .split('\n').map((r) => r.trim()).filter(Boolean).join('\n');
+}
+
+/**
+ * Chi si è fatto male da quando abbiamo guardato l'ultima volta.
+ *
+ * Confronta due fotografie e torna solo gli **infortunati nuovi**: chi
+ * nell'elenco di prima non c'era, o c'era ma in un'altra veste (era in dubbio,
+ * adesso è infortunato). Non torna chi è guarito, e non torna chi è ancora
+ * fermo: l'admin va avvisato quando succede qualcosa, non ogni mercoledì per
+ * lo stesso crociato.
+ *
+ * L'identità è il `player_id` quando c'è e il nome della fonte quando manca:
+ * un giocatore non agganciato al nostro listone è comunque un giocatore, e
+ * segnalarlo due volte è meglio che non segnalarlo mai.
+ */
+export function nuoviInfortunati<T extends {
+  playerId?: string | null; nome: string; categoria: Categoria;
+}>(prima: T[], adesso: T[]): T[] {
+  const identita = (r: T) => r.playerId ?? `nome:${r.nome.toUpperCase()}`;
+  const eraFermo = new Set(
+    prima.filter((r) => r.categoria === 'infortunato').map(identita),
+  );
+  return adesso.filter((r) => r.categoria === 'infortunato' && !eraFermo.has(identita(r)));
+}
+
+/**
+ * «fino a fine novembre, circa due mesi» — la durata detta come la direbbe una
+ * persona, non in giorni secchi.
+ *
+ * I giorni li abbiamo (`giorniDiStop`) ma da soli dicono poco: «61 giorni» fa
+ * pensare a una precisione che una frase come «rientro da marzo» non ha.
+ */
+export function durataLeggibile(giorni: number | null): string {
+  if (giorni == null) return 'durata non dichiarata dalla fonte';
+  if (giorni <= 0) return 'rientro imminente';
+  if (giorni < 14) return `una decina di giorni (${giorni})`;
+  const mesi = Math.round(giorni / 30);
+  if (mesi <= 1) return `circa un mese (${giorni} giorni)`;
+  return `circa ${mesi} mesi (${giorni} giorni)`;
 }

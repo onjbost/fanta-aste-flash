@@ -70,4 +70,15 @@ describe('italianizza', () => {
   it('il pallino passa intatto: \u00e8 nell\'insieme sicuro', () => {
     expect(soloTesto('A \u2022 B')).toBe('A \u2022 B');
   });
+
+  it('il punto in mezzo e il grado passano: i font ce li hanno tutti', () => {
+    expect(soloTesto('COPPA \u00b7 GIORNATA 3')).toBe('COPPA \u00b7 GIORNATA 3');
+    expect(soloTesto('1\u00b0 posto')).toBe('1\u00b0 posto');
+  });
+
+  it('gli indicatori ordinali no: li ha solo il font dei titoli', () => {
+    // «3\u00aa» nel font dei corpi sarebbe un quadratino
+    expect(soloTesto('3\u00aa giornata')).toBe('3a giornata');
+    expect(soloTesto('1\u00ba')).toBe('1o');
+  });
 });

@@ -189,6 +189,10 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
           onChange={(v) => tocca({ occhiello: v })} />
         <Campo etichetta="Sottotestata (la riga sotto la testata)" valore={dati.sottotestata}
           onChange={(v) => tocca({ sottotestata: v })} />
+        <Campo etichetta="Numero dell'edizione" valore={dati.numero}
+          onChange={(v) => tocca({ numero: v })} />
+        <Campo etichetta="Data" valore={dati.data}
+          onChange={(v) => tocca({ data: v })} />
         <Campo etichetta="Sottotitolo" valore={dati.sottotitolo}
           onChange={(v) => tocca({ sottotitolo: v })} />
         <Campo etichetta="Cappello" valore={dati.cappello} righe={4}

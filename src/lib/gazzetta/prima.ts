@@ -16,10 +16,11 @@
  * cose diverse e l'admin manderebbe nel gruppo qualcosa che non ha visto.
  */
 
-export type TipoEdizione = 'settimanale' | 'fantamercato';
+export type TipoEdizione = 'settimanale' | 'coppa' | 'fantamercato';
 
 export const ETICHETTA_EDIZIONE: Record<TipoEdizione, string> = {
   settimanale: 'EDIZIONE SETTIMANALE',
+  coppa: 'EDIZIONE COPPA',
   fantamercato: 'EDIZIONE FANTAMERCATO',
 };
 
@@ -29,9 +30,24 @@ export const COLORI = {
   inchiostro: '#34302e',
   carta: '#fffdfc',
   giallo: '#e1cb09',
+  /*
+   * L'oro della sottotestata di coppa.
+   *
+   * Non è il giallo del gancio: quello vive su fondo scuro, dove risalta.
+   * Sul rosa della testata il giallo misura 1.25:1 di contrasto — cioè non
+   * si legge. Questo oro bruno sta a 3.99:1, che su una riga in grassetto
+   * spaziata si legge senza diventare marrone.
+   */
+  oro: '#8f6410',
 } as const;
 
 export interface RigaClassifica { nome: string; punti: number }
+
+/** Un girone di coppa: «A» e «B», quattro squadre ciascuno. */
+export interface GironePrima { gruppo: string; righe: RigaClassifica[] }
+
+/** Una riga del tabellone, dalle semifinali in poi. */
+export interface VoceTabellone { turno: string; testo: string }
 export interface Incontro { casa: string; ospite: string }
 
 export interface BloccoAltra {
@@ -83,6 +99,14 @@ export interface DatiPrima {
   cappello: string;
   foto: FotoPrima | null;
   classifica: RigaClassifica[];
+  /*
+   * I gironi e il tabellone sostituiscono la classifica nell'edizione di
+   * coppa. Sono opzionali e non obbligatori apposta: così le prime pagine
+   * già salvate continuano a rendersi senza migrare il JSON, e il
+   * componente decide guardando cosa c'è invece che il tipo di edizione.
+   */
+  gironi?: GironePrima[] | null;
+  tabellone?: VoceTabellone[] | null;
   prossimi: Incontro[];
   altre: BloccoAltra[];
   /** opzionale: la pagina regge anche senza */
@@ -172,11 +196,38 @@ export function coperturaFoto(
   return { dimensione: `${w}px ${h}px`, posizione: `${x}px ${y}px` };
 }
 
+export type FaseCoppa = 'gironi' | 'semifinali' | 'finale';
+
 /**
- * Il numero dell'edizione: la giornata per la settimanale, la sessione
- * d'asta per il fantamercato.
+ * A che punto è la coppa, dedotto da quante sfide ha quella giornata.
+ *
+ * Non c'è una colonna che lo dica, e non serve: otto squadre in due gironi
+ * fanno quattro partite a turno, le semifinali ne fanno due, la finale una.
+ * È una regola che si legge dai dati, quindi non c'è una configurazione da
+ * tenere allineata al calendario — e il calendario lo compila la lega, non
+ * noi.
  */
-export function numeroEdizione(tipo: TipoEdizione, n: number): string {
+export function faseDiCoppa(partite: number): FaseCoppa {
+  if (partite >= 3) return 'gironi';
+  if (partite === 2) return 'semifinali';
+  return 'finale';
+}
+
+/**
+ * Il numero dell'edizione: la giornata per la settimanale, il turno per la
+ * coppa, la sessione d'asta per il fantamercato.
+ *
+ * Per la coppa `n` è il **turno di coppa**, non la giornata di
+ * fantacampionato: «COPPA · 3ª GIORNATA» dice qualcosa, «COPPA N. 8» no.
+ */
+export function numeroEdizione(tipo: TipoEdizione, n: number, fase?: FaseCoppa): string {
+  if (tipo === 'coppa') {
+    if (fase === 'finale') return 'COPPA \u00b7 FINALE';
+    if (fase === 'semifinali') return 'COPPA \u00b7 SEMIFINALI';
+    // «GIORNATA 3» e non «3\u00aa GIORNATA»: l'indicatore ordinale ce l'ha
+    // solo il font dei titoli, e questa riga la disegna quello dei corpi
+    return `COPPA \u00b7 GIORNATA ${n}`;
+  }
   return tipo === 'settimanale' ? `N. ${n}` : `MERCATO N. ${n}`;
 }
 

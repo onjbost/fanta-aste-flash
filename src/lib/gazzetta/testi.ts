@@ -24,8 +24,9 @@ import type { Spunto } from '../redazione/spunti';
 import { tono } from '../redazione/toni';
 import {
   ETICHETTA_EDIZIONE, dataEstesa, numeroEdizione, paroleDelCappello,
-  type DatiPrima, type Disposizione, type FotoPrima, type Incontro,
-  type RigaClassifica, type TipoEdizione,
+  type DatiPrima, type Disposizione, type FaseCoppa, type FotoPrima,
+  type GironePrima, type Incontro, type RigaClassifica, type TipoEdizione,
+  type VoceTabellone,
 } from './prima';
 
 // =====================================================================
@@ -192,7 +193,19 @@ export function titolinoDi(s: SfidaPrima): string {
 }
 
 export function occhielloDi(r: Pick<RichiestaPrima, 'tipo' | 'giornata'>): string {
+  if (r.tipo === 'coppa') return 'LA COPPA MANSARDA';
   return r.tipo === 'settimanale' ? `LA GIORNATA ${r.giornata}` : 'IL FANTAMERCATO';
+}
+
+/**
+ * La riga sotto la testata.
+ *
+ * Nell'edizione di coppa non è il motto della lega ma «EDIZIONE COPPA», in
+ * oro: nel gruppo le due prime pagine arrivano una accanto all'altra, e
+ * quella riga è il solo modo di distinguerle a colpo d'occhio.
+ */
+export function sottotestataDi(tipo: TipoEdizione): string {
+  return tipo === 'coppa' ? 'EDIZIONE COPPA' : SOTTOTESTATA;
 }
 
 // =====================================================================
@@ -232,6 +245,14 @@ Questa non è una versione corta del pezzo: è la prima pagina di un giornale sp
 ${r.tono}/5 — ${tono(r.tono)}.
 Si sfotte la SQUADRA e il suo allenatore in quanto fantallenatore, mai la persona.
 
+${r.tipo === 'coppa' ? `
+## Attenzione: questa è la Coppa Mansarda, non il campionato
+Le stesse otto squadre, un altro torneo. Nella fase a gironi si passa in due
+per gruppo, quindi una sconfitta pesa il doppio di una in campionato e un
+pareggio può bastare. Non citare la classifica di campionato e non dire «è
+secondo» riferendoti a quella: qui conta il girone. Dalle semifinali in poi
+si esce, e si dice.
+` : ''}
 ## Regole assolute
 1. Non scrivere MAI un numero che non ti ho dato qui sotto. Nessuna media, nessuna percentuale, niente che tu abbia calcolato.
 2. Non inventare episodi, gol o dichiarazioni: hai i punteggi e gli spunti, basta.
@@ -408,10 +429,16 @@ const PIEDE_DESTRA = 'UNICA ED INIMITABILE';
 export interface PezziDellaPagina {
   richiesta: RichiestaPrima;
   classifica: RigaClassifica[];
+  /** i due gironi, nell'edizione di coppa in fase a gruppi */
+  gironi?: GironePrima[] | null;
+  /** semifinali e finale, nell'edizione di coppa a eliminazione */
+  tabellone?: VoceTabellone[] | null;
   prossimi: Incontro[];
   foto: FotoPrima | null;
-  /** il numero dell'edizione: la giornata, o la sessione d'asta */
+  /** il numero dell'edizione: la giornata, il turno di coppa, la sessione d'asta */
   numero: number;
+  /** solo per la coppa: decide come si scrive il numero dell'edizione */
+  fase?: FaseCoppa;
 }
 
 /**
@@ -429,9 +456,9 @@ export function montaPrima(t: TestiPrima, p: PezziDellaPagina, quando = new Date
 
   return {
     tipo: r.tipo,
-    numero: numeroEdizione(r.tipo, p.numero),
+    numero: numeroEdizione(r.tipo, p.numero, p.fase),
     data: dataEstesa(quando),
-    sottotestata: SOTTOTESTATA,
+    sottotestata: sottotestataDi(r.tipo),
     occhiello: occhielloDi(r),
     titolo: t.titolo,
     gancio: t.gancio,
@@ -439,6 +466,8 @@ export function montaPrima(t: TestiPrima, p: PezziDellaPagina, quando = new Date
     cappello: t.cappello,
     foto: p.foto,
     classifica: p.classifica,
+    gironi: p.gironi ?? null,
+    tabellone: p.tabellone ?? null,
     prossimi: p.prossimi,
     // l'ordine è quello delle sfide, non quello in cui ha risposto il
     // modello: fra due bozze la pagina non deve cambiare disposizione

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  coperturaFoto, dataEstesa, disposizioneFoto, fuocoValido, numeroEdizione,
-  paroleDelCappello, type FotoPrima,
+  COLORI, coperturaFoto, dataEstesa, disposizioneFoto, faseDiCoppa, fuocoValido,
+  numeroEdizione, paroleDelCappello, type FotoPrima,
 } from './prima';
 
 const foto = (larghezza: number, altezza: number): FotoPrima =>
@@ -120,5 +120,54 @@ describe('coperturaFoto', () => {
     const c = coperturaFoto({ larghezza: 0, altezza: 0 }, riquadro);
     expect(c.dimensione).not.toContain('NaN');
     expect(c.posizione).not.toContain('NaN');
+  });
+});
+
+describe('faseDiCoppa', () => {
+  it('legge la fase dal numero di partite, che è l\'unica cosa che la dice', () => {
+    // otto squadre in due gironi fanno quattro partite a turno; le
+    // semifinali due; la finale una. Sono le giornate vere della lega:
+    // gironi a fanta 2-5-8-11-14-17, semifinali a 23 e 29, finale a 37
+    expect(faseDiCoppa(4)).toBe('gironi');
+    expect(faseDiCoppa(2)).toBe('semifinali');
+    expect(faseDiCoppa(1)).toBe('finale');
+  });
+
+  it('più di quattro partite restano fase a gironi', () => {
+    expect(faseDiCoppa(6)).toBe('gironi');
+  });
+});
+
+describe('numeroEdizione', () => {
+  it('per la coppa numera i turni di coppa, non le giornate di campionato', () => {
+    expect(numeroEdizione('coppa', 3, 'gironi')).toBe('COPPA · GIORNATA 3');
+  });
+
+  it('dalle semifinali il numero lascia il posto al turno', () => {
+    expect(numeroEdizione('coppa', 7, 'semifinali')).toBe('COPPA · SEMIFINALI');
+    expect(numeroEdizione('coppa', 8, 'finale')).toBe('COPPA · FINALE');
+  });
+
+  it('le altre edizioni non cambiano', () => {
+    expect(numeroEdizione('settimanale', 4)).toBe('N. 4');
+    expect(numeroEdizione('fantamercato', 2)).toBe('MERCATO N. 2');
+  });
+});
+
+describe('l\'oro della coppa', () => {
+  it('si legge sul rosa, al contrario del giallo del gancio', () => {
+    // il giallo vive su fondo scuro: sul rosa misura 1.25:1, cioè niente.
+    // Questa non è un'opinione, è la formula del contrasto WCAG
+    const lum = (h: string) => {
+      const c = [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255)
+        .map((x) => (x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4));
+      return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+    };
+    const contrasto = (a: string, b: string) => {
+      const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p);
+      return (x + 0.05) / (y + 0.05);
+    };
+    expect(contrasto(COLORI.oro, COLORI.rosa)).toBeGreaterThan(3);
+    expect(contrasto(COLORI.giallo, COLORI.rosa)).toBeLessThan(2);
   });
 });

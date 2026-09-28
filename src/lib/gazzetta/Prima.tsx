@@ -20,7 +20,7 @@
 import { soloTesto } from './glifi';
 import {
   COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto,
-  type DatiPrima, type Disposizione, type FotoPrima,
+  type DatiPrima, type Disposizione, type FotoPrima, type RigaClassifica,
 } from './prima';
 
 export const LARGHEZZA = 842;
@@ -66,9 +66,15 @@ function Testata({ d }: { d: DatiPrima }) {
         display: 'flex', justifyContent: 'center', marginTop: 7,
         fontFamily: TITOLO, fontSize: 60, lineHeight: 0.95, color: COLORI.inchiostro,
       }}>LA GAZZETTA DELLA MANSARDA</div>
+      {/*
+        * Nell'edizione di coppa la riga sotto la testata è dorata: è il solo
+        * segno che distingue le due prime pagine a colpo d'occhio, e serve
+        * perché nel gruppo arrivano una accanto all'altra.
+        */}
       <div style={{
         display: 'flex', justifyContent: 'center', marginTop: 9,
-        fontFamily: FORTE, fontSize: 12, letterSpacing: 2.4, color: COLORI.inchiostro,
+        fontFamily: FORTE, fontSize: 12, letterSpacing: 2.4,
+        color: d.tipo === 'coppa' ? COLORI.oro : COLORI.inchiostro,
       }}>{T(d.sottotestata)}</div>
       <Linea sopra={9} />
     </div>
@@ -194,27 +200,91 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
   );
 }
 
+/** Una tabella di posizioni: la classifica di campionato o un girone. */
+function Tabella({ righe, compatta }: { righe: RigaClassifica[]; compatta?: boolean }) {
+  const corpo = compatta ? 12 : 13;
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', marginTop: 5 }}>
+      {righe.map((r, i) => (
+        <div key={r.nome} style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+          padding: compatta ? '3px 8px' : '5px 8px',
+          background: i === 0 ? COLORI.carta : 'transparent',
+        }}>
+          <div style={{
+            display: 'flex', fontFamily: i === 0 ? FORTE : TESTO, fontSize: corpo,
+            color: COLORI.inchiostro,
+          }}>{T(`${i + 1}. ${r.nome}`)}</div>
+          <div style={{ display: 'flex', fontFamily: FORTE, fontSize: corpo, color: COLORI.inchiostro }}>{r.punti}</div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function Titoletto({ children, sopra = 0 }: { children: string; sopra?: number }) {
+  return (
+    <div style={{
+      display: 'flex', fontFamily: TITOLO, fontSize: 30,
+      color: COLORI.inchiostro, marginTop: sopra,
+    }}>{T(children)}</div>
+  );
+}
+
+/**
+ * La colonna di destra, che cambia con l'edizione.
+ *
+ * Decide guardando i dati e non il tipo: se ci sono i gironi mostra quelli,
+ * se c'è il tabellone mostra quello, altrimenti la classifica. Così una
+ * pagina salvata prima che la coppa esistesse si rende ancora, e l'admin
+ * che toglie i gironi dall'editor ottiene quello che si aspetta.
+ */
 function Colonna({ d }: { d: DatiPrima }) {
+  const gironi = d.gironi ?? null;
+  const tabellone = d.tabellone ?? null;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingLeft: 22 }}>
-      <div style={{ display: 'flex', fontFamily: TITOLO, fontSize: 30, color: COLORI.inchiostro }}>Classifica</div>
-      <Linea spessore={2} sopra={7} />
-      <div style={{ display: 'flex', flexDirection: 'column', marginTop: 5 }}>
-        {d.classifica.map((r, i) => (
-          <div key={r.nome} style={{
-            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-            padding: '5px 8px', background: i === 0 ? COLORI.carta : 'transparent',
-          }}>
-            <div style={{
-              display: 'flex', fontFamily: i === 0 ? FORTE : TESTO, fontSize: 13,
-              color: COLORI.inchiostro,
-            }}>{T(`${i + 1}. ${r.nome}`)}</div>
-            <div style={{ display: 'flex', fontFamily: FORTE, fontSize: 13, color: COLORI.inchiostro }}>{r.punti}</div>
+      {gironi?.length ? (
+        gironi.map((g, i) => (
+          <div key={g.gruppo} style={{ display: 'flex', flexDirection: 'column' }}>
+            <Titoletto sopra={i === 0 ? 0 : 14}>{`Girone ${g.gruppo}`}</Titoletto>
+            <Linea spessore={2} sopra={7} />
+            <Tabella righe={g.righe} compatta />
           </div>
-        ))}
-      </div>
+        ))
+      ) : tabellone?.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <Titoletto>Il tabellone</Titoletto>
+          <Linea spessore={2} sopra={7} />
+          <div style={{ display: 'flex', flexDirection: 'column', marginTop: 6 }}>
+            {tabellone.map((v, i) => (
+              // il turno si scrive solo quando cambia: ripeterlo sopra ogni
+              // sfida dello stesso turno è rumore, non informazione
+              <div key={`${v.turno}-${v.testo}`} style={{ display: 'flex', flexDirection: 'column', paddingBottom: 5 }}>
+                {v.turno !== tabellone[i - 1]?.turno && (
+                  <div style={{
+                    display: 'flex', fontFamily: TESTO, fontSize: 10, letterSpacing: 1.6,
+                    color: COLORI.inchiostro, opacity: 0.7, marginTop: i === 0 ? 0 : 8,
+                  }}>{T(v.turno.toUpperCase())}</div>
+                )}
+                <div style={{
+                  display: 'flex', flexWrap: 'wrap', fontFamily: FORTE, fontSize: 12.5,
+                  lineHeight: 1.25, color: COLORI.inchiostro, marginTop: 3,
+                }}>{T(v.testo)}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
+          <Titoletto>Classifica</Titoletto>
+          <Linea spessore={2} sopra={7} />
+          <Tabella righe={d.classifica} />
+        </div>
+      )}
 
-      <div style={{ display: 'flex', fontFamily: TITOLO, fontSize: 30, color: COLORI.inchiostro, marginTop: 14 }}>Si gioca</div>
+      <Titoletto sopra={14}>Si gioca</Titoletto>
       <Linea spessore={2} sopra={7} />
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
         {d.prossimi.map((p) => (

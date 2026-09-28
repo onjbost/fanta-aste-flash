@@ -17,13 +17,14 @@ function quando(iso: string | null): string {
 }
 
 export default async function GazzettaPage({ searchParams }: {
-  searchParams: Promise<{ giornata?: string }>;
+  searchParams: Promise<{ giornata?: string; tipo?: string }>;
 }) {
   const ctx = await requireTeamContext();
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = supabaseAdmin();
-  const { giornata } = await searchParams;
+  const { giornata, tipo: tipoGrezzo } = await searchParams;
+  const tipo: 'settimanale' | 'coppa' = tipoGrezzo === 'coppa' ? 'coppa' : 'settimanale';
 
   /*
    * Solo le giornate che hanno un risultato: sulle altre non c'è niente da
@@ -35,7 +36,9 @@ export default async function GazzettaPage({ searchParams }: {
    * come un elenco silenziosamente vuoto.
    */
   const { data: conRisultato } = await db.from('fixtures')
-    .select('matchday_id').eq('league_id', ctx.team.leagueId).not('home_goals', 'is', null);
+    .select('matchday_id').eq('league_id', ctx.team.leagueId)
+    .eq('competition', tipo === 'coppa' ? 'coppa' : 'campionato')
+    .not('home_goals', 'is', null);
   const giocate = new Set((conRisultato ?? []).map((f) => f.matchday_id as string));
 
   const { data: giornate } = await db.from('matchdays')
@@ -47,7 +50,7 @@ export default async function GazzettaPage({ searchParams }: {
     .map((m) => ({ id: m.id as string, fanta: m.fanta as number, serieA: m.serie_a as number }));
 
   const scelta = elenco.find((m) => m.id === giornata) ?? elenco[0] ?? null;
-  const gazzetta = scelta ? await ultimaGazzetta(scelta.id) : null;
+  const gazzetta = scelta ? await ultimaGazzetta(scelta.id, tipo) : null;
 
   // le foto fra cui l'admin può scegliere: le più recenti, con le misure
   // già lette al momento della raccolta — cambiare foto nell'editor
@@ -74,13 +77,21 @@ export default async function GazzettaPage({ searchParams }: {
 
       {!scelta && (
         <p className="vuoto">
-          Nessuna giornata con il tabellino: importala prima dalla Redazione.
+          Nessuna giornata di {tipo === 'coppa' ? 'coppa' : 'campionato'} con il
+          tabellino: importala prima dalla Redazione.
         </p>
       )}
 
       {scelta && (
         <>
           <form className="gaz-scelta-giornata">
+            <label>
+              Edizione
+              <select name="tipo" defaultValue={tipo}>
+                <option value="settimanale">Campionato</option>
+                <option value="coppa">Coppa Mansarda</option>
+              </select>
+            </label>
             <label>
               Giornata
               <select name="giornata" defaultValue={scelta.id}>
@@ -94,7 +105,7 @@ export default async function GazzettaPage({ searchParams }: {
             <button type="submit" className="ghost">Cambia</button>
           </form>
 
-          <Genera matchdayId={scelta.id} esiste={Boolean(gazzetta)} />
+          <Genera matchdayId={scelta.id} esiste={Boolean(gazzetta)} tipo={tipo} />
           <AggiornaFoto />
 
           {gazzetta && (

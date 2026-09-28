@@ -24,8 +24,12 @@
  */
 const ACCENTI_ITALIANI = 'àèéìíòóùúÀÈÉÌÍÒÓÙÚ';
 
-/** Il separatore della sottotestata: tutti i font in uso ce l'hanno. */
-const SEPARATORI = '\u2022';
+/**
+ * I segni non alfabetici che tutti i font in uso hanno (verificato sul
+ * cmap): il pallino della sottotestata, il punto in mezzo che separa le
+ * parti del numero d'edizione, il grado delle posizioni.
+ */
+const SEPARATORI = '\u2022\u00b7\u00b0';
 
 export function nellInsiemeSicuro(c: string): boolean {
   const n = c.codePointAt(0)!;
@@ -44,6 +48,9 @@ export function nellInsiemeSicuro(c: string): boolean {
 const A_MANO: Record<string, string> = {
   'ø': 'o', 'Ø': 'O', 'đ': 'd', 'Đ': 'D', 'ð': 'd', 'Ð': 'D',
   'ł': 'l', 'Ł': 'L', 'ı': 'i', 'İ': 'I', 'ŉ': 'n',
+  // gli indicatori ordinali ce li ha solo il font dei titoli: nei corpi
+  // uscirebbero come quadratini
+  'ª': 'a', 'º': 'o',
   'ß': 'ss', 'æ': 'ae', 'Æ': 'AE', 'œ': 'oe', 'Œ': 'OE',
   'þ': 'th', 'Þ': 'TH', 'ħ': 'h', 'Ħ': 'H', 'ŧ': 't', 'Ŧ': 'T',
   // la stella della sottotestata: nessuno dei font in uso ha U+2605, e il

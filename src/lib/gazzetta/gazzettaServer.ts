@@ -21,9 +21,12 @@ import { scegliModello } from '@/lib/redazione/modello';
 import { cognomeDaListone, scegliFoto } from './news';
 import { indiceFoto } from './newsServer';
 import {
-  COLORI, disposizioneFoto,
-  type DatiPrima, type FotoPrima, type Incontro, type RigaClassifica,
+  COLORI, disposizioneFoto, faseDiCoppa,
+  type DatiPrima, type FotoPrima, type GironePrima, type Incontro,
+  type RigaClassifica, type TipoEdizione, type VoceTabellone,
 } from './prima';
+
+type Competizione = 'campionato' | 'coppa';
 import {
   costruisciPromptPrima, daJsonPrima, montaPrima, primaDiRipiego, sceltaApertura, verificaPrima,
   type EsitoPrima, type MiglioreInCampo, type PezziDellaPagina, type RichiestaPrima,
@@ -89,19 +92,32 @@ async function miglioreInCampo(
  */
 async function prossimiIncontri(
   leagueId: string, fanta: number, nomeDi: Map<string, string>,
+  competizione: Competizione = 'campionato',
 ): Promise<Incontro[]> {
   const db = supabaseAdmin();
 
-  const { data: md } = await db.from('matchdays')
-    .select('id, fanta').eq('league_id', leagueId)
-    .gt('fanta', fanta).order('fanta').limit(1);
-  const prossima = md?.[0];
+  // La prossima giornata **di questa competizione**: di coppa se ne gioca
+  // una ogni tre, e proporre quella di campionato sulla pagina di coppa
+  // sarebbe il calendario sbagliato.
+  const { data: turni } = await db.from('fixtures')
+    .select('matchday_id, matchdays!inner(fanta)')
+    .eq('league_id', leagueId).eq('competition', competizione)
+    .gt('matchdays.fanta', fanta);
+
+  const ordinati = (turni ?? [])
+    .map((f) => ({
+      id: f.matchday_id as string,
+      fanta: (f.matchdays as unknown as { fanta: number | null })?.fanta ?? null,
+    }))
+    .filter((x): x is { id: string; fanta: number } => x.fanta != null)
+    .sort((a, b) => a.fanta - b.fanta);
+  const prossima = ordinati[0];
   if (!prossima) return [];
 
   const { data } = await db.from('fixtures')
     .select('home_team_id, away_team_id')
-    .eq('matchday_id', prossima.id as string)
-    .eq('competition', 'campionato');
+    .eq('matchday_id', prossima.id)
+    .eq('competition', competizione);
 
   return (data ?? [])
     .filter((f) => f.home_team_id && f.away_team_id)
@@ -148,6 +164,84 @@ async function fotoDiApertura(
   };
 }
 
+/**
+ * I gironi di coppa alla fine di questa giornata.
+ *
+ * Vengono dalla fotografia che la lega pubblica (`standings_snapshots`),
+ * non da un conto nostro: sono le stesse righe che i partecipanti hanno
+ * sotto gli occhi, e ricalcolarle vorrebbe dire rischiare di scrivere in
+ * prima pagina una classifica che non è quella ufficiale.
+ */
+async function gironiDiCoppa(matchdayId: string): Promise<GironePrima[]> {
+  const db = supabaseAdmin();
+  const { data } = await db.from('standings_snapshots')
+    .select('group_name, team_name, posizione, punti')
+    .eq('matchday_id', matchdayId).eq('competition', 'coppa')
+    .order('group_name').order('posizione');
+  if (!data?.length) return [];
+
+  // `team_name` è il nome scritto dalla lega, e si usa quello: è la fonte,
+  // e resta giusto anche se una squadra si rinomina o non la riconosciamo
+  const per = new Map<string, GironePrima>();
+  for (const r of data) {
+    const gruppo = ((r.group_name as string | null) ?? '').trim() || '—';
+    if (!per.has(gruppo)) per.set(gruppo, { gruppo, righe: [] });
+    per.get(gruppo)!.righe.push({
+      nome: r.team_name as string,
+      punti: Number(r.punti ?? 0),
+    });
+  }
+  return [...per.values()];
+}
+
+/**
+ * Il tabellone, dalle semifinali in poi.
+ *
+ * Le semifinali si giocano su due giornate — andata e ritorno — e tutte e
+ * due finiscono qui: sapere solo come è andato il ritorno non dice chi
+ * passa. Le sfide ancora da giocare compaiono lo stesso, senza punteggio:
+ * una finale annunciata è la cosa più interessante della pagina.
+ */
+async function tabelloneDiCoppa(
+  leagueId: string, nomeDi: Map<string, string>,
+): Promise<VoceTabellone[]> {
+  const db = supabaseAdmin();
+  const { data } = await db.from('fixtures')
+    .select('home_team_id, away_team_id, home_goals, away_goals, matchdays!inner(fanta)')
+    .eq('league_id', leagueId).eq('competition', 'coppa');
+
+  const righe = (data ?? [])
+    .map((f) => ({
+      casa: f.home_team_id as string | null,
+      ospite: f.away_team_id as string | null,
+      gc: f.home_goals as number | null,
+      go: f.away_goals as number | null,
+      fanta: (f.matchdays as unknown as { fanta: number | null })?.fanta ?? null,
+    }))
+    .filter((x) => x.casa && x.ospite && x.fanta != null);
+
+  // le giornate con meno di tre partite sono quelle a eliminazione: nella
+  // fase a gironi se ne giocano quattro
+  const perGiornata = new Map<number, typeof righe>();
+  for (const r of righe) {
+    const l = perGiornata.get(r.fanta!) ?? [];
+    l.push(r); perGiornata.set(r.fanta!, l);
+  }
+
+  const voci: VoceTabellone[] = [];
+  for (const [fanta, l] of [...perGiornata.entries()].sort((a, b) => a[0] - b[0])) {
+    if (l.length >= 3) continue;
+    const turno = l.length === 1 ? 'Finale' : `Semifinali · giornata ${fanta}`;
+    for (const r of l) {
+      const casa = nomeDi.get(r.casa!) ?? '?';
+      const ospite = nomeDi.get(r.ospite!) ?? '?';
+      const punteggio = r.gc == null || r.go == null ? '' : ` ${r.gc}-${r.go}`;
+      voci.push({ turno, testo: `${casa} - ${ospite}${punteggio}` });
+    }
+  }
+  return voci;
+}
+
 // =====================================================================
 // Il materiale
 // =====================================================================
@@ -158,9 +252,17 @@ export interface MaterialePrima extends PezziDellaPagina {
   leciti: Set<number>;
 }
 
-export async function materialePrima(matchdayId: string): Promise<MaterialePrima> {
+export async function materialePrima(
+  matchdayId: string, tipo: TipoEdizione = 'settimanale',
+): Promise<MaterialePrima> {
   const { leagueId, contesto, richiesta: pezzo } = await costruisciMateriale(matchdayId);
-  if (!pezzo.sfide.length) throw new Error('la giornata non ha sfide con il tabellino');
+  const competizione: Competizione = tipo === 'coppa' ? 'coppa' : 'campionato';
+  const inGara = pezzo.sfide.filter((s) => s.competizione === competizione);
+  if (!inGara.length) {
+    throw new Error(tipo === 'coppa'
+      ? 'questa giornata non ha sfide di coppa con il tabellino'
+      : 'la giornata non ha sfide di campionato con il tabellino');
+  }
 
   // i nomi dalle squadre e non dalla classifica: una classifica parziale
   // (o una lega che non l'ha ancora pubblicata) lascerebbe dei «?» nel
@@ -169,7 +271,7 @@ export async function materialePrima(matchdayId: string): Promise<MaterialePrima
     .from('teams').select('id, name').eq('league_id', leagueId);
   const nomeDi = new Map((squadre ?? []).map((t) => [t.id as string, t.name as string]));
 
-  const sfide: SfidaPrima[] = pezzo.sfide.map((s) => ({
+  const sfide: SfidaPrima[] = inGara.map((s) => ({
     fixtureId: s.fixtureId, casa: s.casa, ospite: s.ospite,
     golCasa: s.golCasa, golOspite: s.golOspite,
     fpCasa: s.fpCasa, fpOspite: s.fpOspite,
@@ -182,7 +284,7 @@ export async function materialePrima(matchdayId: string): Promise<MaterialePrima
   );
 
   const richiesta: RichiestaPrima = {
-    tipo: 'settimanale',
+    tipo,
     giornata: pezzo.giornata,
     tono: pezzo.tono,
     disposizione: disposizioneFoto(foto),
@@ -198,14 +300,56 @@ export async function materialePrima(matchdayId: string): Promise<MaterialePrima
     paroleVietate: pezzo.paroleVietate,
   };
 
+  if (tipo !== 'coppa') {
+    return {
+      leagueId, matchdayId, richiesta,
+      leciti: numeriLeciti(contesto, pezzo.spunti),
+      classifica: contesto.classificaDopo.map((c) => ({ nome: c.nome, punti: c.punti })),
+      prossimi: await prossimiIncontri(leagueId, pezzo.giornata, nomeDi),
+      foto,
+      numero: pezzo.giornata,
+    };
+  }
+
+  const fase = faseDiCoppa(inGara.length);
+  const [gironi, tabellone, prossimi, turno] = await Promise.all([
+    fase === 'gironi' ? gironiDiCoppa(matchdayId) : Promise.resolve([]),
+    fase === 'gironi' ? Promise.resolve([]) : tabelloneDiCoppa(leagueId, nomeDi),
+    prossimiIncontri(leagueId, pezzo.giornata, nomeDi, 'coppa'),
+    turnoDiCoppa(leagueId, pezzo.giornata),
+  ]);
+
   return {
     leagueId, matchdayId, richiesta,
     leciti: numeriLeciti(contesto, pezzo.spunti),
+    // la classifica di campionato resta nei dati ma non si vede: in pagina
+    // vincono i gironi o il tabellone
     classifica: contesto.classificaDopo.map((c) => ({ nome: c.nome, punti: c.punti })),
-    prossimi: await prossimiIncontri(leagueId, pezzo.giornata, nomeDi),
-    foto,
-    numero: pezzo.giornata,
+    gironi, tabellone, prossimi, foto,
+    numero: turno, fase,
   };
+}
+
+/**
+ * Che turno di coppa è questo, contando solo le giornate a gironi.
+ *
+ * Il numero dell'edizione dice «COPPA · 3ª GIORNATA», e la terza giornata
+ * di coppa è la terza fra quelle di coppa — non l'ottava di
+ * fantacampionato, che al gruppo non direbbe niente.
+ */
+async function turnoDiCoppa(leagueId: string, fanta: number): Promise<number> {
+  const db = supabaseAdmin();
+  const { data } = await db.from('fixtures')
+    .select('matchday_id, matchdays!inner(fanta)')
+    .eq('league_id', leagueId).eq('competition', 'coppa')
+    .lte('matchdays.fanta', fanta);
+
+  const giornate = new Set(
+    (data ?? [])
+      .map((f) => (f.matchdays as unknown as { fanta: number | null })?.fanta)
+      .filter((x): x is number => x != null),
+  );
+  return giornate.size;
 }
 
 // =====================================================================
@@ -227,10 +371,10 @@ export interface EsitoGazzetta {
 }
 
 export async function generaGazzetta(
-  matchdayId: string, opzioni: { tono?: number } = {},
+  matchdayId: string, opzioni: { tono?: number; tipo?: TipoEdizione } = {},
 ): Promise<EsitoGazzetta> {
   const db = supabaseAdmin();
-  const materiale = await materialePrima(matchdayId);
+  const materiale = await materialePrima(matchdayId, opzioni.tipo ?? 'settimanale');
   const r = materiale.richiesta;
   if (opzioni.tono != null) r.tono = Math.min(5, Math.max(1, opzioni.tono));
 
@@ -316,10 +460,12 @@ function daRiga(r: Record<string, unknown>): GazzettaSalvata {
   };
 }
 
-export async function ultimaGazzetta(matchdayId: string): Promise<GazzettaSalvata | null> {
+export async function ultimaGazzetta(
+  matchdayId: string, tipo: TipoEdizione = 'settimanale',
+): Promise<GazzettaSalvata | null> {
   const db = supabaseAdmin();
   const { data } = await db.from('gazzette')
-    .select('*').eq('matchday_id', matchdayId)
+    .select('*').eq('matchday_id', matchdayId).eq('tipo', tipo)
     .order('versione', { ascending: false }).limit(1);
   return data?.[0] ? daRiga(data[0] as Record<string, unknown>) : null;
 }

@@ -32,6 +32,7 @@ export async function generaPrima(_prev: GazState, form: FormData): Promise<GazS
   const matchdayId = String(form.get('matchdayId') ?? '');
   if (!matchdayId) return { ok: false, message: 'Manca la giornata.' };
   const tono = form.get('tono') ? Number(form.get('tono')) : undefined;
+  const tipo = String(form.get('tipo') ?? 'settimanale') === 'coppa' ? 'coppa' as const : 'settimanale' as const;
 
   // la giornata dev'essere di questa lega: sotto si legge e si scrive col
   // service role, che salta la RLS
@@ -41,7 +42,7 @@ export async function generaPrima(_prev: GazState, form: FormData): Promise<GazS
   if (!md) return { ok: false, message: 'Questa giornata non esiste.' };
 
   try {
-    const e = await generaGazzetta(matchdayId, { tono });
+    const e = await generaGazzetta(matchdayId, { tono, tipo });
     revalidatePath('/admin/gazzetta');
     const problemi = e.verifica.problemi;
     return {

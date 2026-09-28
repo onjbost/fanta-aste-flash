@@ -11,12 +11,15 @@ import { aggiornaFoto, generaPrima, type GazState } from './actions';
  * distrugge la bozza di prima. La levetta del tono è la stessa della
  * Redazione, perché è lo stesso pezzo con un'altra impaginazione.
  */
-export function Genera({ matchdayId, esiste }: { matchdayId: string; esiste: boolean }) {
+export function Genera({ matchdayId, esiste, tipo }: {
+  matchdayId: string; esiste: boolean; tipo: 'settimanale' | 'coppa';
+}) {
   const [stato, azione, inCorso] = useActionState<GazState, FormData>(generaPrima, null);
 
   return (
     <form action={azione} className="gaz-genera">
       <input type="hidden" name="matchdayId" value={matchdayId} />
+      <input type="hidden" name="tipo" value={tipo} />
       <label>
         Tono
         <select name="tono" defaultValue="4">
@@ -26,7 +29,9 @@ export function Genera({ matchdayId, esiste }: { matchdayId: string; esiste: boo
         </select>
       </label>
       <button type="submit" disabled={inCorso}>
-        {inCorso ? 'Scrivo…' : esiste ? 'Riscrivi' : 'Scrivi la prima pagina'}
+        {inCorso
+          ? 'Scrivo…'
+          : `${esiste ? 'Riscrivi' : 'Scrivi'} la prima pagina ${tipo === 'coppa' ? 'di coppa' : 'di campionato'}`}
       </button>
       {stato && <p className={stato.ok ? 'ok' : 'ko'}>{stato.message}</p>}
     </form>

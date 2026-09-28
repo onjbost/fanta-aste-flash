@@ -25,18 +25,26 @@ export default async function GazzettaPage({ searchParams }: {
   const db = supabaseAdmin();
   const { giornata } = await searchParams;
 
-  // solo le giornate che hanno un tabellino: sulle altre non c'è niente da
-  // raccontare, e offrirle vorrebbe dire offrire un bottone che fallisce
-  const { data: giornate } = await db.from('matchdays')
-    .select('id, fanta, serie_a, fixtures!inner(id)')
-    .eq('league_id', ctx.team.leagueId)
-    .not('fixtures.home_goals', 'is', null)
-    .order('fanta', { ascending: false });
+  /*
+   * Solo le giornate che hanno un risultato: sulle altre non c'è niente da
+   * raccontare, e offrirle vorrebbe dire offrire un bottone che fallisce.
+   *
+   * Si parte dalle sfide e non dalle giornate con un `inner join` filtrato:
+   * la giuntura funzionerebbe, ma dipende da come PostgREST tratta un filtro
+   * su una colonna che non è nella select — e una svista lì si manifesterebbe
+   * come un elenco silenziosamente vuoto.
+   */
+  const { data: conRisultato } = await db.from('fixtures')
+    .select('matchday_id').eq('league_id', ctx.team.leagueId).not('home_goals', 'is', null);
+  const giocate = new Set((conRisultato ?? []).map((f) => f.matchday_id as string));
 
-  const elenco = [...new Map((giornate ?? [])
-    .filter((m) => m.fanta != null)
-    .map((m) => [m.id as string, { id: m.id as string, fanta: m.fanta as number, serieA: m.serie_a as number }]))
-    .values()];
+  const { data: giornate } = await db.from('matchdays')
+    .select('id, fanta, serie_a').eq('league_id', ctx.team.leagueId)
+    .not('fanta', 'is', null).order('fanta', { ascending: false });
+
+  const elenco = (giornate ?? [])
+    .filter((m) => giocate.has(m.id as string))
+    .map((m) => ({ id: m.id as string, fanta: m.fanta as number, serieA: m.serie_a as number }));
 
   const scelta = elenco.find((m) => m.id === giornata) ?? elenco[0] ?? null;
   const gazzetta = scelta ? await ultimaGazzetta(scelta.id) : null;

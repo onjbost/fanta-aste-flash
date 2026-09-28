@@ -1,4 +1,5 @@
 import 'server-only';
+import { nonSchierabili } from './infortuni/infortuniServer';
 import { supabaseAdmin } from './supabase';
 import {
   forzaClub, stimaSquadra, quoteSfida, risolviSchedina,
@@ -113,9 +114,20 @@ export async function sfideDiGiornata(matchdayId: string): Promise<Sfida[]> {
   }));
 }
 
-/** Le rose vive, lette adesso: la sincronia con il mercato è automatica. */
+/**
+ * Le rose vive, lette adesso: la sincronia con il mercato è automatica.
+ *
+ * Gli infortunati e gli squalificati dell'ultima raccolta escono dall'undici.
+ * Non vuol dire sottrarre i loro fantapunti: `stimaSquadra` sceglie i
+ * migliori per ruolo fra i **disponibili**, quindi al posto di chi manca
+ * entra il secondo della rosa. Il danno che ne esce è quello giusto — quanto
+ * è peggio chi gioca al suo posto — e non «quanto valeva chi si è fatto
+ * male»: chi ha tre attaccanti buoni e ne perde uno non deve essere punito
+ * come chi perde l'unico difensore decente.
+ */
 async function roseVive(leagueId: string): Promise<Map<string, GiocatoreTipster[]>> {
   const db = supabaseAdmin();
+  const fuori = await nonSchierabili();
   const { data } = await db.from('v_roster')
     .select('team_id, player_id, role, club, quotation, status').eq('league_id', leagueId);
 
@@ -127,8 +139,10 @@ async function roseVive(leagueId: string): Promise<Map<string, GiocatoreTipster[
       role: r.role as GiocatoreTipster['role'],
       club: String(r.club),
       quotazione: Number(r.quotation ?? 1),
-      // chi ha lasciato la Serie A non gioca: fuori dall'undici
-      disponibile: r.status !== 'out_of_serie_a',
+      // chi ha lasciato la Serie A non gioca, e nemmeno chi è infortunato o
+      // squalificato secondo l'ultima raccolta degli indisponibili
+      disponibile: r.status !== 'out_of_serie_a'
+        && !fuori.has(r.player_id as string),
     });
     rose.set(r.team_id as string, l);
   });

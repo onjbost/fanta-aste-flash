@@ -28,7 +28,7 @@ const scambio = (over: Partial<Scambio> = {}): Scambio => ({
 });
 
 const richiesta = (over: Partial<RichiestaScambio> = {}): RichiestaScambio => ({
-  ...scambio(), tono: 4, paroleVietate: [], nomiLeciti: [], ...over,
+  ...scambio(), tono: 4, paroleVietate: [], nomiVietati: ['LAUTARO', 'TIZIO', 'VLAHOVIC'], ...over,
 });
 
 describe('validaScambio', () => {
@@ -221,7 +221,7 @@ describe('la fantamedia che il prompt stampa è fra i numeri ammessi', () => {
   });
 
   it('il prompt la stampa arrotondata a due decimali', () => {
-    expect(costruisciPromptScambio({ ...s(), tono: 4, paroleVietate: [], nomiLeciti: [] }))
+    expect(costruisciPromptScambio({ ...s(), tono: 4, paroleVietate: [], nomiVietati: [] }))
       .toContain('5.13 di fantamedia');
   });
 
@@ -367,6 +367,34 @@ describe('verificaScambio', () => {
       richiesta({ paroleVietate: ['capolavoro'] }),
     );
     expect(v.ok).toBe(false);
+  });
+});
+
+describe('i nomi che il modello non deve scrivere', () => {
+  it('lascia in pace una congiunzione italiana scritta in maiuscolo', () => {
+    // È il caso che in produzione bocciava ogni pezzo: col tono acceso il
+    // modello enfatizza in maiuscolo, e il vecchio controllo trattava ogni
+    // maiuscola non prevista come un nome inventato.
+    for (const parola of ['QUINDI', 'FINALMENTE', 'ALLORA', 'OPERAZIONE', 'ADDIRITTURA']) {
+      const v = verificaScambio(pezzo({ verdetto: `${parola}, uno scambio che ci sta.` }), richiesta());
+      expect(v.problemi.join(' '), parola).not.toContain(parola);
+    }
+  });
+
+  it('segnala un giocatore del listone che in questo scambio non c\'entra', () => {
+    const v = verificaScambio(pezzo({ verdetto: 'Meglio di Vlahovic comunque.' }), richiesta());
+    expect(v.ok).toBe(false);
+    expect(v.problemi.join(' ')).toContain('VLAHOVIC');
+  });
+
+  it('non scatta su un cognome scritto minuscolo in mezzo alla prosa', () => {
+    // «Moro» e «Bravo» sono cognomi veri e parole italiane: si cerca solo
+    // l'occorrenza con l'iniziale maiuscola.
+    const v = verificaScambio(
+      pezzo({ verdetto: 'Uno scambio bravo e senza troppi moro di testa.' }),
+      richiesta({ nomiVietati: ['MORO', 'BRAVO'] }),
+    );
+    expect(v.problemi.join(' ')).not.toMatch(/MORO|BRAVO/);
   });
 });
 

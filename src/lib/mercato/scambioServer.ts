@@ -173,6 +173,38 @@ export async function giocatoriBloccati(leagueId: string): Promise<Set<string>> 
   ]);
 }
 
+/**
+ * I giocatori del listone che non sono nelle due rose dello scambio.
+ *
+ * È l'elenco che `verificaScambio` usa per accorgersi che il modello ha tirato
+ * dentro qualcuno che qui non c'entra. Si esclude chi ha meno di quattro
+ * lettere nel nome: troppo corto per cercarlo in un testo senza pescare
+ * pezzi di altre parole.
+ */
+async function nomiFuoriDalloScambio(
+  leagueId: string, nelloScambio: { nome: string }[],
+): Promise<string[]> {
+  const db = supabaseAdmin();
+  const [{ data: listone }, { data: inRosa }] = await Promise.all([
+    db.from('players').select('name').eq('out_of_list', false),
+    db.from('v_roster').select('name').eq('league_id', leagueId),
+  ]);
+
+  // Chi è in una rosa qualunque della lega può essere nominato di striscio
+  // («lo prende al posto di X»), quindi non è vietato: vietato è chi con
+  // questa lega non c'entra per niente, più chi sta in rosa ad altri.
+  const ammessi = new Set([
+    ...nelloScambio.map((g) => g.nome.toUpperCase()),
+  ]);
+  const dellaLega = new Set((inRosa ?? []).map((p) => (p.name as string).toUpperCase()));
+
+  return (listone ?? [])
+    .map((p) => p.name as string)
+    .filter((n) => n.trim().length >= 4)
+    .filter((n) => !ammessi.has(n.toUpperCase()))
+    .filter((n) => !dellaLega.has(n.toUpperCase()));
+}
+
 export async function costruisciRichiesta(
   leagueId: string, scelta: SceltaScambio,
 ): Promise<RichiestaScambio> {
@@ -202,17 +234,11 @@ export async function costruisciRichiesta(
     note: scelta.note,
     tono: Number(lega?.redazione_tono ?? 4),
     paroleVietate: (lega?.redazione_parole_vietate as string[] | undefined) ?? [],
-    // I giocatori scambiati li dà già `verificaScambio` da `casa.cede` e
-    // `ospite.cede`; qui in più ci vanno le rose intere delle due squadre
-    // (il modello può dire «Montester aveva già otto centrocampisti»
-    // nominando anche chi resta) e i nomi delle due squadre — senza,
-    // ogni nome legittimo che non fosse nello scambio verrebbe segnalato
-    // come inventato.
-    nomiLeciti: [
-      ...casaIntera.cede.map((g) => g.nome),
-      ...ospiteIntera.cede.map((g) => g.nome),
-      casaIntera.nome, ospiteIntera.nome,
-    ],
+    // I nomi che il modello NON deve scrivere: tutto il listone meno le rose
+    // delle due squadre. Si passa l'elenco vietato e non quello lecito perché
+    // il controllo opposto — segnalare ogni maiuscola non prevista — scambiava
+    // per giocatori inventati le parole italiane che un tono acceso enfatizza.
+    nomiVietati: await nomiFuoriDalloScambio(leagueId, [...casaIntera.cede, ...ospiteIntera.cede]),
   };
 }
 

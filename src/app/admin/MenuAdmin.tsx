@@ -23,8 +23,10 @@ const VOCI: { href: string; testo: string }[] = [
   { href: '/admin/rose', testo: 'Rose e import' },
   { href: '/admin/allenatori', testo: 'Allenatori' },
   { href: '/admin/messaggi', testo: 'Centro messaggi' },
+  { href: '/admin/scambi', testo: 'Scambi' },
   { href: '/admin/schedine', testo: 'Tipster' },
   { href: '/admin/redazione', testo: 'La redazione' },
+  { href: '/admin/infortuni', testo: 'Indisponibili' },
   { href: '/asta/sala', testo: 'Sala d\'asta' },
   { href: '/admin/prova', testo: 'Sala di prova' },
 ];

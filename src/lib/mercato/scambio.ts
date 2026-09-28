@@ -257,14 +257,20 @@ export interface RichiestaScambio extends Scambio {
   paroleVietate: string[];
   correzioni?: string[];
   /**
-   * I giocatori scambiati, le rose complete delle due squadre e i nomi delle
-   * due squadre: chi il modello può nominare in maiuscolo senza che
-   * `verificaScambio` lo scambi per un nome inventato. Lista vuota finché
-   * chi costruisce la richiesta non la riempie (compito di un task
-   * successivo): con la lista vuota il controllo si comporta come oggi, sui
-   * soli giocatori scambiati e sui nomi delle squadre.
+   * I giocatori della Serie A che in questo scambio **non** c'entrano: tutto
+   * il listone meno le rose delle due squadre.
+   *
+   * Prima qui c'era l'elenco opposto — i nomi leciti — e il controllo
+   * segnalava ogni parola tutta maiuscola che non vi comparisse. Non poteva
+   * funzionare: col tono acceso il modello enfatizza in maiuscolo parole
+   * italiane comunissime, e «QUINDI» o «FINALMENTE» venivano scambiate per
+   * giocatori inventati. La lista delle eccezioni sarebbe stata infinita.
+   *
+   * Cercare i nomi vietati invece è esatto: un nome del listone che non è in
+   * questo scambio è davvero un nome che il modello non deve scrivere, e
+   * nessuna parola italiana può farlo scattare per sbaglio.
    */
-  nomiLeciti: string[];
+  nomiVietati: string[];
 }
 
 /**
@@ -328,7 +334,7 @@ Si sfotte la SQUADRA e il suo allenatore in quanto fantallenatore, mai la person
 2. Non scrivere MAI un numero che non ti ho dato: né medie, né percentuali, né statistiche calcolate da te. Se un numero non è qui sotto, non esiste.
 3. Non nominare giocatori che non sono in questo scambio.
 4. Non dare per avvenuto niente che non sia scritto qui: nessuna partita futura, nessun voto, nessun trasferimento.
-5. Italiano parlato e vivo, niente burocratese sportivo. Da 90 a 180 parole in tutto.
+5. Italiano parlato e vivo, niente burocratese sportivo. **Apertura, corpo e verdetto messi insieme devono stare fra ${MIN_PAROLE_SCAMBIO} e ${MAX_PAROLE_SCAMBIO} parole**: è il totale che conta, non i singoli pezzi.
 ${r.paroleVietate.length ? `6. Parole vietate, non usarle mai: ${r.paroleVietate.join(', ')}.\n` : ''}
 ## Lo scambio
 ${blocco(r.casa)}
@@ -356,7 +362,7 @@ Solo JSON, senza testo intorno e senza blocchi di codice, in questa forma:
 
 {
   "apertura": "una riga: chi ha scambiato con chi",
-  "corpo": "il racconto dello scambio e il tuo giudizio, 90-180 parole, un paragrafo solo, nessun a capo dentro",
+  "corpo": "il racconto dello scambio e il tuo giudizio, circa 100-140 parole (apertura e verdetto occupano il resto del totale), un paragrafo solo, nessun a capo dentro",
   "verdetto": "una riga secca che chiude"
 }${
   r.correzioni?.length
@@ -518,27 +524,17 @@ export function verificaScambio(p: PezzoScambio, r: RichiestaScambio): EsitoScam
   for (const g of scambiati) {
     if (!dentro.includes(g)) problemi.push(`non nomina ${g}`);
   }
-  // Chi ha il diritto di comparire in maiuscolo: i giocatori scambiati, le
-  // squadre, e — quando chi costruisce la richiesta li passa — le rose
-  // intere delle due squadre. Le note NON danno un lasciapassare: se la
-  // nota parla di un giocatore fuori scambio, il modello può alludervi ma
-  // non nominarlo (regola 3 del prompt), quindi comparirvi non lo rende lecito.
-  const nomiLeciti = [
-    ...scambiati,
-    r.casa.nome.toUpperCase(), r.ospite.nome.toUpperCase(),
-    ...r.nomiLeciti.map((x) => x.toUpperCase()),
-  ];
-  // Intercalari da gruppo WhatsApp che un tono acceso (4-5, vedi `TONI` in
-  // `toni.ts`) mette tutti in maiuscolo per enfasi: non sono nomi. Lista
-  // breve apposta — da allungare quando il gruppo ne inventa uno nuovo.
-  const PAROLE_ENFASI = new Set([
-    'ASSURDO', 'DAVVERO', 'MAI', 'SEMPRE', 'NIENTE', 'TUTTO', 'TROPPO',
-    'ANCORA', 'SUBITO', 'VERGOGNA', 'INCREDIBILE', 'PAZZESCO', 'PROPRIO',
-  ]);
-  for (const parola of tutto.match(/\b[A-ZÀ-Ý]{4,}\b/g) ?? []) {
-    if (PAROLE_ENFASI.has(parola)) continue;
-    if (!nomiLeciti.some((n) => n.includes(parola))) {
-      problemi.push(`nomina ${parola}, che non è in questo scambio`);
+  // Un nome del listone che non è in questo scambio: il modello lo ha tirato
+  // dentro violando la regola 3 del prompt. Si cerca col confine di parola e
+  // con l'iniziale maiuscola, così un cognome che è anche una parola italiana
+  // («Moro», «Bravo») non scatta quando la parola compare in mezzo alla prosa.
+  for (const vietato of r.nomiVietati) {
+    const pulito = vietato.trim();
+    if (pulito.length < 4) continue;
+    const re = new RegExp(`\\b${pulito.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    const trovato = tutto.match(re);
+    if (trovato && /^[A-ZÀ-Ý]/.test(trovato[0])) {
+      problemi.push(`nomina ${pulito}, che non è in questo scambio`);
     }
   }
 

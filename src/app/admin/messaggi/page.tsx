@@ -2,10 +2,8 @@ import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { MESSAGE_LABEL, type MessageKind } from '@/lib/messages';
-import { giocatoriBloccati, rosePerScambio } from '@/lib/mercato/scambioServer';
 import { TopBar } from '../../TopBar';
 import { MessageCard } from './MessageCard';
-import { TradeForm } from './TradeForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,22 +23,7 @@ export default async function MessaggiPage() {
         .eq('session_id', session.id).order('created_at', { ascending: false })
     : { data: [] };
 
-  // Il fantacalciomercato non appartiene a nessuna asta: uno scambio può
-  // chiudersi in qualunque momento della stagione, anche a mercato degli
-  // svincolati fermo. Le rose intere servono al selettore dei giocatori e al
-  // conto di «come resteranno le rose», che il form fa da sé senza tornare
-  // al server: i dati li ha già tutti qui.
-  const [rose, bloccati, { data: trades }] = await Promise.all([
-    rosePerScambio(ctx.team.leagueId),
-    giocatoriBloccati(ctx.team.leagueId),
-    // `spunti` sono i fatti congelati al momento della scrittura (`salvaScambio`):
-    // sono loro che permettono di rivedere l'effetto di uno scambio ripreso
-    // dopo un ricarico, quando la scelta non è più nel browser
-    db.from('trades')
-      .select('id, body, created_at, applied_at, reverted_at, settlement, settlement_payer, spunti')
-      .eq('league_id', ctx.team.leagueId)
-      .order('created_at', { ascending: false }).limit(20),
-  ]);
+
 
   return (
     <div className="shell">
@@ -75,37 +58,12 @@ export default async function MessaggiPage() {
         </div>
       )}
 
-      <h2>Fantacalciomercato</h2>
-      <p className="sub">
-        Uno scambio fra due squadre, raccontato al gruppo e registrato sul serio.
-        Si fa in due tempi: prima l&apos;annuncio e le rose come resteranno, poi la
-        conferma, che è il momento in cui contratti e crediti si muovono. Finché non
-        confermi, non ho toccato niente.
-      </p>
+      <div className="callout">
+        Gli scambi fra allenatori hanno una pagina loro, <a href="/admin/scambi">Scambi</a>:
+        lì si registrano davvero — contratti e crediti si muovono — quindi stanno fuori
+        dalla rubrica dei testi da copiare.
+      </div>
 
-      <TradeForm
-        rose={rose.map((l) => ({
-          teamId: l.teamId,
-          nome: l.nome,
-          crediti: l.crediti,
-          // `rosePerScambio` mette la rosa intera dentro `cede`: qui diventa
-          // la rosa da cui pescare, e al client basta il minimo per
-          // disegnarla — niente fantamedie né presenze
-          rosa: l.cede.map((g) => ({
-            playerId: g.playerId, nome: g.nome, ruolo: g.ruolo, club: g.club, prezzo: g.prezzo,
-          })),
-        }))}
-        bloccati={[...bloccati]}
-        saved={(trades ?? []).map((t) => ({
-          id: t.id, body: t.body ?? '', createdAt: t.created_at,
-          appliedAt: t.applied_at, revertedAt: t.reverted_at,
-          settlement: Number(t.settlement ?? 0),
-          settlementPayer: t.settlement_payer === 'to'
-            ? 'to' as const
-            : t.settlement_payer === 'from' ? 'from' as const : null,
-          spunti: t.spunti as unknown,
-        }))}
-      />
     </div>
   );
 }

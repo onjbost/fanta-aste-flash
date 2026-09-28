@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { TONI } from '@/lib/redazione/toni';
-import { generaPrima, type GazState } from './actions';
+import { aggiornaFoto, generaPrima, type GazState } from './actions';
 
 /**
  * Il bottone che scrive una prima pagina nuova.
@@ -27,6 +27,19 @@ export function Genera({ matchdayId, esiste }: { matchdayId: string; esiste: boo
       </label>
       <button type="submit" disabled={inCorso}>
         {inCorso ? 'Scrivo…' : esiste ? 'Riscrivi' : 'Scrivi la prima pagina'}
+      </button>
+      {stato && <p className={stato.ok ? 'ok' : 'ko'}>{stato.message}</p>}
+    </form>
+  );
+}
+
+/** Rilegge le news adesso: il cron lo fa il mercoledì, e non sempre si aspetta. */
+export function AggiornaFoto() {
+  const [stato, azione, inCorso] = useActionState<GazState, FormData>(aggiornaFoto, null);
+  return (
+    <form action={azione} className="gaz-genera">
+      <button type="submit" className="ghost" disabled={inCorso}>
+        {inCorso ? 'Leggo le news…' : 'Aggiorna le foto dalle news'}
       </button>
       {stato && <p className={stato.ok ? 'ok' : 'ko'}>{stato.message}</p>}
     </form>

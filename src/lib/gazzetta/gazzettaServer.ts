@@ -79,7 +79,14 @@ async function miglioreInCampo(
   };
 }
 
-/** Le partite della prossima giornata di campionato, per la colonna «Si gioca». */
+/**
+ * Le partite della prossima giornata di campionato, per la colonna «Si gioca».
+ *
+ * Solo il campionato. Una giornata può avere anche le sfide di coppa, e
+ * senza filtro la colonna ne elencava otto invece di quattro — con le
+ * squadre ripetute, perché sono le stesse otto che giocano due volte — e
+ * sfondava il fondo della pagina.
+ */
 async function prossimiIncontri(
   leagueId: string, fanta: number, nomeDi: Map<string, string>,
 ): Promise<Incontro[]> {
@@ -92,8 +99,9 @@ async function prossimiIncontri(
   if (!prossima) return [];
 
   const { data } = await db.from('fixtures')
-    .select('home_team_id, away_team_id, competition')
-    .eq('matchday_id', prossima.id as string);
+    .select('home_team_id, away_team_id')
+    .eq('matchday_id', prossima.id as string)
+    .eq('competition', 'campionato');
 
   return (data ?? [])
     .filter((f) => f.home_team_id && f.away_team_id)

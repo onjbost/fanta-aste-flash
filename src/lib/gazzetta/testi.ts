@@ -399,7 +399,8 @@ export function verificaPrima(t: TestiPrima, r: RichiestaPrima, leciti: Set<numb
 // Il montaggio
 // =====================================================================
 
-const SOTTOTESTATA = 'STRUMENTI ★ SCARAMANZIE ★ BOTTE DI CULO';
+// «STRURIMENTI» è come lo scrive la lega, non un refuso: resta così.
+const SOTTOTESTATA = 'STRURIMENTI ★ SCARAMANZIE ★ BOTTE DI CULO';
 const PIEDE_SINISTRA = 'FANTA MANSARDA';
 const PIEDE_DESTRA = 'UNICA ED INIMITABILE';
 

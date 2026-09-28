@@ -5,7 +5,7 @@ import { ultimaGazzetta } from '@/lib/gazzetta/gazzettaServer';
 import { indiceFoto } from '@/lib/gazzetta/newsServer';
 import { TopBar } from '../../TopBar';
 import { Editor, type FotoScelta } from './Editor';
-import { Genera } from './Genera';
+import { AggiornaFoto, Genera } from './Genera';
 
 export const dynamic = 'force-dynamic';
 
@@ -95,6 +95,7 @@ export default async function GazzettaPage({ searchParams }: {
           </form>
 
           <Genera matchdayId={scelta.id} esiste={Boolean(gazzetta)} />
+          <AggiornaFoto />
 
           {gazzetta && (
             <>

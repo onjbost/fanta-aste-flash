@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import {
   generaGazzetta, salvaModifiche, segnaInviata, leggiGazzetta,
 } from '@/lib/gazzetta/gazzettaServer';
+import { raccogliFoto } from '@/lib/gazzetta/newsServer';
 import type { DatiPrima } from '@/lib/gazzetta/prima';
 import { supabaseServer } from '@/lib/supabase';
 
@@ -104,4 +105,24 @@ export async function segnaMandata(_prev: GazState, form: FormData): Promise<Gaz
   await segnaInviata(id);
   revalidatePath('/admin/gazzetta');
   return { ok: true, id, message: 'Segnata come mandata.' };
+}
+
+/**
+ * Rilegge le news adesso, senza aspettare il mercoledì.
+ *
+ * Stesso bottone della pagina degli indisponibili, e per la stessa ragione:
+ * il cron riempie l'indice una volta a settimana, e chi prova la Gazzetta
+ * per la prima volta si trova davanti una griglia vuota senza capire
+ * perché.
+ */
+export async function aggiornaFoto(_prev: GazState, _form: FormData): Promise<GazState> {
+  if (!await requireAdmin()) return { ok: false, message: 'Serve essere admin.' };
+
+  const e = await raccogliFoto();
+  revalidatePath('/admin/gazzetta');
+  return {
+    ok: e.nuovi > 0 || e.problemi.length === 0,
+    message: `${e.nuovi} foto nuove su ${e.trovati} articoli letti.`
+      + (e.problemi.length ? ` — ${e.problemi.join(' · ')}` : ''),
+  };
 }

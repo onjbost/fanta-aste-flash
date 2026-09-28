@@ -838,3 +838,9 @@ th.ordinabile .livello{
 
 .gaz-azioni{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
 .gaz-azioni form{margin:0}
+
+.gaz-foto-a-mano{
+  display:flex;flex-direction:column;gap:8px;
+  padding:12px;border:1px dashed var(--border);border-radius:8px;
+}
+.gaz-foto-a-mano button{align-self:flex-start}

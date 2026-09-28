@@ -218,10 +218,13 @@ function Colonna({ d }: { d: DatiPrima }) {
       <Linea spessore={2} sopra={7} />
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
         {d.prossimi.map((p) => (
-          <div key={`${p.casa}-${p.ospite}`} style={{ display: 'flex', flexDirection: 'column', padding: '5px 0' }}>
-            <div style={{ display: 'flex', fontFamily: FORTE, fontSize: 12.5, color: COLORI.inchiostro }}>{T(p.casa)}</div>
-            <div style={{ display: 'flex', fontFamily: TESTO, fontSize: 12.5, color: COLORI.inchiostro, opacity: 0.75 }}>{T(p.ospite)}</div>
-          </div>
+          // Le due squadre sull'unica riga, separate dal trattino: impilate
+          // occupavano il doppio dello spazio e con quattro partite la
+          // colonna sfondava il piede della pagina.
+          <div key={`${p.casa}-${p.ospite}`} style={{
+            display: 'flex', flexWrap: 'wrap', padding: '5px 0',
+            fontFamily: FORTE, fontSize: 12, lineHeight: 1.25, color: COLORI.inchiostro,
+          }}>{T(`${p.casa} - ${p.ospite}`)}</div>
         ))}
       </div>
     </div>

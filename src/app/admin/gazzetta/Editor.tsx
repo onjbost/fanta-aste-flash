@@ -55,6 +55,50 @@ function Campo({ etichetta, valore, onChange, righe = 1, limite }: {
   );
 }
 
+/** La larghezza massima a cui si rimpicciolisce una foto caricata a mano. */
+const LARGHEZZA_MASSIMA = 1600;
+
+/**
+ * Misura un'immagine, e se serve la rimpicciolisce.
+ *
+ * Le misure servono sempre: la disposizione in pagina e il ritaglio si
+ * calcolano da quelle, e senza, una foto verticale finirebbe stirata. Il
+ * rimpicciolimento serve solo per i file caricati: una foto da telefono è
+ * dieci megapixel, finirebbe in base64 dentro la riga del database e non
+ * servirebbe a niente — la pagina è larga 842 punti.
+ */
+function misuraImmagineNelBrowser(
+  sorgente: string, rimpicciolisci: boolean,
+): Promise<FotoScelta | null> {
+  return new Promise((risolvi) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onerror = () => risolvi(null);
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      if (!w || !h) { risolvi(null); return; }
+      if (!rimpicciolisci || w <= LARGHEZZA_MASSIMA) {
+        risolvi({ src: sorgente, larghezza: w, altezza: h, provenienza: 'caricata a mano' });
+        return;
+      }
+      const scala = LARGHEZZA_MASSIMA / w;
+      const tela = document.createElement('canvas');
+      tela.width = Math.round(w * scala);
+      tela.height = Math.round(h * scala);
+      const ctx = tela.getContext('2d');
+      if (!ctx) { risolvi({ src: sorgente, larghezza: w, altezza: h, provenienza: 'caricata a mano' }); return; }
+      ctx.drawImage(img, 0, 0, tela.width, tela.height);
+      risolvi({
+        src: tela.toDataURL('image/jpeg', 0.85),
+        larghezza: tela.width, altezza: tela.height,
+        provenienza: 'caricata a mano',
+      });
+    };
+    img.src = sorgente;
+  });
+}
+
 export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }: {
   id: string;
   iniziali: DatiPrima;
@@ -68,6 +112,8 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
   const [statoSalva, salva, salvando] = useActionState<GazState, FormData>(salvaPrima, null);
   const [statoManda, manda, mandando] = useActionState<GazState, FormData>(segnaMandata, null);
   const [scaricando, setScaricando] = useState(false);
+  const [indirizzo, setIndirizzo] = useState('');
+  const [guaioFoto, setGuaioFoto] = useState<string | null>(null);
 
   const tocca = (p: Partial<DatiPrima>) => setDati((d) => ({ ...d, ...p }));
   const toccaFoto = (p: Partial<FotoPrima>) => setDati((d) =>
@@ -141,6 +187,8 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
           onChange={(v) => tocca({ gancio: v })} />
         <Campo etichetta="Occhiello" valore={dati.occhiello}
           onChange={(v) => tocca({ occhiello: v })} />
+        <Campo etichetta="Sottotestata (la riga sotto la testata)" valore={dati.sottotestata}
+          onChange={(v) => tocca({ sottotestata: v })} />
         <Campo etichetta="Sottotitolo" valore={dati.sottotitolo}
           onChange={(v) => tocca({ sottotitolo: v })} />
         <Campo etichetta="Cappello" valore={dati.cappello} righe={4}
@@ -195,6 +243,60 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
               Togli la foto
             </button>
           </>
+        )}
+
+        <div className="gaz-foto-a-mano">
+          <label className="gaz-campo">
+            <span className="gaz-etichetta">Indirizzo di un&apos;immagine</span>
+            <input
+              type="url" placeholder="https://…" value={indirizzo}
+              onChange={(e) => setIndirizzo(e.target.value)}
+            />
+          </label>
+          <button type="button" className="ghost" disabled={!indirizzo.trim()}
+            onClick={async () => {
+              setGuaioFoto(null);
+              // senza rimpicciolire: di un indirizzo si tiene l'indirizzo,
+              // così la riga del database non si porta dietro la foto
+              const f = await misuraImmagineNelBrowser(indirizzo.trim(), false);
+              if (!f) {
+                setGuaioFoto('Non sono riuscito a leggere quell\'immagine. '
+                  + 'Alcuni siti non lasciano che una pagina esterna le misuri: '
+                  + 'in quel caso scaricala e caricala col bottone qui sotto.');
+                return;
+              }
+              tocca({ foto: { ...f, provenienza: indirizzo.trim(), fuoco: dati.foto?.fuoco ?? 35 } });
+            }}>
+            Usa questo indirizzo
+          </button>
+
+          <label className="gaz-campo">
+            <span className="gaz-etichetta">…oppure carica un file</span>
+            <input
+              type="file" accept="image/*"
+              onChange={async (e) => {
+                const file = e.target.files?.[0];
+                if (!file) return;
+                setGuaioFoto(null);
+                const dataUri = await new Promise<string>((ok) => {
+                  const lettore = new FileReader();
+                  lettore.onload = () => ok(String(lettore.result ?? ''));
+                  lettore.readAsDataURL(file);
+                });
+                const f = await misuraImmagineNelBrowser(dataUri, true);
+                if (!f) { setGuaioFoto('Questo file non sembra un\'immagine.'); return; }
+                tocca({ foto: { ...f, provenienza: file.name, fuoco: dati.foto?.fuoco ?? 35 } });
+              }}
+            />
+          </label>
+          {guaioFoto && <p className="ko gaz-nota">{guaioFoto}</p>}
+        </div>
+
+        {foto.length === 0 && (
+          <p className="gaz-nota">
+            Nessuna foto dalle news: l&apos;indice si riempie con il cron del mercoledì.
+            Nel frattempo puoi incollare un indirizzo o caricare un file qui sopra.
+          </p>
         )}
 
         <div className="gaz-scelta-foto">

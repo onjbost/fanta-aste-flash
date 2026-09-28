@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Spunto } from '../redazione/spunti';
 import {
   LARGHEZZA_CARATTERE, costruisciPromptPrima, daJsonPrima, larghezzaApertura,
-  limitiTitolo, numeriDellaPrima, occhielloDi, primaDiRipiego, riempi, righeStimate,
+  limitiTitolo, montaPrima, numeriDellaPrima, occhielloDi, primaDiRipiego, riempi, righeStimate,
   sceltaApertura, sottotitoloDi, titolinoDi, verificaPrima,
   type RichiestaPrima, type SfidaPrima, type TestiPrima,
 } from './testi';
@@ -343,5 +343,58 @@ describe('riempi', () => {
 
   it('senza frasi torna vuoto invece di rompersi', () => {
     expect(riempi([], 10, 20)).toBe('');
+  });
+});
+
+// ------------------------------------------------------------- montaggio
+
+describe('montaPrima', () => {
+  const pezzi = (r = richiesta()) => ({
+    richiesta: r, classifica: [{ nome: 'Casa1', punti: 9 }],
+    prossimi: [{ casa: 'Casa1', ospite: 'Ospite2' }], foto: null, numero: 3,
+  });
+
+  it('scrive lui il sottotitolo e i titolini, non il modello', () => {
+    const d = montaPrima(testi({
+      altre: [{ fixtureId: 'f2', testo: 'due righe' }],
+    }), pezzi(), new Date('2026-09-28T12:00:00Z'));
+    expect(d.sottotitolo).toBe('Casa1 - Ospite1 2-1');
+    expect(d.altre[0].titolo).toBe('Casa2 2-1 Ospite2');
+    expect(d.data).toBe('28 SETTEMBRE 2026');
+    expect(d.numero).toBe('N. 3');
+  });
+
+  it('l\'apertura non finisce anche fra le altre', () => {
+    const d = montaPrima(testi(), pezzi());
+    expect(d.altre.map((a) => a.titolo)).toEqual(['Casa2 2-1 Ospite2']);
+  });
+
+  it('tiene l\'ordine delle sfide, non quello in cui ha risposto il modello', () => {
+    const r = richiesta({ sfide: [sfida(1), sfida(2), sfida(3)] });
+    const d = montaPrima(testi({
+      altre: [{ fixtureId: 'f3', testo: 'terza' }, { fixtureId: 'f2', testo: 'seconda' }],
+    }), pezzi(r));
+    expect(d.altre.map((a) => a.testo)).toEqual(['seconda', 'terza']);
+  });
+
+  it('un blocco senza testo resta vuoto invece di diventare «undefined»', () => {
+    const d = montaPrima(testi({ altre: [] }), pezzi());
+    expect(d.altre[0].testo).toBe('');
+  });
+
+  it('senza sfide non esplode e lascia il sottotitolo vuoto', () => {
+    const r = richiesta({ sfide: [], apertura: '' });
+    const d = montaPrima(testi({ altre: [] }), pezzi(r));
+    expect(d.sottotitolo).toBe('');
+    expect(d.altre).toEqual([]);
+  });
+
+  it('porta dentro classifica, prossimi e spalla così come sono', () => {
+    const d = montaPrima(
+      testi({ spalla: { numero: '70', didascalia: 'i fantapunti della capolista' } }), pezzi(),
+    );
+    expect(d.classifica).toEqual([{ nome: 'Casa1', punti: 9 }]);
+    expect(d.prossimi).toEqual([{ casa: 'Casa1', ospite: 'Ospite2' }]);
+    expect(d.spalla?.numero).toBe('70');
   });
 });

@@ -4,12 +4,13 @@ import { queueSessionMessage } from '@/lib/messageBuilder';
 import { supabaseAdmin } from '@/lib/supabase';
 import { notifyAdmin, notifyAdminPlain, tgPhaseChange } from '@/lib/telegram';
 import { raccogliIndisponibili } from '@/lib/infortuni/infortuniServer';
+import { raccogliFoto } from '@/lib/gazzetta/newsServer';
 
 /**
- * Cron giornaliero (Vercel). Fa tre cose:
+ * Cron giornaliero (Vercel). Fa quattro cose:
  *   1. allinea lo stato delle sessioni al calendario
  *   2. prepara i riepiloghi di T−5 e T−1 come bozze da controllare
- *   3. il mercoledì, raccoglie gli indisponibili di Serie A
+ *   3. il mercoledì, raccoglie gli indisponibili di Serie A e le foto delle news
  *   4. tocca il database, così il progetto Supabase gratuito non va in pausa
  *
  * Le fasi vengono comunque ricalcolate dall'orologio a ogni pagina: se il cron
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
   // che gli infortuni veri si sanno il venerdì, dalla rifinitura: se un
   // giorno le quote si pubblicheranno più tardi, questo giorno va spostato.
   let indisponibili: Awaited<ReturnType<typeof raccogliIndisponibili>> | null = null;
+  let foto: Awaited<ReturnType<typeof raccogliFoto>> | null = null;
   if (new Date().getUTCDay() === 3) {
     indisponibili = await raccogliIndisponibili();
     if (indisponibili.problemi.length) {
@@ -49,11 +51,22 @@ export async function GET(request: NextRequest) {
         + indisponibili.problemi.join('\n'),
       );
     }
+
+    // Le foto della Gazzetta lo stesso giorno, per la stessa ragione: al
+    // momento di comporre la prima pagina l'editor deve leggere solo il
+    // nostro database, così un guasto si scopre adesso e non il sabato sera.
+    foto = await raccogliFoto();
+    if (foto.problemi.length) {
+      await notifyAdminPlain(
+        `Foto Gazzetta: ${foto.nuovi} nuove su ${foto.trovati} articoli.\n`
+        + foto.problemi.join('\n'),
+      );
+    }
   }
 
   const { count } = await db.from('players').select('id', { count: 'exact', head: true });
 
   return NextResponse.json({
-    ok: true, changed, players: count ?? 0, indisponibili, at: new Date().toISOString(),
+    ok: true, changed, players: count ?? 0, indisponibili, foto, at: new Date().toISOString(),
   });
 }

@@ -23,8 +23,9 @@ import { numeriInventati } from '../redazione/verifica';
 import type { Spunto } from '../redazione/spunti';
 import { tono } from '../redazione/toni';
 import {
-  ETICHETTA_EDIZIONE, paroleDelCappello,
-  type Disposizione, type TipoEdizione,
+  ETICHETTA_EDIZIONE, dataEstesa, numeroEdizione, paroleDelCappello,
+  type DatiPrima, type Disposizione, type FotoPrima, type Incontro,
+  type RigaClassifica, type TipoEdizione,
 } from './prima';
 
 // =====================================================================
@@ -392,6 +393,61 @@ export function verificaPrima(t: TestiPrima, r: RichiestaPrima, leciti: Set<numb
   if (vietate.length) problemi.push(`parole vietate usate: ${vietate.join(', ')}`);
 
   return { ok: problemi.length === 0, problemi, inventati };
+}
+
+// =====================================================================
+// Il montaggio
+// =====================================================================
+
+const SOTTOTESTATA = 'STRUMENTI ★ SCARAMANZIE ★ BOTTE DI CULO';
+const PIEDE_SINISTRA = 'FANTA MANSARDA';
+const PIEDE_DESTRA = 'UNICA ED INIMITABILE';
+
+/** Quello che la pagina mette accanto ai testi: fatti, non scrittura. */
+export interface PezziDellaPagina {
+  richiesta: RichiestaPrima;
+  classifica: RigaClassifica[];
+  prossimi: Incontro[];
+  foto: FotoPrima | null;
+  /** il numero dell'edizione: la giornata, o la sessione d'asta */
+  numero: number;
+}
+
+/**
+ * Monta i testi del modello e i fatti nostri in una prima pagina sola.
+ *
+ * Sottotitolo, titolini delle altre partite, occhiello, numero e data non
+ * passano dal modello: si scrivono qui, dagli stessi dati che stanno nel
+ * database. Un fatto che il modello non scrive è un fatto che non può
+ * sbagliare.
+ */
+export function montaPrima(t: TestiPrima, p: PezziDellaPagina, quando = new Date()): DatiPrima {
+  const r = p.richiesta;
+  const apertura = r.sfide.find((s) => s.fixtureId === r.apertura) ?? r.sfide[0] ?? null;
+  const testoDi = new Map(t.altre.map((a) => [a.fixtureId, a.testo]));
+
+  return {
+    tipo: r.tipo,
+    numero: numeroEdizione(r.tipo, p.numero),
+    data: dataEstesa(quando),
+    sottotestata: SOTTOTESTATA,
+    occhiello: occhielloDi(r),
+    titolo: t.titolo,
+    gancio: t.gancio,
+    sottotitolo: apertura ? sottotitoloDi(apertura) : '',
+    cappello: t.cappello,
+    foto: p.foto,
+    classifica: p.classifica,
+    prossimi: p.prossimi,
+    // l'ordine è quello delle sfide, non quello in cui ha risposto il
+    // modello: fra due bozze la pagina non deve cambiare disposizione
+    altre: r.sfide
+      .filter((s) => s.fixtureId !== apertura?.fixtureId)
+      .map((s) => ({ titolo: titolinoDi(s), testo: testoDi.get(s.fixtureId) ?? '' })),
+    spalla: t.spalla,
+    piedeSinistra: PIEDE_SINISTRA,
+    piedeDestra: PIEDE_DESTRA,
+  };
 }
 
 // =====================================================================

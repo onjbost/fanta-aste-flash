@@ -13,6 +13,7 @@
  */
 
 import type { Ruolo } from '@/lib/redazione/tabellino';
+import { cognomeDaListone, nominato } from '../nomi';
 // da ./toni, non da ./modello: ./modello porta con sé `ModelloGemini` e
 // `scegliModello()` (fetch, variabili d'ambiente), e questo file finisce
 // anche nel bundle del browser.
@@ -300,7 +301,14 @@ function riga(g: GiocatoreScambiato): string {
     ? 'mai sceso in campo'
     : `${g.presenze} presenze, ${g.fantamedia.toFixed(2)} di fantamedia, `
       + `${g.volteTitolare} volte titolare`;
-  return `- ${g.nome} (${g.ruolo}, ${g.club}) — pagato ${g.prezzo}, `
+  // Il cognome scritto a parte: il listone disambigua gli omonimi con
+  // l'iniziale puntata («TAVARES N.»), che in un pezzo non si scrive. Senza
+  // dirglielo il modello copia la forma della tabella e il pezzo suona come
+  // un referto.
+  const cognome = cognomeDaListone(g.nome);
+  const come = cognome.toUpperCase() === g.nome.toUpperCase()
+    ? '' : ` — nel pezzo chiamalo «${cognome}»`;
+  return `- ${g.nome} (${g.ruolo}, ${g.club})${come} — pagato ${g.prezzo}, `
     + `quotato ${g.quotazione} · ${reso}`;
 }
 
@@ -520,9 +528,8 @@ export function verificaScambio(p: PezzoScambio, r: RichiestaScambio): EsitoScam
 
   // ---- i nomi: solo i giocatori scambiati, le rose e le squadre
   const dentro = tutto.toUpperCase();
-  const scambiati = [...r.casa.cede, ...r.ospite.cede].map((g) => g.nome.toUpperCase());
-  for (const g of scambiati) {
-    if (!dentro.includes(g)) problemi.push(`non nomina ${g}`);
+  for (const g of [...r.casa.cede, ...r.ospite.cede]) {
+    if (!nominato(tutto, g.nome)) problemi.push(`non nomina ${g.nome}`);
   }
   // Un nome del listone che non è in questo scambio: il modello lo ha tirato
   // dentro violando la regola 3 del prompt. Si cerca col confine di parola e

@@ -602,3 +602,64 @@ describe('firmaScelta', () => {
     expect(firmaScelta(scelta({ conguaglio: 7 }))).not.toBe(firmaScelta(scelta({ conguaglio: 8 })));
   });
 });
+
+describe('la verifica e i nomi del listone', () => {
+  /*
+   * Lo scambio vero del 28 settembre in produzione: KALULU contro
+   * TAVARES N. Tutte e tre le prove finivano al ripiego, e il motivo era
+   * qui: la verifica pretendeva «TAVARES N.» alla lettera, una forma che in
+   * un pezzo scritto in italiano non compare mai. Due tentativi su due
+   * bocciati, e l'admin vedeva «il modello non ha risposto».
+   */
+  const scambioVero = (): RichiestaScambio => ({
+    casa: {
+      nome: 'FC Joga Benito', teamId: 'adb38bd9', punti: 9, posizione: 2, crediti: 14,
+      rosaPerRuolo: { P: 3, D: 8, C: 8, A: 6 },
+      cede: [{
+        nome: 'KALULU', ruolo: 'D', club: 'Juventus', playerId: '760064b0',
+        prezzo: 27, quotazione: 14, presenze: 5, volteTitolare: 5, fantamedia: 6.1,
+      }],
+    },
+    ospite: {
+      nome: 'Borussia Alecchiomund', teamId: '82856cf3', punti: 2, posizione: 7, crediti: 10,
+      rosaPerRuolo: { P: 3, D: 8, C: 8, A: 6 },
+      cede: [{
+        nome: 'TAVARES N.', ruolo: 'D', club: 'Lazio', playerId: 'cb9b4fd4',
+        prezzo: 3, quotazione: 7, presenze: 4, volteTitolare: 4, fantamedia: 6.625,
+      }],
+    },
+    conguaglio: 0, chiPaga: null, note: '',
+    tono: 4, paroleVietate: [], nomiVietati: [],
+  } as unknown as RichiestaScambio);
+
+  const pezzoPlausibile = {
+    apertura: 'Joga Benito e il Borussia si scambiano due difensori.',
+    corpo: 'Il Joga Benito lascia andare Kalulu, pagato 27 crediti all\'asta e quotato 14, '
+      + 'e si prende Tavares, che di crediti ne era costati 3 e ne vale 7. Sulla carta è '
+      + 'una svendita, e il Borussia se la ride: chi sta settimo con 2 punti non ha molto '
+      + 'da perdere, e un difensore che gioca sempre lo prende volentieri. Dall\'altra parte '
+      + 'il Joga Benito è secondo con 9 punti e otto difensori in rosa, quindi uno in meno '
+      + 'non lo ammazza. Resta il fatto che ha dato il pezzo più caro e ha incassato il '
+      + 'meno caro, senza nemmeno un credito di conguaglio a consolarlo.',
+    verdetto: 'Il Borussia ha fatto l\'affare, il Joga Benito ha fatto un favore.',
+  };
+
+  it('accetta un pezzo che chiama Tavares col solo cognome', () => {
+    expect(verificaScambio(pezzoPlausibile, scambioVero()).problemi).toEqual([]);
+  });
+
+  it('boccia ancora il pezzo che un giocatore non lo nomina proprio', () => {
+    const senza = {
+      ...pezzoPlausibile,
+      corpo: pezzoPlausibile.corpo.replace(/Tavares/g, 'il difensore laziale'),
+    };
+    expect(verificaScambio(senza, scambioVero()).problemi).toContain('non nomina TAVARES N.');
+  });
+
+  it('il prompt gli dice come chiamarlo nel pezzo', () => {
+    const p = costruisciPromptScambio(scambioVero());
+    expect(p).toContain('nel pezzo chiamalo «TAVARES»');
+    // per chi il cognome ce l'ha già intero non si aggiunge rumore
+    expect(p).not.toContain('nel pezzo chiamalo «KALULU»');
+  });
+});

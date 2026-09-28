@@ -17,6 +17,11 @@
  * Funzioni pure: la rete sta in `newsServer.ts`.
  */
 
+// `cognomeDaListone` vive in `../nomi`: la convenzione del listone la usa
+// anche la verifica dello scambio, e tenerne due copie vorrebbe dire due
+// regole che dopo tre modifiche non sono più d'accordo.
+export { cognomeDaListone } from '../nomi';
+
 export interface ArticoloNews {
   url: string;
   titolo: string;
@@ -116,14 +121,4 @@ export function scegliFoto(
   }
 
   return { trovata: false };
-}
-
-/**
- * Solo il cognome, da come il listone scrive i nomi.
- *
- * Il listone usa «Sulemana K.» e «Idrissi R.»: il cognome è la prima parola,
- * e l'iniziale puntata è il nome. Va tolta, perché negli articoli non c'è.
- */
-export function cognomeDaListone(nome: string): string {
-  return nome.replace(/\b[A-Z]{1,2}\.\s*$/i, '').trim().split(/\s+/)[0] ?? nome;
 }

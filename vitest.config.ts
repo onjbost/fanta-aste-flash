@@ -2,6 +2,8 @@ import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
+  // i componenti .tsx usano il JSX automatico come il resto di Next
+  esbuild: { jsx: 'automatic' },
   resolve: {
     alias: {
       // in test non c'è il confine client/server di Next: il marcatore

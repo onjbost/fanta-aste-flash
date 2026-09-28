@@ -24,10 +24,13 @@
  */
 const ACCENTI_ITALIANI = 'àèéìíòóùúÀÈÉÌÍÒÓÙÚ';
 
+/** Il separatore della sottotestata: tutti i font in uso ce l'hanno. */
+const SEPARATORI = '\u2022';
+
 export function nellInsiemeSicuro(c: string): boolean {
   const n = c.codePointAt(0)!;
   if (n >= 0x20 && n <= 0x7e) return true;      // ASCII stampabile
-  return ACCENTI_ITALIANI.includes(c);
+  return ACCENTI_ITALIANI.includes(c) || SEPARATORI.includes(c);
 }
 
 /**
@@ -43,6 +46,9 @@ const A_MANO: Record<string, string> = {
   'ł': 'l', 'Ł': 'L', 'ı': 'i', 'İ': 'I', 'ŉ': 'n',
   'ß': 'ss', 'æ': 'ae', 'Æ': 'AE', 'œ': 'oe', 'Œ': 'OE',
   'þ': 'th', 'Þ': 'TH', 'ħ': 'h', 'Ħ': 'H', 'ŧ': 't', 'Ŧ': 'T',
+  // la stella della sottotestata: nessuno dei font in uso ha U+2605, e il
+  // pallino è il separatore che la Gazzetta usa davvero
+  '★': '•', '☆': '•',
   // punteggiatura tipografica che i font potrebbero non avere
   '‘': "'", '’': "'", '“': '"', '”': '"',
   '–': '-', '—': '-', '…': '...', ' ': ' ',

@@ -60,4 +60,14 @@ describe('italianizza', () => {
     expect(soloTesto('')).toBe('');
     expect(soloTesto('   ')).toBe('   ');
   });
+
+  it('la stella della sottotestata diventa un pallino: nessun font in uso ha U+2605', () => {
+    const { testo, sostituiti } = italianizza('STRUMENTI \u2605 SCARAMANZIE');
+    expect(testo).toBe('STRUMENTI \u2022 SCARAMANZIE');
+    expect(sostituiti).toContain('\u2605\u2192\u2022');
+  });
+
+  it('il pallino passa intatto: \u00e8 nell\'insieme sicuro', () => {
+    expect(soloTesto('A \u2022 B')).toBe('A \u2022 B');
+  });
 });

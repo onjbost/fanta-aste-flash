@@ -140,6 +140,39 @@ export function fuocoValido(v: number | undefined): number {
 }
 
 /**
+ * Il ritaglio della foto, calcolato invece che delegato.
+ *
+ * `background-size: cover` nel browser fa la cosa giusta; Satori no — la
+ * foto esce **affiancata a mosaico**, e in un'immagine già mandata nel
+ * gruppo è un errore che non si recupera. Visto il vincolo, tanto vale
+ * calcolarlo: le misure dell'immagine ce le abbiamo (`misuraImmagine` le
+ * legge al momento della raccolta) e il riquadro è di dimensione fissa,
+ * quindi «copri il riquadro mantenendo le proporzioni» è una
+ * moltiplicazione.
+ *
+ * Il risultato è in pixel e non in percentuale, perché i due motori
+ * interpretano le percentuali in modo diverso e l'unico modo di avere
+ * anteprima e PNG identici è non lasciare niente da interpretare.
+ *
+ * Orizzontalmente si centra; verticalmente decide `fuoco`, che è la sola
+ * manopola che l'admin ha sull'inquadratura: 0 tiene la cima (le facce),
+ * 100 il fondo.
+ */
+export function coperturaFoto(
+  foto: { larghezza: number; altezza: number; fuoco?: number },
+  riquadro: { larghezza: number; altezza: number },
+): { dimensione: string; posizione: string } {
+  const largo = Math.max(1, foto.larghezza);
+  const alto = Math.max(1, foto.altezza);
+  const scala = Math.max(riquadro.larghezza / largo, riquadro.altezza / alto);
+  const w = Math.ceil(largo * scala);
+  const h = Math.ceil(alto * scala);
+  const x = Math.round((riquadro.larghezza - w) / 2);
+  const y = Math.round((riquadro.altezza - h) * (fuocoValido(foto.fuoco) / 100));
+  return { dimensione: `${w}px ${h}px`, posizione: `${x}px ${y}px` };
+}
+
+/**
  * Il numero dell'edizione: la giornata per la settimanale, la sessione
  * d'asta per il fantamercato.
  */

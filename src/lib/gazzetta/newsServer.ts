@@ -16,6 +16,7 @@ import 'server-only';
  */
 
 import { supabaseAdmin } from '@/lib/supabase';
+import { misuraImmagine } from './immagine';
 import { articoliDaIndice, dataDaUrl, datiDaArticolo, type ArticoloNews } from './news';
 
 const INDICE = 'https://www.fantacalcio.it/news';
@@ -37,6 +38,33 @@ export interface EsitoFoto {
   trovati: number;
   nuovi: number;
   problemi: string[];
+}
+
+/** L'indice come lo legge chi compone la pagina: con le misure. */
+export interface FotoIndice extends ArticoloNews {
+  larghezza: number;
+  altezza: number;
+}
+
+/**
+ * Le misure dell'immagine, senza scaricarla tutta.
+ *
+ * Si chiedono i primi 128 kB: le intestazioni di JPEG e PNG stanno
+ * all'inizio, e trenta foto da un megabyte in un cron con un tempo massimo
+ * sono trenta megabyte che non servono a niente. Se il server ignora la
+ * richiesta parziale manda tutto, e funziona lo stesso.
+ */
+async function misure(url: string): Promise<{ larghezza: number; altezza: number } | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { range: 'bytes=0-131071' },
+      signal: AbortSignal.timeout(15_000),
+    });
+    if (!res.ok && res.status !== 206) return null;
+    return misuraImmagine(new Uint8Array(await res.arrayBuffer()));
+  } catch {
+    return null;
+  }
 }
 
 async function scarica(url: string): Promise<string | null> {
@@ -73,7 +101,11 @@ export async function raccogliFoto(): Promise<EsitoFoto> {
   const conosciuti = new Set((gia ?? []).map((r) => r.articolo_url as string));
   const daAprire = indirizzi.filter((u) => !conosciuti.has(u));
 
-  const righe: { articolo_url: string; pubblicata_il: string | null; immagine_url: string; titolo: string }[] = [];
+  const righe: {
+    articolo_url: string; pubblicata_il: string | null;
+    immagine_url: string; titolo: string; larghezza: number; altezza: number;
+  }[] = [];
+
   for (const url of daAprire) {
     const html = await scarica(url);
     if (!html) { problemi.push(`non ho potuto aprire ${url}`); continue; }
@@ -81,9 +113,13 @@ export async function raccogliFoto(): Promise<EsitoFoto> {
     // senza immagine o senza titolo la riga non serve a niente: la foto non
     // si potrebbe mostrare, o non si potrebbe abbinare a nessuno
     if (!immagine || !titolo) continue;
+    // e senza misure non si potrebbe né scegliere la disposizione né
+    // calcolare il ritaglio: meglio non averla che averla storta
+    const m = await misure(immagine);
+    if (!m) { problemi.push(`non ho potuto misurare la foto di ${url}`); continue; }
     righe.push({
       articolo_url: url, pubblicata_il: dataDaUrl(url),
-      immagine_url: immagine, titolo,
+      immagine_url: immagine, titolo, larghezza: m.larghezza, altezza: m.altezza,
     });
   }
 
@@ -108,10 +144,11 @@ export async function raccogliFoto(): Promise<EsitoFoto> {
  * mettono alla data della raccolta, che è la migliore approssimazione che
  * abbiamo e non le fa sparire.
  */
-export async function indiceFoto(): Promise<ArticoloNews[]> {
+export async function indiceFoto(): Promise<FotoIndice[]> {
   const db = supabaseAdmin();
   const { data } = await db.from('news_photos')
-    .select('articolo_url, pubblicata_il, immagine_url, titolo, raccolta_il')
+    .select('articolo_url, pubblicata_il, immagine_url, titolo, larghezza, altezza, raccolta_il')
+    .not('larghezza', 'is', null)
     .order('pubblicata_il', { ascending: false, nullsFirst: false })
     .limit(400);
 
@@ -120,5 +157,6 @@ export async function indiceFoto(): Promise<ArticoloNews[]> {
     titolo: r.titolo as string,
     immagine: r.immagine_url as string,
     data: (r.pubblicata_il as string | null) ?? String(r.raccolta_il).slice(0, 10),
+    larghezza: Number(r.larghezza), altezza: Number(r.altezza),
   }));
 }

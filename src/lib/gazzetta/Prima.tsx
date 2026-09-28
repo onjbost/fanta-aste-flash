@@ -19,12 +19,16 @@
 
 import { soloTesto } from './glifi';
 import {
-  COLORI, ETICHETTA_EDIZIONE, disposizioneFoto, fuocoValido,
+  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto,
   type DatiPrima, type Disposizione, type FotoPrima,
 } from './prima';
 
 export const LARGHEZZA = 842;
 export const ALTEZZA = 1190;
+
+/** Il margine laterale della pagina, e quindi la larghezza utile. */
+const MARGINE = 30;
+const LARGO_UTILE = LARGHEZZA - MARGINE * 2;
 
 const TITOLO = 'Titolo';   // Heading Now / Fjalla
 const TESTO = 'Testo';     // Aileron
@@ -100,6 +104,23 @@ function TestoApertura({ d, largo }: { d: DatiPrima; largo: number }) {
 const VELATURA = `linear-gradient(to bottom, rgba(52,48,46,0) 20%, `
   + `rgba(52,48,46,0.74) 50%, rgba(52,48,46,0.95) 100%)`;
 
+/**
+ * Lo sfondo fotografico di un riquadro di misura nota.
+ *
+ * Niente `backgroundSize: 'cover'`: nel browser funziona, in Satori la foto
+ * esce a mosaico. Il ritaglio si calcola (`coperturaFoto`) e si scrive in
+ * pixel, così i due motori disegnano la stessa cosa.
+ */
+function sfondoFoto(foto: FotoPrima, larghezza: number, altezza: number) {
+  const c = coperturaFoto(foto, { larghezza, altezza });
+  return {
+    backgroundImage: `url(${foto.src})`,
+    backgroundSize: c.dimensione,
+    backgroundPosition: c.posizione,
+    backgroundRepeat: 'no-repeat',
+  } as const;
+}
+
 function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizione }) {
   // L'apertura non si restringe mai (`flexShrink: 0` qui sotto): se la pagina
   // è piena, a cedere devono essere le spaziature in fondo, non la foto.
@@ -117,8 +138,7 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
     return (
       <div style={{
         display: 'flex', marginTop: 16, height: altezza, width: '100%', flexShrink: 0,
-        backgroundImage: `url(${foto.src})`, backgroundSize: 'cover',
-        backgroundPosition: `50% ${fuocoValido(foto.fuoco)}%`,
+        ...sfondoFoto(foto, LARGO_UTILE, altezza),
       }}>
         <div style={{
           display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
@@ -146,8 +166,7 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
         </div>
         <div style={{
           display: 'flex', width: 290, height: '100%',
-          backgroundImage: `url(${foto.src})`, backgroundSize: 'cover',
-          backgroundPosition: `50% ${fuocoValido(foto.fuoco)}%`,
+          ...sfondoFoto(foto, 290, altezza),
         }} />
       </div>
     );
@@ -167,8 +186,7 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
       {disposizione === 'riquadro' && foto ? (
         <div style={{
           display: 'flex', position: 'absolute', top: 0, right: 0, width: 300, height: 300,
-          backgroundImage: `url(${foto.src})`, backgroundSize: 'cover',
-          backgroundPosition: `50% ${fuocoValido(foto.fuoco)}%`,
+          ...sfondoFoto(foto, 300, 300),
         }} />
       ) : null}
       <TestoApertura d={d} largo={disposizione === 'riquadro' ? 470 : 700} />
@@ -255,7 +273,7 @@ export function Prima({ d }: { d: DatiPrima }) {
       // senza questo la pagina misura 902×1246: gli stili in linea non hanno
       // box-sizing, e i 30 di margine interno si sommano alla larghezza
       boxSizing: 'border-box',
-      padding: '28px 30px', color: COLORI.inchiostro,
+      padding: `28px ${MARGINE}px`, color: COLORI.inchiostro,
     }}>
       <Testata d={d} />
       <Apertura d={d} disposizione={disposizione} />

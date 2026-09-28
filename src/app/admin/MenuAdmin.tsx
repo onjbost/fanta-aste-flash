@@ -26,6 +26,7 @@ const VOCI: { href: string; testo: string }[] = [
   { href: '/admin/scambi', testo: 'Scambi' },
   { href: '/admin/schedine', testo: 'Tipster' },
   { href: '/admin/redazione', testo: 'La redazione' },
+  { href: '/admin/gazzetta', testo: 'La Gazzetta' },
   { href: '/admin/infortuni', testo: 'Indisponibili' },
   { href: '/asta/sala', testo: 'Sala d\'asta' },
   { href: '/admin/prova', testo: 'Sala di prova' },

@@ -782,3 +782,59 @@ th.ordinabile .livello{
   .menu-admin{transition:none}
   .menu-admin-velo{transition:none}
 }
+
+/* ==========================================================
+   La Gazzetta della Mansarda — l'editor della prima pagina
+   ========================================================== */
+
+.gaz-scelta-giornata{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;margin:18px 0}
+.gaz-scelta-giornata label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+
+.gaz-genera{
+  display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap;
+  padding:14px;border:1px solid var(--border);border-radius:10px;background:var(--surface-2);
+}
+.gaz-genera label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
+.gaz-genera p{flex-basis:100%;margin:0}
+
+.gaz-stato{font-size:.82rem;color:var(--muted);margin:14px 0 6px}
+
+/* Due colonne su schermo largo, l'anteprima appiccicata in alto mentre si
+   scorrono i campi: correggere un titolo senza vederlo è il modo di
+   accorgersi che non ci sta solo dopo aver mandato l'immagine. */
+.gaz-editor{display:grid;grid-template-columns:400px 1fr;gap:28px;align-items:start;margin-top:18px}
+@media (max-width:900px){.gaz-editor{grid-template-columns:1fr}}
+
+.gaz-anteprima{position:sticky;top:12px}
+.gaz-foglio{
+  overflow:hidden;border:1px solid var(--border);border-radius:6px;
+  box-shadow:var(--shadow);background:#fff;
+}
+.gaz-didascalia{font-size:.76rem;color:var(--muted);margin:8px 0 0}
+
+.gaz-moduli{display:flex;flex-direction:column;gap:14px;min-width:0}
+.gaz-moduli h3{margin:10px 0 0;font-size:.95rem}
+
+.gaz-campo{display:flex;flex-direction:column;gap:5px}
+.gaz-etichetta{
+  display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:.78rem;font-weight:600;color:var(--muted);
+}
+.gaz-etichetta em{font-style:normal;font-variant-numeric:tabular-nums;font-weight:500}
+.gaz-etichetta em.fuori{color:var(--danger,#c0392b);font-weight:700}
+.gaz-campo textarea{resize:vertical;min-height:60px}
+.gaz-nota{font-size:.74rem;color:var(--muted);margin:0}
+
+.gaz-avvisi{
+  border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:8px;padding:10px 14px;background:var(--surface-2);font-size:.82rem;
+}
+.gaz-avvisi ul{margin:6px 0 0;padding-left:18px}
+
+.gaz-scelta-foto{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.gaz-scelta-foto button{padding:0;border:2px solid transparent;border-radius:6px;overflow:hidden;background:none;cursor:pointer}
+.gaz-scelta-foto button.scelta{border-color:var(--accent)}
+.gaz-scelta-foto img{display:block;width:100%;height:68px;object-fit:cover}
+
+.gaz-azioni{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:6px}
+.gaz-azioni form{margin:0}

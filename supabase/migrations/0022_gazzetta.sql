@@ -34,6 +34,11 @@ create table news_photos (
   pubblicata_il date,
   immagine_url  text not null,
   titolo        text not null,
+  -- le misure dell'immagine, lette dai suoi primi byte al momento della
+  -- raccolta. Servono a decidere la disposizione in pagina e a calcolare il
+  -- ritaglio: senza, una foto verticale finirebbe stirata a tutta larghezza
+  larghezza     int,
+  altezza       int,
   raccolta_il   timestamptz not null default now()
 );
 

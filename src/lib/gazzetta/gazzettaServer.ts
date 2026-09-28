@@ -18,7 +18,6 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { costruisciMateriale } from '@/lib/redazione/redazioneServer';
 import { numeriLeciti } from '@/lib/redazione/spunti';
 import { scegliModello } from '@/lib/redazione/modello';
-import { misuraImmagine } from './immagine';
 import { cognomeDaListone, scegliFoto } from './news';
 import { indiceFoto } from './newsServer';
 import {
@@ -118,28 +117,27 @@ async function fotoDiApertura(
 ): Promise<FotoPrima | null> {
   if (!chi || !chi.cognome || !chi.club) return null;
 
-  const esito = scegliFoto(await indiceFoto(), chi);
+  const indice = await indiceFoto();
+  const esito = scegliFoto(indice, chi);
   if (!esito.trovata) return null;
 
-  try {
-    const res = await fetch(esito.immagine, { signal: AbortSignal.timeout(15_000) });
-    if (!res.ok) return null;
-    const misure = misuraImmagine(new Uint8Array(await res.arrayBuffer()));
-    if (!misure) return null;
-    return {
-      src: esito.immagine,
-      larghezza: misure.larghezza,
-      altezza: misure.altezza,
-      // all'admin si dice sempre da dove viene: col ripiego sulla squadra
-      // la faccia nella foto può essere di un compagno
-      provenienza: esito.perche === 'giocatore'
-        ? esito.articolo.titolo
-        : `(foto della squadra) ${esito.articolo.titolo}`,
-      fuoco: 35,
-    };
-  } catch {
-    return null;
-  }
+  // le misure sono già nell'indice, lette al momento della raccolta: qui
+  // non si scarica niente, così comporre la pagina non dipende da un sito
+  // che non è nostro
+  const riga = indice.find((f) => f.immagine === esito.immagine);
+  if (!riga) return null;
+
+  return {
+    src: esito.immagine,
+    larghezza: riga.larghezza,
+    altezza: riga.altezza,
+    // all'admin si dice sempre da dove viene: col ripiego sulla squadra la
+    // faccia nella foto può essere di un compagno
+    provenienza: esito.perche === 'giocatore'
+      ? esito.articolo.titolo
+      : `(foto della squadra) ${esito.articolo.titolo}`,
+    fuoco: 35,
+  };
 }
 
 // =====================================================================
@@ -282,6 +280,7 @@ export async function generaGazzetta(
 
 export interface GazzettaSalvata {
   id: string;
+  leagueId: string;
   versione: number;
   tipo: 'settimanale' | 'fantamercato';
   dati: DatiPrima;
@@ -296,6 +295,7 @@ export interface GazzettaSalvata {
 function daRiga(r: Record<string, unknown>): GazzettaSalvata {
   return {
     id: r.id as string,
+    leagueId: r.league_id as string,
     versione: r.versione as number,
     tipo: r.tipo as 'settimanale' | 'fantamercato',
     dati: r.dati as DatiPrima,

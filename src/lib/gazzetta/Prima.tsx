@@ -307,12 +307,12 @@ function Colonna({ d }: { d: DatiPrima }) {
 }
 
 /** Il riquadro col numerone, in fondo a sinistra. */
-function Spalla({ d }: { d: DatiPrima }) {
+function Spalla({ d, largo = 520 }: { d: DatiPrima; largo?: number }) {
   if (!d.spalla) return null;
   return (
     <div style={{
       display: 'flex', alignItems: 'center', marginTop: 22, padding: '14px 18px',
-      boxSizing: 'border-box', width: 520, background: COLORI.inchiostro,
+      boxSizing: 'border-box', width: largo, background: COLORI.inchiostro,
     }}>
       <div style={{
         display: 'flex', fontFamily: TITOLO, fontSize: 56, lineHeight: 1,
@@ -326,18 +326,39 @@ function Spalla({ d }: { d: DatiPrima }) {
   );
 }
 
-function Altre({ d }: { d: DatiPrima }) {
+/** La colonna di destra ha qualcosa da mostrare? */
+function haColonna(d: DatiPrima): boolean {
+  return Boolean(
+    d.gironi?.length || d.tabellone?.length
+    || d.classifica.length || d.prossimi.length,
+  );
+}
+
+function Altre({ d, aTuttaPagina = false }: { d: DatiPrima; aTuttaPagina?: boolean }) {
+  // a tutta pagina i blocchi vanno su due colonne: uno solo largo 782 punti
+  // darebbe righe da centotrenta caratteri, che su una prima pagina non si
+  // leggono
+  const largo = aTuttaPagina ? LARGO_UTILE : 520;
+  const bloccoLargo = aTuttaPagina ? 375 : 495;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', width: 520 }}>
-      <div style={{ display: 'flex', fontFamily: TITOLO, fontSize: 30, color: COLORI.inchiostro }}>Le altre</div>
+    <div style={{ display: 'flex', flexDirection: 'column', width: largo }}>
+      <div style={{ display: 'flex', fontFamily: TITOLO, fontSize: 30, color: COLORI.inchiostro }}>{T(d.titoloAltre ?? 'Le altre')}</div>
       <Linea spessore={2} sopra={7} />
-      {d.altre.map((a) => (
-        <div key={a.titolo} style={{ display: 'flex', flexDirection: 'column', marginTop: 13 }}>
-          <div style={{ display: 'flex', fontFamily: FORTE, fontSize: 17, lineHeight: 1.2, color: COLORI.inchiostro }}>{T(a.titolo)}</div>
-          <div style={{ display: 'flex', fontFamily: TESTO, fontSize: 14, lineHeight: 1.5, color: COLORI.inchiostro, marginTop: 5, width: 495 }}>{T(a.testo)}</div>
-        </div>
-      ))}
-      <Spalla d={d} />
+      <div style={{
+        display: 'flex', flexWrap: 'wrap', width: largo,
+        justifyContent: 'space-between',
+      }}>
+        {d.altre.map((a) => (
+          <div key={a.titolo} style={{
+            display: 'flex', flexDirection: 'column', marginTop: 13, width: bloccoLargo,
+          }}>
+            <div style={{ display: 'flex', fontFamily: FORTE, fontSize: 17, lineHeight: 1.2, color: COLORI.inchiostro }}>{T(a.titolo)}</div>
+            <div style={{ display: 'flex', fontFamily: TESTO, fontSize: 14, lineHeight: 1.5, color: COLORI.inchiostro, marginTop: 5, width: bloccoLargo }}>{T(a.testo)}</div>
+          </div>
+        ))}
+      </div>
+      <Spalla d={d} largo={largo} />
     </div>
   );
 }
@@ -356,9 +377,16 @@ export function Prima({ d }: { d: DatiPrima }) {
       <Testata d={d} />
       <Apertura d={d} disposizione={disposizione} />
 
+      {/*
+        * La colonna di destra c'è solo se ha qualcosa da dire.
+        * Nell'edizione fantamercato non esistono classifiche né calendari —
+        * ci sono solo notizie di mercato — e una colonna vuota lascerebbe un
+        * terzo di pagina bianco. Senza, i blocchi prendono tutta la
+        * larghezza e si dispongono su due colonne.
+        */}
       <div style={{ display: 'flex', marginTop: 18, flex: 1, minHeight: 0 }}>
-        <Altre d={d} />
-        <Colonna d={d} />
+        <Altre d={d} aTuttaPagina={!haColonna(d)} />
+        {haColonna(d) ? <Colonna d={d} /> : null}
       </div>
 
       <Linea spessore={2} sopra={14} />

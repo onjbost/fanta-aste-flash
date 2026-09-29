@@ -28,7 +28,10 @@
 import { numeriInventati } from '../redazione/verifica';
 import { nominato } from '../nomi';
 import { tono } from '../redazione/toni';
-import { paroleDelCappello, type Disposizione } from './prima';
+import {
+  dataEstesa, paroleDelCappello,
+  type DatiPrima, type Disposizione, type FotoPrima,
+} from './prima';
 
 // =====================================================================
 // Il materiale
@@ -431,4 +434,59 @@ export function mercatoDiRipiego(r: RichiestaMercato): TestiMercato {
       }
       : null,
   };
+}
+
+// =====================================================================
+// Il montaggio
+// =====================================================================
+
+/**
+ * Dai testi del modello alla prima pagina del fantamercato.
+ *
+ * I titoletti dei blocchi — «ZHEGROVA (Juventus)» — li scriviamo noi, come
+ * per le altre edizioni: sono fatti, e un fatto che il modello non scrive è
+ * un fatto che non può sbagliare. Qui vale doppio, perché il club di Serie A
+ * è l'unica cosa che àncora il pezzo alla realtà quando tutto il resto è
+ * scritto al condizionale.
+ */
+export function montaMercato(
+  t: TestiMercato, p: PezziDelMercato, quando = new Date(),
+): DatiPrima {
+  const r = p.richiesta;
+  const ap = r.trattative.find((x) => x.lottoId === r.apertura) ?? r.trattative[0] ?? null;
+  const testoDi = new Map(t.blocchi.map((b) => [b.lottoId, b.testo]));
+
+  return {
+    tipo: 'fantamercato',
+    numero: `MERCATO · SESSIONE ${r.sessione}`,
+    data: dataEstesa(quando),
+    sottotestata: 'INDISCREZIONI DI MERCATO',
+    occhiello: 'INDISCREZIONI',
+    titolo: t.titolo,
+    gancio: t.gancio,
+    sottotitolo: ap
+      ? `${ap.giocatore} (${ap.club}) · sala d'asta ${r.quandoSiGioca}`
+      : `Sala d'asta ${r.quandoSiGioca}`,
+    cappello: t.cappello,
+    foto: p.foto,
+    // niente classifiche e niente calendari: qui ci sono solo notizie di
+    // mercato, e la colonna di destra sparisce da sola
+    classifica: [],
+    prossimi: [],
+    gironi: null,
+    tabellone: null,
+    titoloAltre: 'Le altre trattative',
+    altre: r.trattative
+      .filter((x) => x.lottoId !== ap?.lottoId)
+      .map((x) => ({ titolo: titoloTrattativa(x), testo: testoDi.get(x.lottoId) ?? '' })),
+    spalla: t.spalla,
+    piedeSinistra: 'FANTA MANSARDA',
+    piedeDestra: 'TUTTE VOCI, PER ORA',
+  };
+}
+
+/** Quello che la pagina mette accanto ai testi. */
+export interface PezziDelMercato {
+  richiesta: RichiestaMercato;
+  foto: FotoPrima | null;
 }

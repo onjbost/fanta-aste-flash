@@ -115,6 +115,12 @@ export interface DatiPrima {
   tabellone?: VoceTabellone[] | null;
   prossimi: Incontro[];
   altre: BloccoAltra[];
+  /**
+   * Il titolo della colonna dei blocchi. Assente vuol dire «Le altre», che
+   * è giusto per una giornata di campionato; il fantamercato vuole «Le
+   * altre trattative».
+   */
+  titoloAltre?: string;
   /** opzionale: la pagina regge anche senza */
   spalla?: Spalla | null;
   piedeSinistra: string;

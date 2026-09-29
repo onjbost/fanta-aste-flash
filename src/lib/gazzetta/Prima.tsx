@@ -98,10 +98,15 @@ function TestoApertura({ d, largo }: { d: DatiPrima; largo: number }) {
         display: 'flex', fontFamily: FORTE, fontSize: 15, letterSpacing: 0.6,
         color: COLORI.carta, marginTop: 14,
       }}>{T(d.sottotitolo)}</div>
-      <div style={{ display: 'flex', width: 70, height: 2, background: COLORI.giallo, marginTop: 12 }} />
+      {/*
+        * Il filetto giallo sta vicino al sottotitolo e stacca dal cappello:
+        * prima aveva lo stesso margine sopra e sotto e galleggiava in mezzo,
+        * allontanando il risultato dal racconto senza separare niente.
+        */}
+      <div style={{ display: 'flex', width: 70, height: 2, background: COLORI.giallo, marginTop: 8 }} />
       <div style={{
         display: 'flex', fontFamily: TESTO, fontSize: 15, lineHeight: 1.45,
-        color: COLORI.carta, marginTop: 12,
+        color: COLORI.carta, marginTop: 9,
       }}>{T(d.cappello)}</div>
     </div>
   );
@@ -284,7 +289,7 @@ function Colonna({ d }: { d: DatiPrima }) {
         </div>
       )}
 
-      <Titoletto sopra={14}>Si gioca</Titoletto>
+      <Titoletto sopra={14}>Prossimi incontri</Titoletto>
       <Linea spessore={2} sopra={7} />
       <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
         {d.prossimi.map((p) => (

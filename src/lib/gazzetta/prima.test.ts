@@ -101,6 +101,38 @@ describe('coperturaFoto', () => {
     expect(x).toBe(Math.round((riquadro.larghezza - w) / 2));
   });
 
+  it('il fuoco orizzontale sposta senza mai scoprire un bordo', () => {
+    /*
+     * La proprietà che conta: comunque si sposti, la foto continua a
+     * coprire il riquadro. Non c'è un ritaglio da fare dopo — lo
+     * spostamento è una frazione dello scarto, e lo scarto è negativo
+     * perché l'ingrandimento copre sempre.
+     */
+    const foto = { larghezza: 2000, altezza: 500 };
+    for (const fuocoX of [0, 25, 50, 75, 100]) {
+      const c = coperturaFoto({ ...foto, fuocoX }, riquadro);
+      const [w] = c.dimensione.split(' ').map((v) => parseFloat(v));
+      const [x] = c.posizione.split(' ').map((v) => parseFloat(v));
+      expect(x).toBeLessThanOrEqual(0);                      // niente bordo a sinistra
+      expect(x + w).toBeGreaterThanOrEqual(riquadro.larghezza); // niente bordo a destra
+    }
+  });
+
+  it('agli estremi il bordo della foto tocca quello del riquadro', () => {
+    const foto = { larghezza: 2000, altezza: 500 };
+    const sinistra = coperturaFoto({ ...foto, fuocoX: 0 }, riquadro);
+    const destra = coperturaFoto({ ...foto, fuocoX: 100 }, riquadro);
+    const [w] = sinistra.dimensione.split(' ').map((v) => parseFloat(v));
+    expect(parseFloat(sinistra.posizione.split(' ')[0])).toBe(0);
+    expect(parseFloat(destra.posizione.split(' ')[0])).toBe(riquadro.larghezza - w);
+  });
+
+  it('senza fuoco orizzontale resta centrata, come prima che esistesse', () => {
+    const c = coperturaFoto({ larghezza: 2000, altezza: 500 }, riquadro);
+    const [w] = c.dimensione.split(' ').map((v) => parseFloat(v));
+    expect(parseFloat(c.posizione.split(' ')[0])).toBe(Math.round((riquadro.larghezza - w) / 2));
+  });
+
   it('il fuoco muove il taglio in verticale, e solo lì', () => {
     const foto = { larghezza: 600, altezza: 900 };
     const cima = coperturaFoto({ ...foto, fuoco: 0 }, riquadro);

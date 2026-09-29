@@ -243,6 +243,21 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
                 onChange={(e) => toccaFoto({ fuoco: Number(e.target.value) })}
               />
             </label>
+            {/*
+              * Orizzontale come verticale: si sposta di una frazione dello
+              * scarto fra immagine e riquadro, mai di pixel. Agli estremi il
+              * bordo della foto tocca il bordo del riquadro, quindi un bordo
+              * vuoto non può comparire e non c'è niente da ritagliare dopo.
+              */}
+            <label className="gaz-campo">
+              <span className="gaz-etichetta">
+                Taglio orizzontale <em>{dati.foto.fuocoX ?? 50}</em>
+              </span>
+              <input
+                type="range" min={0} max={100} value={dati.foto.fuocoX ?? 50}
+                onChange={(e) => toccaFoto({ fuocoX: Number(e.target.value) })}
+              />
+            </label>
             <button type="button" className="ghost" onClick={() => tocca({ foto: null })}>
               Togli la foto
             </button>

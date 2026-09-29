@@ -81,6 +81,12 @@ export interface FotoPrima {
   provenienza: string;
   /** 0-100: dove sta il fuoco verticale del ritaglio */
   fuoco: number;
+  /**
+   * 0-100: dove sta il fuoco orizzontale. Assente vuol dire centrato, che è
+   * come si comportava prima che esistesse — le prime pagine già salvate
+   * restano identiche.
+   */
+  fuocoX?: number;
 }
 
 export interface DatiPrima {
@@ -157,9 +163,15 @@ export function paroleDelCappello(d: Disposizione): { min: number; max: number }
   }
 }
 
-/** Il fuoco verticale entro i limiti, con un valore di riposo sensato. */
-export function fuocoValido(v: number | undefined): number {
-  if (!Number.isFinite(v as number)) return 35;
+/**
+ * Un fuoco entro i limiti, con un valore di riposo sensato.
+ *
+ * Il verticale riposa a 35 — nelle foto d'azione le facce stanno sopra la
+ * metà; l'orizzontale a 50, cioè centrato, che è come si comportava la
+ * pagina prima che la manopola esistesse.
+ */
+export function fuocoValido(v: number | undefined, riposo = 35): number {
+  if (!Number.isFinite(v as number)) return riposo;
   return Math.min(100, Math.max(0, Math.round(v as number)));
 }
 
@@ -178,12 +190,20 @@ export function fuocoValido(v: number | undefined): number {
  * interpretano le percentuali in modo diverso e l'unico modo di avere
  * anteprima e PNG identici è non lasciare niente da interpretare.
  *
- * Orizzontalmente si centra; verticalmente decide `fuoco`, che è la sola
- * manopola che l'admin ha sull'inquadratura: 0 tiene la cima (le facce),
- * 100 il fondo.
+ * L'inquadratura ha due manopole: `fuoco` in verticale (0 tiene la cima, le
+ * facce; 100 il fondo) e `fuocoX` in orizzontale (0 il bordo sinistro, 100
+ * il destro, assente = centrato).
+ *
+ * **Fuori dalla foto non si può andare.** Lo spostamento non è un numero di
+ * pixel ma una frazione dello scarto fra l'immagine ingrandita e il
+ * riquadro: a 0 il bordo dell'immagine coincide col bordo del riquadro, a
+ * 100 con quello opposto, e in mezzo si interpola. Siccome l'ingrandimento
+ * copre sempre il riquadro, quello scarto non è mai positivo — quindi non
+ * esiste una posizione che lasci un bordo vuoto, e non serve tagliare
+ * niente dopo. Il ritaglio è il calcolo.
  */
 export function coperturaFoto(
-  foto: { larghezza: number; altezza: number; fuoco?: number },
+  foto: { larghezza: number; altezza: number; fuoco?: number; fuocoX?: number },
   riquadro: { larghezza: number; altezza: number },
 ): { dimensione: string; posizione: string } {
   const largo = Math.max(1, foto.larghezza);
@@ -191,7 +211,7 @@ export function coperturaFoto(
   const scala = Math.max(riquadro.larghezza / largo, riquadro.altezza / alto);
   const w = Math.ceil(largo * scala);
   const h = Math.ceil(alto * scala);
-  const x = Math.round((riquadro.larghezza - w) / 2);
+  const x = Math.round((riquadro.larghezza - w) * (fuocoValido(foto.fuocoX, 50) / 100));
   const y = Math.round((riquadro.altezza - h) * (fuocoValido(foto.fuoco) / 100));
   return { dimensione: `${w}px ${h}px`, posizione: `${x}px ${y}px` };
 }

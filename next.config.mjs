@@ -4,8 +4,14 @@ const nextConfig = {
    * resvg è un modulo nativo: webpack prova a impacchettare il `.node` e si
    * ferma su «Unexpected character». Va lasciato fuori dal bundle e caricato
    * a runtime da Node, che è quello che `serverExternalPackages` fa.
+   *
+   * Satori sta qui per la stessa famiglia di ragioni, scoperta guardando il
+   * build: impacchettato, cerca i suoi `.wasm` (yoga e harfbuzz) accanto al
+   * file generato — `.next/server/app/api/gazzetta/[id]/png/hb.wasm` — dove
+   * non ci sono mai stati. Il build finiva bene lo stesso e l'esportazione
+   * sarebbe fallita solo in produzione.
    */
-  serverExternalPackages: ['@resvg/resvg-js'],
+  serverExternalPackages: ['@resvg/resvg-js', 'satori'],
 
   /*
    * I font della Gazzetta si leggono dal disco a runtime (Satori per il PNG,

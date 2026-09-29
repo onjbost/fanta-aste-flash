@@ -470,6 +470,21 @@ export async function ultimaGazzetta(
   return data?.[0] ? daRiga(data[0] as Record<string, unknown>) : null;
 }
 
+/**
+ * L'ultima edizione di mercato della lega.
+ *
+ * Non è legata a una giornata — `matchday_id` è null — quindi si cerca per
+ * tipo e si prende la più recente: nel gruppo si parla dell'ultima uscita di
+ * mercato, non di quella della sessione 3.
+ */
+export async function ultimaGazzettaDiMercato(leagueId: string): Promise<GazzettaSalvata | null> {
+  const db = supabaseAdmin();
+  const { data } = await db.from('gazzette')
+    .select('*').eq('league_id', leagueId).eq('tipo', 'fantamercato')
+    .order('generated_at', { ascending: false }).limit(1);
+  return data?.[0] ? daRiga(data[0] as Record<string, unknown>) : null;
+}
+
 export async function leggiGazzetta(id: string): Promise<GazzettaSalvata | null> {
   const db = supabaseAdmin();
   const { data } = await db.from('gazzette').select('*').eq('id', id).maybeSingle();

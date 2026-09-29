@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   COLORI, coperturaFoto, dataEstesa, disposizioneFoto, faseDiCoppa, fuocoValido,
-  numeroEdizione, paroleDelCappello, type FotoPrima,
+  numeroEdizione, paroleDelCappello, righeDelTesto, type FotoPrima,
 } from './prima';
 
 const foto = (larghezza: number, altezza: number): FotoPrima =>
@@ -201,5 +201,40 @@ describe('l\'oro della coppa', () => {
     };
     expect(contrasto(COLORI.oro, COLORI.rosa)).toBeGreaterThan(3);
     expect(contrasto(COLORI.giallo, COLORI.rosa)).toBeLessThan(2);
+  });
+});
+
+describe('righeDelTesto', () => {
+  it('un testo senza a capo resta una riga sola', () => {
+    expect(righeDelTesto('Ntonia ne fa quattro'))
+      .toEqual([{ testo: 'Ntonia ne fa quattro', rientro: 0 }]);
+  });
+
+  it('spezza dove l\'admin ha spezzato', () => {
+    expect(righeDelTesto('Ntonia\nne fa quattro').map((r: { testo: string }) => r.testo))
+      .toEqual(['Ntonia', 'ne fa quattro']);
+  });
+
+  it('gli spazi in testa diventano un rientro, non spazi', () => {
+    // in HTML uno spazio in testa sparisce, e `soloTesto` butterebbe via la
+    // tabulazione: tradotti in punti sopravvivono a tutti e due i motori
+    const r = righeDelTesto('primo\n    secondo');
+    expect(r[1].testo).toBe('secondo');
+    expect(r[1].rientro).toBeGreaterThan(0);
+    expect(r[0].rientro).toBe(0);
+  });
+
+  it('una tabulazione rientra più di uno spazio', () => {
+    const conTab = righeDelTesto('\tx')[0].rientro;
+    const conSpazio = righeDelTesto(' x')[0].rientro;
+    expect(conTab).toBeGreaterThan(conSpazio);
+  });
+
+  it('regge anche gli a capo di Windows', () => {
+    expect(righeDelTesto('uno\r\ndue').map((r: { testo: string }) => r.testo)).toEqual(['uno', 'due']);
+  });
+
+  it('una riga vuota resta, perché è uno stacco voluto', () => {
+    expect(righeDelTesto('uno\n\ndue')).toHaveLength(3);
   });
 });

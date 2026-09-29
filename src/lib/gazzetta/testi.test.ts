@@ -45,6 +45,13 @@ describe('righeStimate', () => {
     expect(righeStimate('aaaa aaaa', 89, 10)).toBe(2);
   });
 
+  it('un a capo scritto a mano è una riga vera', () => {
+    // contarlo come uno spazio direbbe all'admin che il titolo ci sta su
+    // una riga, mentre in pagina ne occupa due
+    expect(righeStimate('aaaa\naaaa', 220, 10)).toBe(2);
+    expect(righeStimate('aaaa aaaa', 220, 10)).toBe(1);
+  });
+
   it('il testo vuoto non occupa righe', () => {
     expect(righeStimate('   ', 200, 10)).toBe(0);
   });

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   MASSIME_LICENZE, chiamante, costruisciPromptMercato, daJsonMercato,
-  licenzeUsate, mercatoDiRipiego, numeriDelMercato, rivali, ruoloPerEsteso,
+  licenzeUsate, mercatoDiRipiego, numeriDelMercato, quandoApreLaSala, rivali, ruoloPerEsteso,
   titoloTrattativa, trattativaDiApertura, verificaMercato,
   type RichiestaMercato, type TestiMercato, type Trattativa,
 } from './mercato';
@@ -273,5 +273,19 @@ describe('mercatoDiRipiego', () => {
     const r = richiesta({ trattative: [], apertura: '' });
     expect(() => mercatoDiRipiego(r)).not.toThrow();
     expect(mercatoDiRipiego(r).spalla).toBeNull();
+  });
+});
+
+describe('quandoApreLaSala', () => {
+  it('scrive la data come la direbbe un lancio, in ora italiana', () => {
+    // l'asta vera della sessione 1: nel database è 19:30 UTC, in Italia
+    // sono le 21.30 — scriverla com'è nel database vorrebbe dire dare al
+    // gruppo l'appuntamento sbagliato di due ore
+    expect(quandoApreLaSala('2026-10-01T19:30:00+00:00')).toBe('giovedì 1 ottobre alle 21.30');
+  });
+
+  it('tiene conto dell\'ora solare, quando arriva', () => {
+    // a dicembre l'Italia è a UTC+1, non +2
+    expect(quandoApreLaSala('2026-12-02T19:30:00+00:00')).toBe('mercoledì 2 dicembre alle 20.30');
   });
 });

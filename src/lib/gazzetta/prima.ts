@@ -169,6 +169,33 @@ export function paroleDelCappello(d: Disposizione): { min: number; max: number }
   }
 }
 
+/** Una riga di testo, col suo rientro. */
+export interface RigaDiTesto { testo: string; rientro: number }
+
+/**
+ * Le righe di un testo, con gli a capo decisi dall'admin.
+ *
+ * In una prima pagina dove mandare a capo è una scelta di impaginazione: un
+ * titolo spezzato nel punto giusto lascia scoperta la faccia nella foto,
+ * spezzato dal caso la copre. Quindi l'a capo scritto nella casella
+ * dell'editor diventa un a capo vero.
+ *
+ * Gli spazi in testa alla riga diventano un **rientro in punti**, non spazi.
+ * Uno spazio in testa a un elemento HTML sparisce, e in Satori sparirebbe
+ * comunque: `soloTesto` butta via tutto quello che non è stampabile, e l'a
+ * capo (0x0A) e la tabulazione (0x09) sono fra quelli. Tradotti in struttura
+ * invece sopravvivono a tutti e due i motori.
+ */
+export function righeDelTesto(testo: string): RigaDiTesto[] {
+  return testo.split(/\r?\n/).map((riga) => {
+    const teste = riga.match(/^[ \t]*/)?.[0] ?? '';
+    // una tabulazione vale quattro spazi; uno spazio, tre punti e mezzo
+    const spazi = [...teste].reduce((n, c) => n + (c === '\t' ? 4 : 1), 0);
+    return { testo: riga.slice(teste.length), rientro: Math.round(spazi * 3.4) };
+  });
+}
+
+
 /**
  * Un fuoco entro i limiti, con un valore di riposo sensato.
  *

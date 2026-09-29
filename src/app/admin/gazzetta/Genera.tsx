@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { TONI } from '@/lib/redazione/toni';
-import { aggiornaFoto, generaPrima, type GazState } from './actions';
+import { aggiornaFoto, generaPrima, generaRumors, type GazState } from './actions';
 
 /**
  * Il bottone che scrive una prima pagina nuova.
@@ -45,6 +45,29 @@ export function AggiornaFoto() {
     <form action={azione} className="gaz-genera">
       <button type="submit" className="ghost" disabled={inCorso}>
         {inCorso ? 'Leggo le news…' : 'Aggiorna le foto dalle news'}
+      </button>
+      {stato && <p className={stato.ok ? 'ok' : 'ko'}>{stato.message}</p>}
+    </form>
+  );
+}
+
+/** Le indiscrezioni: si sceglie la sessione d'asta, non la giornata. */
+export function GeneraRumors({ sessionId, esiste }: { sessionId: string; esiste: boolean }) {
+  const [stato, azione, inCorso] = useActionState<GazState, FormData>(generaRumors, null);
+
+  return (
+    <form action={azione} className="gaz-genera">
+      <input type="hidden" name="sessionId" value={sessionId} />
+      <label>
+        Tono
+        <select name="tono" defaultValue="4">
+          {Object.entries(TONI).map(([n, testo]) => (
+            <option key={n} value={n}>{n} — {testo}</option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" disabled={inCorso}>
+        {inCorso ? 'Scrivo…' : `${esiste ? 'Riscrivi' : 'Scrivi'} le indiscrezioni`}
       </button>
       {stato && <p className={stato.ok ? 'ok' : 'ko'}>{stato.message}</p>}
     </form>

@@ -19,8 +19,9 @@
 
 import { soloTesto } from './glifi';
 import {
-  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto,
+  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto, righeDelTesto,
   type DatiPrima, type Disposizione, type FotoPrima, type RigaClassifica,
+  type RigaDiTesto,
 } from './prima';
 
 export const LARGHEZZA = 842;
@@ -35,6 +36,42 @@ const TESTO = 'Testo';     // Aileron
 const FORTE = 'Forte';     // Aileron SemiBold
 
 const T = soloTesto;
+
+/**
+ * Un testo che rispetta gli a capo scritti dall'admin.
+ *
+ * Senza, tutto quello che sta in una casella esce su una riga sola e va a
+ * capo dove capita: in un'immagine l'impaginazione è metà del lavoro, e
+ * dove spezzare un titolo è una scelta, non un caso.
+ */
+function Testo({ children, stile }: { children: string; stile: React.CSSProperties }) {
+  const righe = righeDelTesto(children);
+  if (righe.length === 1 && !righe[0].rientro) {
+    return <div style={{ display: 'flex', ...stile }}>{T(righe[0].testo)}</div>;
+  }
+  /*
+   * Una riga vuota è uno stacco voluto e deve vedersi come tale: alta
+   * quanto una riga di testo, non un pixel. L'altezza si ricava dallo stile
+   * che il chiamante ha già scelto, così uno stacco in un titolo da 64 vale
+   * un titolo e uno in un corpo da 14 vale un corpo.
+   */
+  const corpo = Number(stile.fontSize ?? 14);
+  const interlinea = Number(stile.lineHeight ?? 1.3);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', ...stile }}>
+      {righe.map((r: RigaDiTesto, i: number) => (
+        <div
+          key={`${i}-${r.testo}`}
+          style={{
+            display: 'flex', marginLeft: r.rientro,
+            minHeight: r.testo.trim() ? 0 : Math.round(corpo * interlinea),
+          }}
+        >{T(r.testo)}</div>
+      ))}
+    </div>
+  );
+}
 
 function Etichetta({ children, colore = COLORI.inchiostro }: {
   children: string; colore?: string;
@@ -86,28 +123,28 @@ function TestoApertura({ d, largo }: { d: DatiPrima; largo: number }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', width: largo }}>
       <Etichetta colore={COLORI.giallo}>{d.occhiello}</Etichetta>
-      <div style={{
-        display: 'flex', fontFamily: TITOLO, fontSize: 64, lineHeight: 0.92,
+      <Testo stile={{
+        fontFamily: TITOLO, fontSize: 64, lineHeight: 0.92,
         color: COLORI.carta, marginTop: 10,
-      }}>{T(d.titolo)}</div>
-      <div style={{
-        display: 'flex', fontFamily: TITOLO, fontSize: 44, lineHeight: 0.98,
+      }}>{d.titolo}</Testo>
+      <Testo stile={{
+        fontFamily: TITOLO, fontSize: 44, lineHeight: 0.98,
         color: COLORI.giallo, marginTop: 2,
-      }}>{T(d.gancio)}</div>
-      <div style={{
-        display: 'flex', fontFamily: FORTE, fontSize: 15, letterSpacing: 0.6,
+      }}>{d.gancio}</Testo>
+      <Testo stile={{
+        fontFamily: FORTE, fontSize: 15, letterSpacing: 0.6,
         color: COLORI.carta, marginTop: 14,
-      }}>{T(d.sottotitolo)}</div>
+      }}>{d.sottotitolo}</Testo>
       {/*
         * Il filetto giallo sta vicino al sottotitolo e stacca dal cappello:
         * prima aveva lo stesso margine sopra e sotto e galleggiava in mezzo,
         * allontanando il risultato dal racconto senza separare niente.
         */}
       <div style={{ display: 'flex', width: 70, height: 2, background: COLORI.giallo, marginTop: 8 }} />
-      <div style={{
-        display: 'flex', fontFamily: TESTO, fontSize: 15, lineHeight: 1.45,
+      <Testo stile={{
+        fontFamily: TESTO, fontSize: 15, lineHeight: 1.45,
         color: COLORI.carta, marginTop: 9,
-      }}>{T(d.cappello)}</div>
+      }}>{d.cappello}</Testo>
     </div>
   );
 }
@@ -318,10 +355,10 @@ function Spalla({ d, largo = 520 }: { d: DatiPrima; largo?: number }) {
         display: 'flex', fontFamily: TITOLO, fontSize: 56, lineHeight: 1,
         color: COLORI.giallo, marginRight: 18,
       }}>{T(d.spalla.numero)}</div>
-      <div style={{
-        display: 'flex', fontFamily: TESTO, fontSize: 14, lineHeight: 1.35,
+      <Testo stile={{
+        fontFamily: TESTO, fontSize: 14, lineHeight: 1.35,
         color: COLORI.carta, flex: 1,
-      }}>{T(d.spalla.didascalia)}</div>
+      }}>{d.spalla.didascalia}</Testo>
     </div>
   );
 }
@@ -353,8 +390,8 @@ function Altre({ d, aTuttaPagina = false }: { d: DatiPrima; aTuttaPagina?: boole
           <div key={a.titolo} style={{
             display: 'flex', flexDirection: 'column', marginTop: 13, width: bloccoLargo,
           }}>
-            <div style={{ display: 'flex', fontFamily: FORTE, fontSize: 17, lineHeight: 1.2, color: COLORI.inchiostro }}>{T(a.titolo)}</div>
-            <div style={{ display: 'flex', fontFamily: TESTO, fontSize: 14, lineHeight: 1.5, color: COLORI.inchiostro, marginTop: 5, width: bloccoLargo }}>{T(a.testo)}</div>
+            <Testo stile={{ fontFamily: FORTE, fontSize: 17, lineHeight: 1.2, color: COLORI.inchiostro }}>{a.titolo}</Testo>
+            <Testo stile={{ fontFamily: TESTO, fontSize: 14, lineHeight: 1.5, color: COLORI.inchiostro, marginTop: 5, width: bloccoLargo }}>{a.testo}</Testo>
           </div>
         ))}
       </div>

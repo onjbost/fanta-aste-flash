@@ -116,6 +116,13 @@ export function larghezzaApertura(d: Disposizione): number {
 
 /** Quante righe occupa un testo, a occhio ma con una misura sotto. */
 export function righeStimate(testo: string, larghezzaColonna: number, perCarattere: number): number {
+  // gli a capo scritti dall'admin sono righe vere: contarli come spazi
+  // vorrebbe dire dirgli che il titolo ci sta quando invece ne occupa due
+  if (/\r?\n/.test(testo)) {
+    return testo.split(/\r?\n/)
+      .reduce((n, riga) => n + Math.max(1, righeStimate(riga, larghezzaColonna, perCarattere)), 0);
+  }
+
   const parole = testo.trim().split(/\s+/).filter(Boolean);
   if (!parole.length) return 0;
 

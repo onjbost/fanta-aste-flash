@@ -117,6 +117,30 @@ export function licenzeUsate(testo: string): number {
   );
 }
 
+/**
+ * «giovedì 1 ottobre alle 21.30», come lo direbbe un lancio di agenzia.
+ *
+ * L'ora è quella italiana, non quella del database. Il database tiene gli
+ * orari in UTC e la sessione 1 vera è salvata come 19:30: scritta così nel
+ * gruppo darebbe l'appuntamento sbagliato di due ore — o di una, d'inverno.
+ *
+ * Anche il giorno della settimana viene dal fuso di Roma e non dal server:
+ * un'asta alle 23.30 di lunedì italiane è ancora lunedì solo se si guarda
+ * l'orologio giusto.
+ */
+export function quandoApreLaSala(iso: string): string {
+  const parti = new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome', weekday: 'long', day: 'numeric', month: 'long',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+  }).formatToParts(new Date(iso));
+
+  const p = (t: string) => parti.find((x) => x.type === t)?.value ?? '';
+  // `day: 'numeric'` accanto a un campo a due cifre viene impaginato a due
+  // cifre lo stesso: «01 ottobre» non lo scrive nessuno
+  const giorno = p('day').replace(/^0/, '');
+  return `${p('weekday')} ${giorno} ${p('month')} alle ${p('hour')}.${p('minute')}`;
+}
+
 // =====================================================================
 // Cosa apre la pagina
 // =====================================================================

@@ -181,9 +181,14 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
           </div>
         )}
 
-        <Campo etichetta="Titolo" valore={dati.titolo} limite={limiti.titolo}
+        <p className="gaz-nota">
+          Gli a capo che scrivi nelle caselle finiscono nella pagina: servono a
+          spezzare un titolo dove vuoi tu invece che dove capita. Gli spazi a
+          inizio riga diventano un rientro.
+        </p>
+        <Campo etichetta="Titolo" valore={dati.titolo} limite={limiti.titolo} righe={2}
           onChange={(v) => tocca({ titolo: v })} />
-        <Campo etichetta="Gancio (la riga gialla)" valore={dati.gancio} limite={limiti.gancio}
+        <Campo etichetta="Gancio (la riga gialla)" valore={dati.gancio} limite={limiti.gancio} righe={2}
           onChange={(v) => tocca({ gancio: v })} />
         <Campo etichetta="Occhiello" valore={dati.occhiello}
           onChange={(v) => tocca({ occhiello: v })} />
@@ -193,7 +198,7 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
           onChange={(v) => tocca({ numero: v })} />
         <Campo etichetta="Data" valore={dati.data}
           onChange={(v) => tocca({ data: v })} />
-        <Campo etichetta="Sottotitolo" valore={dati.sottotitolo}
+        <Campo etichetta="Sottotitolo" valore={dati.sottotitolo} righe={2}
           onChange={(v) => tocca({ sottotitolo: v })} />
         <Campo etichetta="Cappello" valore={dati.cappello} righe={4}
           onChange={(v) => tocca({ cappello: v })} />

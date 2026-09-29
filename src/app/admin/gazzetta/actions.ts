@@ -5,6 +5,7 @@ import {
   generaGazzetta, salvaModifiche, segnaInviata, leggiGazzetta,
 } from '@/lib/gazzetta/gazzettaServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
+import { generaGazzettaMercato } from '@/lib/gazzetta/mercatoServer';
 import type { DatiPrima } from '@/lib/gazzetta/prima';
 import { supabaseServer } from '@/lib/supabase';
 
@@ -126,4 +127,41 @@ export async function aggiornaFoto(_prev: GazState, _form: FormData): Promise<Ga
     message: `${e.nuovi} foto nuove su ${e.trovati} articoli letti.`
       + (e.problemi.length ? ` — ${e.problemi.join(' · ')}` : ''),
   };
+}
+
+/**
+ * Le indiscrezioni di mercato: una sessione d'asta, non una giornata.
+ *
+ * Sta in un'azione a sé e non dentro `generaPrima` perché il materiale viene
+ * da tutt'altra parte — il tabellone d'asta invece dei tabellini — e
+ * infilarci un `if` avrebbe voluto dire una funzione che fa due mestieri e
+ * ne sbaglia uno.
+ */
+export async function generaRumors(_prev: GazState, form: FormData): Promise<GazState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
+
+  const sessionId = String(form.get('sessionId') ?? '');
+  if (!sessionId) return { ok: false, message: 'Manca la sessione.' };
+  const tono = form.get('tono') ? Number(form.get('tono')) : undefined;
+
+  // la sessione dev'essere di questa lega: sotto si legge col service role
+  const db = await supabaseServer();
+  const { data: s } = await db.from('auction_sessions')
+    .select('id').eq('id', sessionId).eq('league_id', admin.leagueId).maybeSingle();
+  if (!s) return { ok: false, message: 'Questa sessione non esiste.' };
+
+  try {
+    const e = await generaGazzettaMercato(sessionId, { tono });
+    revalidatePath('/admin/gazzetta');
+    const problemi = e.verifica.problemi;
+    return {
+      ok: true, id: e.gazzettaId,
+      message: `Versione ${e.versione} scritta da ${e.provider}`
+        + (e.tentativi > 1 ? ` in ${e.tentativi} tentativi` : '')
+        + (problemi.length ? ` — da controllare: ${problemi.join(' · ')}` : '.'),
+    };
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
 }

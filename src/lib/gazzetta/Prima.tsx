@@ -19,7 +19,8 @@
 
 import { soloTesto } from './glifi';
 import {
-  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto, righeDelTesto,
+  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto, riquadroDellaFoto,
+  righeDelTesto,
   type DatiPrima, type Disposizione, type FotoPrima, type RigaClassifica,
   type RigaDiTesto,
 } from './prima';
@@ -183,10 +184,11 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
   // velatura che lo rende leggibile — il testo bianco su un'erba chiara non
   // si legge, e in un'immagine non c'è modo di accorgersene dopo
   if (disposizione === 'sfondo' && foto) {
+    const r = riquadroDellaFoto('sfondo');
     return (
       <div style={{
         display: 'flex', marginTop: 16, height: altezza, width: '100%', flexShrink: 0,
-        ...sfondoFoto(foto, LARGO_UTILE, altezza),
+        ...sfondoFoto(foto, r.larghezza, r.altezza),
       }}>
         <div style={{
           display: 'flex', flexDirection: 'column', justifyContent: 'flex-end',
@@ -213,8 +215,8 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
           <TestoApertura d={d} largo={470} />
         </div>
         <div style={{
-          display: 'flex', width: 290, height: '100%',
-          ...sfondoFoto(foto, 290, altezza),
+          display: 'flex', width: riquadroDellaFoto('affianco').larghezza, height: '100%',
+          ...sfondoFoto(foto, riquadroDellaFoto('affianco').larghezza, riquadroDellaFoto('affianco').altezza),
         }} />
       </div>
     );
@@ -233,8 +235,10 @@ function Apertura({ d, disposizione }: { d: DatiPrima; disposizione: Disposizion
     }}>
       {disposizione === 'riquadro' && foto ? (
         <div style={{
-          display: 'flex', position: 'absolute', top: 0, right: 0, width: 300, height: 300,
-          ...sfondoFoto(foto, 300, 300),
+          display: 'flex', position: 'absolute', top: 0, right: 0,
+          width: riquadroDellaFoto('riquadro').larghezza,
+          height: riquadroDellaFoto('riquadro').altezza,
+          ...sfondoFoto(foto, riquadroDellaFoto('riquadro').larghezza, riquadroDellaFoto('riquadro').altezza),
         }} />
       ) : null}
       <TestoApertura d={d} largo={disposizione === 'riquadro' ? 470 : 700} />

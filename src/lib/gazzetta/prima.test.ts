@@ -1,8 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
-  COLORI, coperturaFoto, dataEstesa, disposizioneFoto, faseDiCoppa, fuocoValido,
-  numeroEdizione, paroleDelCappello, righeDelTesto, type FotoPrima,
+  COLORI, ZOOM_MASSIMO, ZOOM_MINIMO, coperturaFoto, dataEstesa, disposizioneFoto,
+  faseDiCoppa, fuocoValido, numeroEdizione, paroleDelCappello, righeDelTesto,
+  riquadroDellaFoto, spazioDiManovra, zoomPerSpostarsi, zoomValido, type FotoPrima,
 } from './prima';
+
+/** dimensione e posizione in numeri, come le legge il CSS della pagina */
+function misure(c: { dimensione: string; posizione: string }) {
+  const [w, h] = c.dimensione.split(' ').map((v) => parseFloat(v));
+  const [x, y] = c.posizione.split(' ').map((v) => parseFloat(v));
+  return { w, h, x, y };
+}
 
 const foto = (larghezza: number, altezza: number): FotoPrima =>
   ({ src: 'x', larghezza, altezza, provenienza: '', fuoco: 35 });
@@ -236,5 +244,99 @@ describe('righeDelTesto', () => {
 
   it('una riga vuota resta, perché è uno stacco voluto', () => {
     expect(righeDelTesto('uno\n\ndue')).toHaveLength(3);
+  });
+});
+
+
+describe('lo zoom della foto', () => {
+  const riquadro = { larghezza: 782, altezza: 436 };
+  // la foto del video: più larga in proporzione del riquadro, quindi la
+  // copertura minima la fa combaciare in altezza — ed è per questo che il
+  // cursore verticale non spostava niente
+  const larga = { larghezza: 1600, altezza: 800 };
+
+  it('senza zoom la manopola verticale non ha scarto da percorrere (il difetto)', () => {
+    const cima = misure(coperturaFoto({ ...larga, fuoco: 0 }, riquadro));
+    const fondo = misure(coperturaFoto({ ...larga, fuoco: 100 }, riquadro));
+    expect(cima.y).toBe(fondo.y);
+    expect(spazioDiManovra(larga, riquadro).y).toBe(0);
+  });
+
+  it('con lo zoom la stessa foto si sposta anche in verticale', () => {
+    const cima = misure(coperturaFoto({ ...larga, fuoco: 0, zoom: 150 }, riquadro));
+    const fondo = misure(coperturaFoto({ ...larga, fuoco: 100, zoom: 150 }, riquadro));
+    expect(fondo.y).toBeLessThan(cima.y);
+    expect(cima.y).toBe(0);
+    expect(spazioDiManovra({ ...larga, zoom: 150 }, riquadro).y).toBeGreaterThan(100);
+  });
+
+  it('lo zoom ingrandisce senza storcere', () => {
+    const c = misure(coperturaFoto({ ...larga, zoom: 175 }, riquadro));
+    expect(c.w / c.h).toBeCloseTo(larga.larghezza / larga.altezza, 2);
+    const base = misure(coperturaFoto(larga, riquadro));
+    expect(c.w / base.w).toBeCloseTo(1.75, 2);
+  });
+
+  it('a qualunque zoom e con qualunque taglio la foto copre: niente spazi neri', () => {
+    const fotografie = [
+      { larghezza: 1600, altezza: 800 }, { larghezza: 1100, altezza: 733 },
+      { larghezza: 600, altezza: 900 }, { larghezza: 100, altezza: 100 },
+      { larghezza: 4903, altezza: 3163 },
+    ];
+    for (const f of fotografie) {
+      for (const zoom of [100, 105, 137, 200, 300]) {
+        for (const fuoco of [0, 33, 50, 100]) {
+          for (const fuocoX of [0, 50, 100]) {
+            const box = riquadroDellaFoto(disposizioneFoto({
+              src: '', provenienza: '', fuoco, ...f,
+            }));
+            const { w, h, x, y } = misure(coperturaFoto({ ...f, zoom, fuoco, fuocoX }, box));
+            expect(x).toBeLessThanOrEqual(0);
+            expect(y).toBeLessThanOrEqual(0);
+            expect(x + w).toBeGreaterThanOrEqual(box.larghezza);
+            expect(y + h).toBeGreaterThanOrEqual(box.altezza);
+          }
+        }
+      }
+    }
+  });
+
+  it('senza il campo zoom la pagina resta identica a prima', () => {
+    const senza = coperturaFoto({ ...larga, fuoco: 35 }, riquadro);
+    const cento = coperturaFoto({ ...larga, fuoco: 35, zoom: 100 }, riquadro);
+    expect(senza).toEqual(cento);
+  });
+
+  it('zoomValido tiene i limiti e non scende mai sotto la copertura', () => {
+    expect(zoomValido(undefined)).toBe(ZOOM_MINIMO);
+    expect(zoomValido(NaN)).toBe(ZOOM_MINIMO);
+    expect(zoomValido(10)).toBe(ZOOM_MINIMO);
+    expect(zoomValido(-400)).toBe(ZOOM_MINIMO);
+    expect(zoomValido(1000)).toBe(ZOOM_MASSIMO);
+    expect(zoomValido(137.4)).toBe(137);
+  });
+
+  it('zoomPerSpostarsi propone un ingrandimento che serve davvero', () => {
+    const z = zoomPerSpostarsi(larga, riquadro, 'y');
+    expect(z).toBeGreaterThan(100);
+    expect(spazioDiManovra({ ...larga, zoom: z }, riquadro).y).toBeGreaterThanOrEqual(60);
+  });
+
+  it('e non propone niente da fare quando lo spazio c\'è già', () => {
+    const alta = { larghezza: 800, altezza: 1600 };
+    expect(spazioDiManovra(alta, riquadro).y).toBeGreaterThan(60);
+    expect(zoomPerSpostarsi(alta, riquadro, 'y')).toBe(100);
+  });
+});
+
+describe('riquadroDellaFoto', () => {
+  it('sono le misure che la pagina disegna davvero', () => {
+    expect(riquadroDellaFoto('sfondo')).toEqual({ larghezza: 782, altezza: 436 });
+    expect(riquadroDellaFoto('affianco')).toEqual({ larghezza: 290, altezza: 436 });
+    expect(riquadroDellaFoto('riquadro')).toEqual({ larghezza: 300, altezza: 300 });
+  });
+
+  it('senza foto vale il riquadro grande, che non fa danni', () => {
+    expect(riquadroDellaFoto('senzaFoto')).toEqual({ larghezza: 782, altezza: 436 });
   });
 });

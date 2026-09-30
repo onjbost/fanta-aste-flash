@@ -87,6 +87,18 @@ export interface FotoPrima {
    * restano identiche.
    */
   fuocoX?: number;
+  /**
+   * Ingrandimento in percentuale **sopra** la copertura minima: 100 vuol
+   * dire «copri il riquadro e basta», 160 vuol dire un'immagine grande una
+   * volta e sei volte tanto. Assente vale 100, quindi le prime pagine già
+   * salvate restano identiche.
+   *
+   * Serve perché la copertura minima lascia gioco su un asse solo: se la
+   * foto è più larga del riquadro, in altezza combacia esatta e la manopola
+   * verticale non ha niente da spostare. Ingrandire crea lo scarto su tutti
+   * e due i lati.
+   */
+  zoom?: number;
 }
 
 export interface DatiPrima {
@@ -235,15 +247,85 @@ export function fuocoValido(v: number | undefined, riposo = 35): number {
  * esiste una posizione che lasci un bordo vuoto, e non serve tagliare
  * niente dopo. Il ritaglio è il calcolo.
  */
-export function coperturaFoto(
-  foto: { larghezza: number; altezza: number; fuoco?: number; fuocoX?: number },
+export const ZOOM_MINIMO = 100;
+export const ZOOM_MASSIMO = 300;
+
+/** Un ingrandimento entro i limiti. Assente o storto vale 100: copri e basta. */
+export function zoomValido(v: number | undefined): number {
+  if (!Number.isFinite(v as number)) return ZOOM_MINIMO;
+  return Math.min(ZOOM_MASSIMO, Math.max(ZOOM_MINIMO, Math.round(v as number)));
+}
+
+/**
+ * Il riquadro in cui finisce la foto, che dipende da dove la disposizione la
+ * manda. Sta qui e non dentro il componente perché lo deve sapere anche
+ * l'editor: le manopole servono a spostare la foto **dentro questo**, e
+ * senza le misure non può dire quanto spazio c'è.
+ */
+export function riquadroDellaFoto(d: Disposizione): { larghezza: number; altezza: number } {
+  if (d === 'affianco') return { larghezza: 290, altezza: 436 };
+  if (d === 'riquadro') return { larghezza: 300, altezza: 300 };
+  return { larghezza: 782, altezza: 436 };
+}
+
+/**
+ * Quanti pixel di foto avanzano fuori dal riquadro, per lato.
+ *
+ * È esattamente lo spazio che le manopole possono percorrere: zero vuol dire
+ * che su quell'asse la manopola non sposta niente, e l'editor deve dirlo
+ * invece di lasciar trascinare un cursore che non fa nulla.
+ */
+export function spazioDiManovra(
+  foto: { larghezza: number; altezza: number; zoom?: number },
   riquadro: { larghezza: number; altezza: number },
-): { dimensione: string; posizione: string } {
+): { x: number; y: number } {
+  const { larghezza: w, altezza: h } = fotoIngrandita(foto, riquadro);
+  return { x: Math.max(0, w - riquadro.larghezza), y: Math.max(0, h - riquadro.altezza) };
+}
+
+/**
+ * L'ingrandimento che serve perché su un asse ci siano almeno `pixel` di
+ * scarto da percorrere. Sempre ≥ 100, arrotondato per eccesso a multipli di
+ * 5 perché è un valore da mettere in una manopola, non una misura fine.
+ */
+export function zoomPerSpostarsi(
+  foto: { larghezza: number; altezza: number },
+  riquadro: { larghezza: number; altezza: number },
+  asse: 'x' | 'y',
+  pixel = 60,
+): number {
+  const base = fotoIngrandita({ ...foto, zoom: 100 }, riquadro);
+  const ora = asse === 'x' ? base.larghezza : base.altezza;
+  const serve = (asse === 'x' ? riquadro.larghezza : riquadro.altezza) + pixel;
+  const fattore = Math.max(1, serve / Math.max(1, ora));
+  return Math.min(ZOOM_MASSIMO, Math.ceil(fattore * 20) * 5);
+}
+
+function arrotondaSu(v: number): number {
+  return Math.ceil(v - 1e-6);
+}
+
+/** La foto una volta scalata per coprire il riquadro e ingrandita. */
+function fotoIngrandita(
+  foto: { larghezza: number; altezza: number; zoom?: number },
+  riquadro: { larghezza: number; altezza: number },
+): { larghezza: number; altezza: number } {
   const largo = Math.max(1, foto.larghezza);
   const alto = Math.max(1, foto.altezza);
-  const scala = Math.max(riquadro.larghezza / largo, riquadro.altezza / alto);
-  const w = Math.ceil(largo * scala);
-  const h = Math.ceil(alto * scala);
+  const copertura = Math.max(riquadro.larghezza / largo, riquadro.altezza / alto);
+  const scala = copertura * (zoomValido(foto.zoom) / 100);
+  // l'epsilon toglie la polvere della virgola mobile: 800 × (436/800) fa
+  // 436.00000000000006, e con un ceil secco diventerebbe 437 — un pixel di
+  // scarto inesistente che farebbe credere all'editor di avere spazio da
+  // percorrere dove invece la foto combacia esatta
+  return { larghezza: arrotondaSu(largo * scala), altezza: arrotondaSu(alto * scala) };
+}
+
+export function coperturaFoto(
+  foto: { larghezza: number; altezza: number; fuoco?: number; fuocoX?: number; zoom?: number },
+  riquadro: { larghezza: number; altezza: number },
+): { dimensione: string; posizione: string } {
+  const { larghezza: w, altezza: h } = fotoIngrandita(foto, riquadro);
   const x = Math.round((riquadro.larghezza - w) * (fuocoValido(foto.fuocoX, 50) / 100));
   const y = Math.round((riquadro.altezza - h) * (fuocoValido(foto.fuoco) / 100));
   return { dimensione: `${w}px ${h}px`, posizione: `${x}px ${y}px` };

@@ -3,7 +3,10 @@
 import { useActionState, useMemo, useState } from 'react';
 import { Prima, ALTEZZA, LARGHEZZA } from '@/lib/gazzetta/Prima';
 import { italianizza } from '@/lib/gazzetta/glifi';
-import { disposizioneFoto, type DatiPrima, type FotoPrima } from '@/lib/gazzetta/prima';
+import {
+  ZOOM_MASSIMO, ZOOM_MINIMO, disposizioneFoto, riquadroDellaFoto, spazioDiManovra,
+  zoomPerSpostarsi, zoomValido, type DatiPrima, type FotoPrima,
+} from '@/lib/gazzetta/prima';
 import { limitiTitolo } from '@/lib/gazzetta/testi';
 import { salvaPrima, segnaMandata, type GazState } from './actions';
 
@@ -124,6 +127,15 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
   // meno caratteri, e il contatore deve dire la verità su questa pagina
   const limiti = useMemo(() => limitiTitolo(disposizione), [disposizione]);
 
+  // il riquadro in cui la foto finisce davvero, e quanto avanza per lato:
+  // una manopola che non ha scarto da percorrere non sposta niente, e
+  // l'editor lo deve dire invece di far trascinare un cursore muto
+  const riquadro = useMemo(() => riquadroDellaFoto(disposizione), [disposizione]);
+  const spazio = useMemo(
+    () => (dati.foto ? spazioDiManovra(dati.foto, riquadro) : null),
+    [dati.foto, riquadro],
+  );
+
   // l'anteprima sta in 380 punti di larghezza: su un telefono è tutta la
   // pagina, e serve vedere l'insieme, non leggere il corpo del testo
   const scala = 380 / LARGHEZZA;
@@ -238,16 +250,33 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
         <h3>La foto</h3>
         {dati.foto && (
           <>
-            <p className="gaz-nota">Da: {dati.foto.provenienza}</p>
+            <p className="gaz-nota">
+              Da: {dati.foto.provenienza} · {dati.foto.larghezza}×{dati.foto.altezza}
+              {' '}nel riquadro {riquadro.larghezza}×{riquadro.altezza}
+            </p>
             <label className="gaz-campo">
               <span className="gaz-etichetta">
                 Taglio verticale <em>{dati.foto.fuoco}</em>
               </span>
               <input
                 type="range" min={0} max={100} value={dati.foto.fuoco}
+                disabled={!spazio || spazio.y < 2}
                 onChange={(e) => toccaFoto({ fuoco: Number(e.target.value) })}
               />
             </label>
+            {spazio && spazio.y < 2 && (
+              <p className="gaz-nota">
+                In verticale non c&apos;è niente da spostare: ingrandita quanto basta a coprire
+                il riquadro, questa foto è alta esattamente quanto lui. Ingrandiscila e il
+                cursore riprende a funzionare.
+                <button type="button" className="ghost" style={{ marginTop: 6 }}
+                  onClick={() => toccaFoto({
+                    zoom: zoomPerSpostarsi(dati.foto!, riquadro, 'y'),
+                  })}>
+                  Ingrandisci al {zoomPerSpostarsi(dati.foto, riquadro, 'y')}%
+                </button>
+              </p>
+            )}
             {/*
               * Orizzontale come verticale: si sposta di una frazione dello
               * scarto fra immagine e riquadro, mai di pixel. Agli estremi il
@@ -260,9 +289,30 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
               </span>
               <input
                 type="range" min={0} max={100} value={dati.foto.fuocoX ?? 50}
+                disabled={!spazio || spazio.x < 2}
                 onChange={(e) => toccaFoto({ fuocoX: Number(e.target.value) })}
               />
             </label>
+            {/*
+              * L'ingrandimento parte da 100 = «copri il riquadro e basta»:
+              * sotto non si può andare, quindi un bordo vuoto non può
+              * comparire per costruzione, qualunque cosa si faccia con le
+              * altre due manopole.
+              */}
+            <label className="gaz-campo">
+              <span className="gaz-etichetta">
+                Ingrandimento <em>{zoomValido(dati.foto.zoom)}%</em>
+              </span>
+              <input
+                type="range" min={ZOOM_MINIMO} max={ZOOM_MASSIMO} step={5}
+                value={zoomValido(dati.foto.zoom)}
+                onChange={(e) => toccaFoto({ zoom: Number(e.target.value) })}
+              />
+            </label>
+            <p className="gaz-nota">
+              Margine di spostamento: {spazio?.x ?? 0} px in orizzontale,
+              {' '}{spazio?.y ?? 0} px in verticale.
+            </p>
             <button type="button" className="ghost" onClick={() => tocca({ foto: null })}>
               Togli la foto
             </button>

@@ -3,16 +3,18 @@
 import { useActionState, useMemo, useState } from 'react';
 import { callPlayer, type ActionState } from './actions';
 import { ROLE_LABEL, type Role } from '@/lib/rules';
+import { chiamatoDa, daMostrare, esitoDellaScelta, type Chiamata } from '@/lib/chiamate';
 
 interface FreeAgent { id: string; name: string; role: Role; club: string; quotation: number }
 interface RosterOption { id: string; name: string; role: Role; price: number; refund: number; free: boolean; committed: boolean }
 
-export function CallForm({ sessionId, freeAgents, roster, credits, changes }: {
+export function CallForm({ sessionId, freeAgents, roster, credits, changes, chiamate = [] }: {
   sessionId: string;
   freeAgents: FreeAgent[];
   roster: RosterOption[];
   credits: number;
   changes: { role: Role; left: number }[];
+  chiamate?: Chiamata[];
 }) {
   const [state, action, pending] = useActionState<ActionState, FormData>(callPlayer, null);
   const [targetId, setTargetId] = useState('');
@@ -28,10 +30,15 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes }: {
   const budget = release ? credits + release.refund : null;
   const changesLeft = target ? changes.find((c) => c.role === target.role)?.left ?? 0 : null;
 
+  // il giocatore scelto può essere già in un lotto: in quel caso la richiesta
+  // non è una chiamata ma un'adesione, e va detto prima di confermare
+  const esito = esitoDellaScelta(target, chiamate);
+
   const filtered = useMemo(() => {
     const t = q.trim().toUpperCase();
-    return freeAgents.filter((p) => !t || p.name.includes(t) || p.club.toUpperCase().includes(t)).slice(0, 60);
-  }, [freeAgents, q]);
+    const scelta = daMostrare(freeAgents, chiamate);
+    return scelta.filter((p) => !t || p.name.includes(t) || p.club.toUpperCase().includes(t)).slice(0, 60);
+  }, [freeAgents, chiamate, q]);
 
   return (
     <div className="panel" style={{ padding: 18 }}>
@@ -48,13 +55,30 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes }: {
           <select id="targetId" name="targetId" value={targetId}
                   onChange={(e) => { setTargetId(e.target.value); setReleaseId(''); }} required>
             <option value="">— scegli —</option>
-            {filtered.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.role} · {p.name} ({p.club}) · qt {p.quotation}
-              </option>
-            ))}
+            {filtered.map((p) => {
+              const gia = chiamatoDa(p.id, chiamate);
+              return (
+                <option key={p.id} value={p.id}>
+                  {p.role} · {p.name} ({p.club}) · qt {p.quotation}
+                  {gia ? ` · già chiamato da ${gia}` : ''}
+                </option>
+              );
+            })}
           </select>
         </div>
+
+        {esito.tipo === 'adesione' && (
+          <div className="callout crit" role="status">
+            <b>{esito.avviso}</b>
+            <div style={{ marginTop: 6, fontSize: '.86rem' }}>
+              Non stai aprendo un lotto nuovo: entri in quello di {esito.squadra}, e al rilancio
+              ci sarete in due. Lo svincolando che scegli qui resta impegnato su questo lotto.
+            </div>
+          </div>
+        )}
+        {esito.tipo === 'dentro' && (
+          <div className="callout crit" role="status">{esito.avviso}</div>
+        )}
 
         <div className="field">
           <label htmlFor="releaseId">
@@ -84,8 +108,11 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes }: {
           </div>
         )}
 
-        <button type="submit" className="primary" disabled={pending || !targetId || !releaseId}>
-          {pending ? 'Registro…' : 'Chiama all\'asta'}
+        <button type="submit" className="primary"
+                disabled={pending || !targetId || !releaseId || esito.tipo === 'dentro'}>
+          {pending
+            ? 'Registro…'
+            : esito.tipo === 'adesione' ? 'Conferma: aderisci all\'asta' : 'Chiama all\'asta'}
         </button>
 
         {state && (

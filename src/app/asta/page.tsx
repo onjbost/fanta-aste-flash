@@ -11,6 +11,7 @@ import { CallForm } from './CallForm';
 import { JoinForm } from './JoinForm';
 import { Countdown } from './Countdown';
 import { MyParticipation, AdminCancel } from './MyParticipation';
+import { chiamateDaiLotti } from '@/lib/chiamate';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,10 @@ export default async function AstaPage() {
   const callable = (freeAgents ?? []).filter((p) =>
     (p.locked_until_number == null || p.locked_until_number <= s.number)
     && !(s.excludesNewSignings && p.signing_window === 'winter'));
+
+  // i lotti già aperti, visti dalla mia squadra: servono al form di chiamata
+  // per avvisare che quel giocatore l'ha già chiamato un altro
+  const chiamate = chiamateDaiLotti(lots, [...mine.keys()]);
 
   const rosterOptions = ctx.roster.map((p) => ({
     id: p.playerId, name: p.name, role: p.role, price: p.price,
@@ -247,6 +252,7 @@ export default async function AstaPage() {
             roster={rosterOptions}
             credits={ctx.credits}
             changes={ctx.changes}
+            chiamate={chiamate}
           />
         </>
       ) : (

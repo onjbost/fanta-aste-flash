@@ -4,7 +4,7 @@ import {
   licenzeUsate, mercatoDiRipiego, numeriDelMercato, quandoApreLaSala, rivali, ruoloPerEsteso,
   titoloTrattativa, trattativaDiApertura, verificaMercato,
   type RichiestaMercato, type TestiMercato, type Trattativa,
-  paroleCheIniziano,
+  paroleCheIniziano, spuntiDelMercato,
 } from './mercato';
 
 /*
@@ -425,5 +425,128 @@ describe('cosa manda al ripiego, e cosa no', () => {
   it('l\'unica cosa grave è non avere un testo', () => {
     expect(verificaMercato(testi({ titolo: '', cappello: '' }), richiesta()).gravi)
       .toEqual(['manca il titolo', 'manca il cappello']);
+  });
+});
+
+
+// -------------------------------------------------------------- spunti
+
+describe('spuntiDelMercato', () => {
+  const chiama = (lottoId: string, giocatore: string, squadra: string, ruolo: 'P'|'D'|'C'|'A' = 'C'): Trattativa =>
+    ({ lottoId, giocatore, ruolo, club: 'Lecce', inCorsa: [{ squadra, chiamante: true, ruoloInUscita: null }] });
+
+  it('nota il club che ha fatto la spesa grossa — è il caso di Joga Benito', () => {
+    const r = richiesta({
+      trattative: [
+        chiama('a', 'HAINAUT', 'FC Joga Benito', 'D'),
+        chiama('b', 'COULIBALY L.', 'FC Joga Benito'),
+        chiama('c', 'CAMBIAGHI', 'FC Joga Benito', 'A'),
+        chiama('d', 'MENDY P.', 'FC Joga Benito'),
+        chiama('e', 'OSMAJIC', 'FC NTONIA', 'A'),
+      ],
+      apertura: 'a', fermi: [],
+    });
+    const frasi = spuntiDelMercato(r).map((x) => x.frase);
+    expect(frasi.join(' ')).toContain('FC Joga Benito ha bussato a 4 porte su 5');
+  });
+
+  it('nota chi cerca sempre lo stesso ruolo', () => {
+    const r = richiesta({
+      trattative: [chiama('a', 'UNO', 'Qarabaggio'), chiama('b', 'DUE', 'Qarabaggio')],
+      apertura: 'a', fermi: [],
+    });
+    expect(spuntiDelMercato(r).map((x) => x.frase).join(' ')).toContain('solo su centrocampisti');
+  });
+
+  it('nota due club che si ritrovano contro più volte', () => {
+    const duello = (lottoId: string, giocatore: string): Trattativa => ({
+      lottoId, giocatore, ruolo: 'C', club: 'Lecce',
+      inCorsa: [
+        { squadra: 'FC NTONIA', chiamante: true, ruoloInUscita: null },
+        { squadra: 'Montester United', chiamante: false, ruoloInUscita: null },
+      ],
+    });
+    const r = richiesta({ trattative: [duello('a', 'UNO'), duello('b', 'DUE')], apertura: 'a', fermi: [] });
+    expect(spuntiDelMercato(r).map((x) => x.frase).join(' '))
+      .toContain('FC NTONIA e Montester United si sono trovate contro su 2 nomi');
+  });
+
+  it('nota chi si limita a inserirsi sulle chiamate altrui', () => {
+    expect(spuntiDelMercato(richiesta()).map((x) => x.frase).join(' '))
+      .toContain('Montester United non ha aperto nessuna trattativa');
+  });
+
+  it('nota il silenzio, che è una notizia quanto una chiamata', () => {
+    expect(spuntiDelMercato(richiesta()).map((x) => x.frase).join(' '))
+      .toContain('3 club sono rimasti a guardare');
+  });
+
+  it('su una finestra piccola e tranquilla non forza la battuta', () => {
+    const r = richiesta({
+      trattative: [chiama('a', 'UNO', 'FC NTONIA', 'D')], apertura: 'a', fermi: ['Qarabaggio'],
+    });
+    expect(spuntiDelMercato(r)).toEqual([]);
+  });
+
+  it('senza trattative non esplode', () => {
+    expect(spuntiDelMercato(richiesta({ trattative: [], apertura: '' }))).toEqual([]);
+  });
+
+  it('mette per primo quello che pesa di più, non quello calcolato per primo', () => {
+    // «stesso ruolo» (peso 3) si calcola prima dell'incrocio (peso 5): senza
+    // ordinamento finirebbe in cima, e il modello prenderebbe il taglio
+    // meno interessante
+    const duello = (lottoId: string, giocatore: string): Trattativa => ({
+      lottoId, giocatore, ruolo: 'C', club: 'Lecce',
+      inCorsa: [
+        { squadra: 'Qarabaggio', chiamante: true, ruoloInUscita: null },
+        { squadra: 'Montester United', chiamante: false, ruoloInUscita: null },
+      ],
+    });
+    const r = richiesta({ trattative: [duello('a', 'UNO'), duello('b', 'DUE')], apertura: 'a', fermi: [] });
+    const elenco = spuntiDelMercato(r);
+    expect(elenco[0].peso).toBe(5);
+    expect(elenco[0].frase).toContain('si sono trovate contro');
+    expect(elenco.map((x) => x.peso)).toEqual([...elenco.map((x) => x.peso)].sort((a, b) => b - a));
+    expect(spuntiDelMercato(r)).toEqual(elenco);
+  });
+
+  it('OGNI cifra di OGNI spunto è fra quelle lecite', () => {
+    // è l'invariante che tiene in piedi tutto: se uno spunto contenesse un
+    // numero non ammesso, la verifica boccerebbe il modello per aver usato
+    // un numero che gli abbiamo dato noi
+    // fra i casi c'è quello della spesa grossa: «4 porte su 5» contiene un 4
+    // che nessun'altra fonte rende lecito, ed è proprio quello che la riga
+    // degli spunti dentro numeriDelMercato deve ammettere
+    const spesaGrossa = richiesta({
+      trattative: [
+        chiama('a', 'HAINAUT', 'FC Joga Benito', 'D'),
+        chiama('b', 'COULIBALY L.', 'FC Joga Benito'),
+        chiama('c', 'CAMBIAGHI', 'FC Joga Benito', 'A'),
+        chiama('d', 'MENDY P.', 'FC Joga Benito'),
+        chiama('e', 'OSMAJIC', 'FC NTONIA', 'A'),
+      ],
+      apertura: 'a', fermi: [],
+    });
+    for (const r of [richiesta(), richiesta({ fermi: [] }), spesaGrossa,
+      richiesta({ trattative: [osmajic], apertura: 'a-osmajic' })]) {
+      const leciti = numeriDelMercato(r);
+      for (const s of spuntiDelMercato(r)) {
+        for (const n of s.numeri) expect({ frase: s.frase, n, lecito: leciti.has(n) }).toEqual({ frase: s.frase, n, lecito: true });
+        // e anche le cifre scritte nella frase, che è quello che legge il modello
+        for (const x of s.frase.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+          const v = Number(x.replace(',', '.'));
+          expect({ frase: s.frase, v, lecito: leciti.has(v) }).toEqual({ frase: s.frase, v, lecito: true });
+        }
+      }
+    }
+  });
+
+  it('gli spunti finiscono nel prompt, col loro peso', () => {
+    const p = costruisciPromptMercato(richiesta());
+    expect(p).toContain('## Gli spunti');
+    expect(p).toContain('[peso ');
+    expect(p).toContain('Sbizzarrisciti, ma sui fatti');
+    expect(p).toContain('niente confronti con le');
   });
 });

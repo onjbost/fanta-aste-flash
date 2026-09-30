@@ -184,6 +184,134 @@ export function paganteDi(s: ScambioFatto): string | null {
 }
 
 // =====================================================================
+// Gli spunti: i fatti che valgono una battuta
+// =====================================================================
+
+/** Un fatto vero, già contato, che merita un commento. Vedi SpuntoMercato. */
+export interface SpuntoChiusura {
+  peso: number;
+  frase: string;
+  /** le cifre che lo spunto autorizza a scrivere */
+  numeri: number[];
+}
+
+function quanti(n: number, singolare: string, plurale: string): string {
+  return `${n} ${n === 1 ? singolare : plurale}`;
+}
+
+/**
+ * Cosa c'è da notare a sala chiusa, contato sui fatti.
+ *
+ * Qui gli scambi contano quanto le aste: un club che ha chiamato cinque
+ * nomi e fatto due scambi in due giornate è la notizia della pagina, e
+ * senza qualcuno che gliela metta davanti il modello si limiterebbe a
+ * elencare chi ha preso chi.
+ */
+export function spuntiDellaChiusura(r: RichiestaChiusura): SpuntoChiusura[] {
+  const spunti: SpuntoChiusura[] = [];
+  if (!r.aste.length) return spunti;
+
+  const per = new Map<string, AstaConclusa[]>();
+  for (const a of r.aste) per.set(a.vincitore, [...(per.get(a.vincitore) ?? []), a]);
+
+  const scambiDi = new Map<string, number>();
+  for (const s of r.scambi) {
+    for (const nome of [s.squadraA, s.squadraB]) {
+      scambiDi.set(nome, (scambiDi.get(nome) ?? 0) + 1);
+    }
+  }
+
+  // --- chi ha fatto la spesa grossa, fra asta e scambi
+  for (const [squadra, suoi] of per) {
+    const scambi = scambiDi.get(squadra) ?? 0;
+    const mosse = suoi.length + scambi;
+    if (mosse >= 4) {
+      spunti.push({
+        peso: 5,
+        frase: `${squadra} ha chiuso la finestra con ${quanti(suoi.length, 'acquisto', 'acquisti')} all'asta e ${quanti(scambi, 'scambio', 'scambi')}: ${mosse} movimenti in tutto.`,
+        numeri: [suoi.length, scambi, mosse],
+      });
+    } else if (suoi.length >= 3) {
+      spunti.push({
+        peso: 4,
+        frase: `${squadra} si è portato a casa ${quanti(suoi.length, 'giocatore', 'giocatori')} su ${r.aste.length} assegnati.`,
+        numeri: [suoi.length, r.aste.length],
+      });
+    }
+  }
+
+  // --- chi ha speso di più
+  const spesa = [...per.entries()]
+    .map(([squadra, suoi]) => ({ squadra, totale: suoi.reduce((n, a) => n + a.prezzo, 0) }))
+    .sort((a, b) => b.totale - a.totale);
+  if (spesa.length >= 2 && spesa[0].totale >= spesa[1].totale * 2) {
+    spunti.push({
+      peso: 4,
+      frase: `${spesa[0].squadra} ha speso ${spesa[0].totale}, più del doppio di chiunque altro.`,
+      numeri: [spesa[0].totale],
+    });
+  }
+
+  // --- il colpo grosso, e quanto è stato pagato sopra il suo valore
+  const caro = r.aste.slice().sort((a, b) => b.prezzo - a.prezzo)[0];
+  if (caro && caro.prezzo >= caro.quotazione * 2 && caro.quotazione > 0) {
+    spunti.push({
+      peso: 5,
+      frase: `${caro.giocatore} è costato ${caro.prezzo} a fronte di una valutazione di ${caro.quotazione}: se l'è preso ${caro.vincitore}.`,
+      numeri: [caro.prezzo, caro.quotazione],
+    });
+  }
+
+  // --- chi ha perso tutti i duelli in cui è entrato
+  const battute = new Map<string, number>();
+  const vinti = new Map<string, number>();
+  for (const a of contese(r.aste)) {
+    vinti.set(a.vincitore, (vinti.get(a.vincitore) ?? 0) + 1);
+    for (const b of a.battute) battute.set(b, (battute.get(b) ?? 0) + 1);
+  }
+  for (const [squadra, perse] of battute) {
+    if (perse >= 2 && !vinti.has(squadra)) {
+      spunti.push({
+        peso: 5,
+        frase: `${squadra} è entrato in ${quanti(perse, 'duello', 'duelli')} e li ha persi tutti.`,
+        numeri: [perse],
+      });
+    }
+  }
+  for (const [squadra, presi] of vinti) {
+    if (presi >= 2 && !battute.has(squadra)) {
+      spunti.push({
+        peso: 4,
+        frase: `${squadra} ha vinto ${quanti(presi, 'duello', 'duelli')} su ${presi}: non ha mollato un colpo.`,
+        numeri: [presi],
+      });
+    }
+  }
+
+  // --- quanti sono passati al prezzo più basso
+  const minimo = Math.min(...r.aste.map((a) => a.prezzo));
+  const allaBase = r.aste.filter((a) => a.prezzo === minimo);
+  if (allaBase.length >= 3) {
+    spunti.push({
+      peso: 3,
+      frase: `${quanti(allaBase.length, 'giocatore è passato', 'giocatori sono passati')} a ${minimo}, senza che nessuno alzasse la mano.`,
+      numeri: [allaBase.length, minimo],
+    });
+  }
+
+  // --- chi è uscito a mani vuote
+  if (r.fermi.length >= 2) {
+    spunti.push({
+      peso: r.fermi.length >= 4 ? 4 : 2,
+      frase: `${quanti(r.fermi.length, 'club è uscito', 'club sono usciti')} dalla sala senza niente in mano.`,
+      numeri: [r.fermi.length],
+    });
+  }
+
+  return spunti.sort((a, b) => (b.peso - a.peso) || a.frase.localeCompare(b.frase));
+}
+
+// =====================================================================
 // Il prompt
 // =====================================================================
 
@@ -223,6 +351,7 @@ export function costruisciPromptChiusura(r: RichiestaChiusura): string {
   const altre = r.aste.filter((a) => a.lottoId !== ap?.lottoId);
   const duelli = contese(altre);
   const gruppi = perSquadra(altre);
+  const spunti = spuntiDellaChiusura(r);
   const cap = paroleDelCappello(r.disposizione);
 
   return `Sei il giornalista di mercato della "Gazzetta della Mansarda". L'asta ${r.sessione} si è giocata ${r.quando} e la sala ha chiuso: scrivi la prima pagina del mercato **concluso**.
@@ -258,6 +387,21 @@ ${gruppi.map((g) => `### ${g.squadra}\nsi è preso: ${elencoAcquisti(g.aste)}`).
 
 ## I club usciti a mani vuote — tutti in UN paragrafo solo
 ${r.fermi.length ? r.fermi.join(', ') : 'nessuno: hanno preso tutti qualcuno'}
+
+## Sbizzarrisciti, ma sui fatti
+Qui sotto trovi degli **spunti**: fatti già contati, veri, che valgono un
+commento. Usane almeno uno o due per dare un taglio alla pagina invece di
+limitarti a elencare chi ha preso chi. Su uno spunto puoi ironizzare,
+esagerare il tono, tirarci fuori un'immagine — «sembra di stare al mercato
+con gli sconti», «ha fatto la spesa della settimana» — purché il fatto
+sotto resti quello che ti ho dato.
+
+Quello che **non** puoi fare è inventarne di nuovi: niente confronti con le
+sessioni passate, niente classifiche, niente cifre che non trovi qui
+dentro, niente motivazioni attribuite a qualcuno che nessuno ti ha detto.
+
+## Gli spunti — i fatti che valgono una battuta
+${spunti.map((x) => `- [peso ${x.peso}] ${x.frase}`).join('\n') || '- nessuno: racconta i fatti senza forzare la battuta'}
 
 ## Gli scambi fra allenatori in questa finestra
 ${r.scambi.map(rigaScambio).join('\n\n') || 'nessuno'}
@@ -330,6 +474,8 @@ export function numeriDellaChiusura(r: RichiestaChiusura): Set<number> {
     r.sessione, r.aste.length, r.scambi.length,
     contese(r.aste).length, senzaContendenti(r.aste).length, r.fermi.length,
   ]);
+  // le cifre degli spunti: gliele abbiamo date noi
+  for (const s of spuntiDellaChiusura(r)) for (const v of s.numeri) n.add(v);
   for (const a of r.aste) {
     n.add(a.prezzo); n.add(a.quotazione); n.add(a.battute.length + 1);
   }

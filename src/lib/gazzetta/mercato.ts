@@ -191,6 +191,12 @@ const NOME_RUOLO: Record<'P' | 'D' | 'C' | 'A', string> = {
   P: 'portiere', D: 'difensore', C: 'centrocampista', A: 'attaccante',
 };
 
+// il plurale scritto, non il singolare con una «i» attaccata: in italiano
+// non funziona per nessuno dei quattro ruoli
+const RUOLO_PLURALE: Record<'P' | 'D' | 'C' | 'A', string> = {
+  P: 'portieri', D: 'difensori', C: 'centrocampisti', A: 'attaccanti',
+};
+
 export function ruoloPerEsteso(r: 'P' | 'D' | 'C' | 'A' | null): string {
   return r ? NOME_RUOLO[r] : 'giocatore';
 }
@@ -232,6 +238,154 @@ export function rivali(t: Trattativa): ClubInCorsa[] {
 }
 
 // =====================================================================
+// Gli spunti: i fatti che valgono una battuta
+// =====================================================================
+
+/**
+ * Uno spunto: un fatto vero, già contato, che merita un commento.
+ *
+ * Serve a far scrivere una pagina diversa ogni volta senza inventare
+ * niente. Un modello che riceve otto trattative in fila scrive otto volte
+ * «il club avrebbe avviato i contatti», perché non ha nessun motivo per
+ * dire altro: non è pigrizia, è che il materiale non contiene un taglio.
+ * Gli spunti il taglio glielo danno — «cinque nomi su otto li ha chiamati
+ * lo stesso club» — e restano fatti perché li conta il codice, non lui.
+ *
+ * `numeri` non è decorazione: sono le cifre che lo spunto autorizza a
+ * scrivere, e finiscono fra quelle lecite. Senza, la verifica boccerebbe
+ * come inventato proprio il numero che gli abbiamo dato noi.
+ */
+export interface SpuntoMercato {
+  /** 1-5: quanto vale come notizia */
+  peso: number;
+  frase: string;
+  numeri: number[];
+}
+
+function quanti(n: number, singolare: string, plurale: string): string {
+  return `${n} ${n === 1 ? singolare : plurale}`;
+}
+
+/**
+ * Cosa c'è da notare in questa finestra, contato sui fatti.
+ *
+ * Tutti gli spunti sono derivati dalle trattative e dai club fermi: niente
+ * qui dentro viene da fuori. L'ordine è per peso e poi alfabetico sulla
+ * frase, così la stessa sessione dà sempre gli stessi spunti nello stesso
+ * ordine — la varietà viene da quale il modello sceglie, non dal caso.
+ */
+export function spuntiDelMercato(r: RichiestaMercato): SpuntoMercato[] {
+  const spunti: SpuntoMercato[] = [];
+  const totale = r.trattative.length;
+  if (!totale) return spunti;
+
+  // quante volte ogni club si è mosso, e come
+  const chiamate = new Map<string, Trattativa[]>();
+  const inserimenti = new Map<string, Trattativa[]>();
+  for (const t of r.trattative) {
+    for (const c of t.inCorsa) {
+      const dove = c.chiamante ? chiamate : inserimenti;
+      dove.set(c.squadra, [...(dove.get(c.squadra) ?? []), t]);
+    }
+  }
+
+  // --- chi ha riempito il carrello
+  for (const [squadra, suoi] of chiamate) {
+    // tre chiamate sono una spesa grossa di per sé; due lo sono solo se la
+    // finestra è larga — «ha bussato a 1 porta su 1» non è una notizia
+    if (suoi.length >= 3 || (suoi.length >= 2 && totale >= 4 && suoi.length * 2 >= totale)) {
+      spunti.push({
+        peso: suoi.length >= 4 ? 5 : 4,
+        frase: `${squadra} ha bussato a ${quanti(suoi.length, 'porta', 'porte')} su ${totale}: è la sessione di uno che ha fatto la spesa grossa.`,
+        numeri: [suoi.length, totale],
+      });
+    }
+  }
+
+  // --- chi cerca sempre lo stesso ruolo
+  for (const [squadra, suoi] of chiamate) {
+    const ruoli = new Set(suoi.map((t) => t.ruolo));
+    if (suoi.length >= 2 && ruoli.size === 1) {
+      spunti.push({
+        peso: 3,
+        frase: `${squadra} si è mosso solo su ${RUOLO_PLURALE[suoi[0].ruolo]}: ${quanti(suoi.length, 'nome', 'nomi')} su ${suoi.length}, nessun altro reparto.`,
+        numeri: [suoi.length],
+      });
+    }
+  }
+
+  // --- chi non chiama e si limita a inserirsi
+  for (const [squadra, suoi] of inserimenti) {
+    if (!chiamate.has(squadra) && suoi.length >= 1) {
+      spunti.push({
+        peso: 3,
+        frase: `${squadra} non ha aperto nessuna trattativa: si è inserito su ${quanti(suoi.length, 'nome', 'nomi')} che aveva trovato qualcun altro.`,
+        numeri: [suoi.length],
+      });
+    }
+  }
+
+  // --- due club che si ritrovano contro
+  const duelli = contese(r.trattative);
+  const incroci = new Map<string, { squadre: [string, string]; volte: number }>();
+  for (const t of duelli) {
+    const nomi = t.inCorsa.map((c) => c.squadra).sort();
+    for (let i = 0; i < nomi.length; i++) {
+      for (let j = i + 1; j < nomi.length; j++) {
+        const chiave = `${nomi[i]}|${nomi[j]}`;
+        const gia = incroci.get(chiave);
+        incroci.set(chiave, { squadre: [nomi[i], nomi[j]], volte: (gia?.volte ?? 0) + 1 });
+      }
+    }
+  }
+  for (const { squadre, volte } of incroci.values()) {
+    if (volte >= 2) {
+      spunti.push({
+        peso: 5,
+        frase: `${squadre[0]} e ${squadre[1]} si sono trovate contro su ${quanti(volte, 'nome', 'nomi')}: non è un caso, è una questione personale.`,
+        numeri: [volte],
+      });
+    }
+  }
+
+  // --- il nome che ha scatenato più gente
+  const piuConteso = duelli.slice().sort((a, b) => b.inCorsa.length - a.inCorsa.length)[0];
+  if (piuConteso && piuConteso.inCorsa.length >= 3) {
+    spunti.push({
+      peso: 4,
+      frase: `Su ${piuConteso.giocatore} si sono mossi in ${piuConteso.inCorsa.length}: è il nome che ha fatto alzare più teste.`,
+      numeri: [piuConteso.inCorsa.length],
+    });
+  }
+
+  // --- il silenzio, che è una notizia
+  if (r.fermi.length >= 2) {
+    spunti.push({
+      peso: r.fermi.length >= 4 ? 4 : 2,
+      frase: `${quanti(r.fermi.length, 'club è rimasto', 'club sono rimasti')} a guardare senza muovere un dito.`,
+      numeri: [r.fermi.length],
+    });
+  }
+
+  // --- una finestra tutta in esclusiva, o tutta duelli
+  if (totale >= 3 && duelli.length === 0) {
+    spunti.push({
+      peso: 3,
+      frase: `Nessuno si è pestato i piedi: ${quanti(totale, 'trattativa', 'trattative')}, e ognuno per conto suo.`,
+      numeri: [totale],
+    });
+  } else if (totale >= 3 && duelli.length === totale) {
+    spunti.push({
+      peso: 4,
+      frase: `Non c'è un nome libero: su tutte e ${totale} le trattative c'è più di un club.`,
+      numeri: [totale],
+    });
+  }
+
+  return spunti.sort((a, b) => (b.peso - a.peso) || a.frase.localeCompare(b.frase));
+}
+
+// =====================================================================
 // Il prompt
 // =====================================================================
 
@@ -267,6 +421,7 @@ export function costruisciPromptMercato(r: RichiestaMercato): string {
   const altre = r.trattative.filter((t) => t.lottoId !== ap?.lottoId);
   const duelli = contese(altre);
   const gruppi = perSquadra(altre);
+  const spunti = spuntiDelMercato(r);
   const cap = paroleDelCappello(r.disposizione);
 
   return `Sei il giornalista di mercato della "Gazzetta della Mansarda". Le chiamate per la sessione ${r.sessione} d'asta sono chiuse e l'asta non si è ancora giocata: scrivi la prima pagina delle indiscrezioni.
@@ -289,6 +444,19 @@ L'asta si gioca ${r.quandoSiGioca}: niente è ancora successo. Usa il condiziona
 Puoi aggiungere dettagli di colore che non ti ho dato — una cena, una telefonata, l'umore di una dirigenza — **ma solo dentro una di queste formule**, che dicono al lettore che è una voce: ${FORMULE_DI_COLORE.map((f) => `«${f}»`).join(', ')}.
 Al massimo ${MASSIME_LICENZE} in tutta la pagina. Tutto il resto dev'essere vero.
 
+## Sbizzarrisciti, ma sui fatti
+Qui sotto trovi degli **spunti**: fatti già contati, veri, che valgono un
+commento. Usane almeno uno o due per dare un taglio alla pagina invece di
+limitarti a riferire chi ha chiamato chi. Su uno spunto puoi ironizzare,
+esagerare il tono, tirarci fuori un'immagine — «sembra di stare al mercato
+con gli sconti», «ha fatto la spesa della settimana» — purché il fatto
+sotto resti quello che ti ho dato.
+
+Quello che **non** puoi fare è inventarne di nuovi: niente confronti con le
+sessioni passate, niente classifiche, niente cifre che non trovi qui
+dentro, niente motivazioni attribuite a qualcuno («vuole tornare in alto»)
+che nessuno ti ha detto.
+
 ## Regole assolute
 1. Non scrivere MAI un numero che non ti ho dato qui sotto.
 2. **Non nominare nessun giocatore che non sia uno di quelli in trattativa qui sotto.** Nessun altro nome, per nessun motivo: né chi potrebbe uscire, né chi gioca in quelle squadre.
@@ -310,6 +478,9 @@ ${gruppi.map((g) => `### ${g.squadra}\nvuole: ${elencoGiocatori(g.trattative)}`)
 
 ## I club che non si sono mossi — tutti in UN paragrafo solo
 ${r.fermi.length ? r.fermi.join(', ') : 'nessuno: si sono mossi tutti'}
+
+## Gli spunti — i fatti che valgono una battuta
+${spunti.map((x) => `- [peso ${x.peso}] ${x.frase}`).join('\n') || '- nessuno: racconta i fatti senza forzare la battuta'}
 
 ## Cosa devi restituire
 Solo JSON, senza testo intorno e senza blocchi di codice:
@@ -374,6 +545,8 @@ export interface EsitoMercato {
 export function numeriDelMercato(r: RichiestaMercato): Set<number> {
   const n = new Set<number>([r.sessione, r.trattative.length, r.fermi.length]);
   for (const t of r.trattative) n.add(t.inCorsa.length);
+  // le cifre degli spunti: gliele abbiamo date noi, non le ha inventate
+  for (const s of spuntiDelMercato(r)) for (const v of s.numeri) n.add(v);
   for (const x of r.quandoSiGioca.match(/\d+(?:[.,]\d+)?/g) ?? []) {
     const v = Number(x.replace(',', '.'));
     if (Number.isFinite(v)) n.add(v);

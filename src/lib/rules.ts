@@ -15,6 +15,20 @@ export const ROLE_LABEL: Record<Role, string> = {
   A: 'Attaccante',
 };
 
+/**
+ * Il plurale scritto per esteso.
+ *
+ * Attaccare una «i» al singolare — come facevano i due form dell'asta —
+ * dà «portierei» e «difensorei»: in italiano non funziona per nessuno dei
+ * quattro ruoli.
+ */
+export const ROLE_PLURAL: Record<Role, string> = {
+  P: 'portieri',
+  D: 'difensori',
+  C: 'centrocampisti',
+  A: 'attaccanti',
+};
+
 /** Stato del giocatore in Serie A. */
 export type PlayerStatus = 'active' | 'injured_long' | 'banned' | 'out_of_serie_a';
 

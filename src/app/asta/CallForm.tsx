@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { callPlayer, type ActionState } from './actions';
-import { ROLE_LABEL, type Role } from '@/lib/rules';
+import { ROLE_LABEL, ROLE_PLURAL, type Role } from '@/lib/rules';
 import { chiamatoDa, daMostrare, esitoDellaScelta, type Chiamata } from '@/lib/chiamate';
 
 interface FreeAgent { id: string; name: string; role: Role; club: string; quotation: number }
@@ -95,7 +95,7 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes, chia
           </select>
           {target && eligible.length === 0 && (
             <p style={{ fontSize: '.86rem', color: 'var(--crit)', marginTop: 6 }}>
-              Non hai {ROLE_LABEL[target.role].toLowerCase()}i disponibili da mettere sul piatto:
+              Non hai {ROLE_PLURAL[target.role]} disponibili da mettere sul piatto:
               gli altri sono già impegnati in un altro lotto di questa asta.
             </p>
           )}

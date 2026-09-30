@@ -2,7 +2,7 @@
 
 import { useActionState, useRef, useState } from 'react';
 import { joinLot, type ActionState } from './actions';
-import { ROLE_LABEL, type Role } from '@/lib/rules';
+import { ROLE_LABEL, ROLE_PLURAL, type Role } from '@/lib/rules';
 
 interface RosterOption { id: string; name: string; role: Role; price: number; refund: number; free: boolean }
 
@@ -41,7 +41,7 @@ export function JoinForm({ lotId, role, roster, credits }: {
               </select>
               {roster.length === 0 && (
                 <p style={{ fontSize: '.86rem', color: 'var(--crit)', marginTop: 6 }}>
-                  Non hai {ROLE_LABEL[role].toLowerCase()}i liberi da mettere sul piatto.
+                  Non hai {ROLE_PLURAL[role]} liberi da mettere sul piatto.
                 </p>
               )}
             </div>

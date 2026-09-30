@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   astaDiApertura, chiusuraDiRipiego, contese, costruisciPromptChiusura, daJsonChiusura,
   montaChiusura, numeriDellaChiusura, paganteDi, senzaContendenti, titoloAsta,
-  verificaChiusura,
+  verificaChiusura, spuntiDellaChiusura,
   type AstaConclusa, type RichiestaChiusura, type ScambioFatto, type TestiChiusura,
 } from './mercatoChiuso';
 
@@ -348,5 +348,106 @@ describe('cosa manda al ripiego, e cosa no', () => {
   it('solo il vuoto è grave', () => {
     expect(verificaChiusura({ ...buono(), titolo: '', cappello: '' }, r).gravi)
       .toEqual(['manca il titolo', 'manca il cappello']);
+  });
+});
+
+
+// -------------------------------------------------------------- spunti
+
+describe('spuntiDellaChiusura', () => {
+  it('conta insieme aste e scambi: è il caso di Joga Benito', () => {
+    const r = richiesta({
+      aste: [
+        asta({ lottoId: 'a', giocatore: 'HAINAUT', vincitore: 'FC Joga Benito', prezzo: 1 }),
+        asta({ lottoId: 'b', giocatore: 'COULIBALY L.', vincitore: 'FC Joga Benito', prezzo: 3 }),
+        asta({ lottoId: 'c', giocatore: 'CAMBIAGHI', vincitore: 'FC Joga Benito', prezzo: 1 }),
+      ],
+      scambi: [
+        scambio({ id: 's1', squadraA: 'FC Joga Benito' }),
+        scambio({ id: 's2', squadraA: 'FC Joga Benito' }),
+      ],
+    });
+    expect(spuntiDellaChiusura(r).map((x) => x.frase).join(' '))
+      .toContain('FC Joga Benito ha chiuso la finestra con 3 acquisti all\'asta e 2 scambi: 5 movimenti');
+  });
+
+  it('nota chi ha pagato molto più del valore', () => {
+    const r = richiesta({
+      aste: [asta({ lottoId: 'a', giocatore: 'ZHEGROVA', quotazione: 19, prezzo: 41, battute: ['X'] })],
+    });
+    expect(spuntiDellaChiusura(r).map((x) => x.frase).join(' '))
+      .toContain('ZHEGROVA è costato 41 a fronte di una valutazione di 19');
+  });
+
+  it('nota chi è entrato nei duelli e li ha persi tutti', () => {
+    const r = richiesta({
+      aste: [
+        asta({ lottoId: 'a', vincitore: 'FC NTONIA', battute: ['Qarabaggio'] }),
+        asta({ lottoId: 'b', vincitore: 'FC NTONIA', battute: ['Qarabaggio'] }),
+      ],
+    });
+    expect(spuntiDellaChiusura(r).map((x) => x.frase).join(' '))
+      .toContain('Qarabaggio è entrato in 2 duelli e li ha persi tutti');
+  });
+
+  it('nota chi è uscito a mani vuote', () => {
+    const r = richiesta({ fermi: ['Qarabaggio', 'FC CANEPARDO', 'Montester United'] });
+    expect(spuntiDellaChiusura(r).map((x) => x.frase).join(' '))
+      .toContain('3 club sono usciti dalla sala senza niente in mano');
+  });
+
+  it('senza aste non esplode', () => {
+    expect(spuntiDellaChiusura(richiesta({ aste: [] }))).toEqual([]);
+  });
+
+  it('OGNI cifra di OGNI spunto è fra quelle lecite', () => {
+    const casi = [
+      richiesta(),
+      richiesta({ fermi: ['A', 'B', 'C'] }),
+      // «5 movimenti in tutto» contiene un 5 che nessun'altra fonte rende
+      // lecito: è la riga degli spunti dentro numeriDellaChiusura a doverlo
+      // ammettere
+      richiesta({
+        aste: [
+          asta({ lottoId: 'a', vincitore: 'FC Joga Benito', prezzo: 1 }),
+          asta({ lottoId: 'b', vincitore: 'FC Joga Benito', prezzo: 3 }),
+          asta({ lottoId: 'c', vincitore: 'FC Joga Benito', prezzo: 1 }),
+        ],
+        scambi: [scambio({ id: 's1', squadraA: 'FC Joga Benito' }),
+          scambio({ id: 's2', squadraA: 'FC Joga Benito' })],
+      }),
+      richiesta({
+        aste: [
+          asta({ lottoId: 'a', vincitore: 'FC Joga Benito', prezzo: 1 }),
+          asta({ lottoId: 'b', vincitore: 'FC Joga Benito', prezzo: 1 }),
+          asta({ lottoId: 'c', vincitore: 'FC Joga Benito', prezzo: 1, quotazione: 3 }),
+          asta({ lottoId: 'd', vincitore: 'FC NTONIA', prezzo: 40, quotazione: 4, battute: ['Qarabaggio'] }),
+        ],
+        scambi: [scambio({ id: 's1', squadraA: 'FC Joga Benito' })],
+      }),
+    ];
+    for (const r of casi) {
+      const leciti = numeriDellaChiusura(r);
+      for (const s of spuntiDellaChiusura(r)) {
+        for (const x of s.frase.match(/\d+(?:[.,]\d+)?/g) ?? []) {
+          const v = Number(x.replace(',', '.'));
+          expect({ frase: s.frase, v, lecito: leciti.has(v) }).toEqual({ frase: s.frase, v, lecito: true });
+        }
+      }
+    }
+  });
+
+  it('gli spunti finiscono nel prompt', () => {
+    const r = richiesta({
+      aste: [
+        asta({ lottoId: 'a', vincitore: 'FC Joga Benito' }),
+        asta({ lottoId: 'b', vincitore: 'FC Joga Benito' }),
+        asta({ lottoId: 'c', vincitore: 'FC Joga Benito' }),
+      ],
+    });
+    const p = costruisciPromptChiusura(r);
+    expect(p).toContain('## Gli spunti');
+    expect(p).toContain('Sbizzarrisciti, ma sui fatti');
+    expect(p).toContain('FC Joga Benito');
   });
 });

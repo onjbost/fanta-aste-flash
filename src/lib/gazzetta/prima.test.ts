@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import {
   COLORI, ZOOM_MASSIMO, ZOOM_MINIMO, coperturaFoto, dataEstesa, disposizioneFoto,
   faseDiCoppa, fuocoValido, numeroEdizione, paroleDelCappello, righeDelTesto,
-  riquadroDellaFoto, spazioDiManovra, zoomPerSpostarsi, zoomValido, type FotoPrima,
+  riquadroDellaFoto, spazioDiManovra, zoomPerSpostarsi, zoomValido,
+  allaColonna, alRiquadro, colonnaLibera, spostaVoce,
+  type DatiPrima, type FotoPrima,
 } from './prima';
 
 /** dimensione e posizione in numeri, come le legge il CSS della pagina */
@@ -338,5 +340,87 @@ describe('riquadroDellaFoto', () => {
 
   it('senza foto vale il riquadro grande, che non fa danni', () => {
     expect(riquadroDellaFoto('senzaFoto')).toEqual({ larghezza: 782, altezza: 436 });
+  });
+});
+
+describe('spostare i paragrafi', () => {
+  const voce = (titolo: string) => ({ titolo, testo: `testo di ${titolo}` });
+  const pagina = (p: Partial<DatiPrima> = {}): DatiPrima => ({
+    tipo: 'fantamercato', numero: 'N. 1', data: 'oggi', sottotestata: '', occhiello: '',
+    titolo: 'T', gancio: '', sottotitolo: '', cappello: '', foto: null,
+    classifica: [], prossimi: [], gironi: null, tabellone: null,
+    altre: [voce('uno'), voce('due'), voce('tre')],
+    colonna: null, spalla: null, piedeSinistra: '', piedeDestra: '',
+    ...p,
+  });
+
+  it('su e giù scambiano con il vicino', () => {
+    const v = ['a', 'b', 'c'];
+    expect(spostaVoce(v, 1, -1)).toEqual(['b', 'a', 'c']);
+    expect(spostaVoce(v, 1, 1)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('ai bordi non fa niente, invece di perdere una voce', () => {
+    const v = ['a', 'b', 'c'];
+    expect(spostaVoce(v, 0, -1)).toEqual(v);
+    expect(spostaVoce(v, 2, 1)).toEqual(v);
+    expect(spostaVoce(v, 9, 1)).toEqual(v);
+    expect(spostaVoce([], 0, 1)).toEqual([]);
+  });
+
+  it('non tocca l\'originale: l\'editor lavora per copie', () => {
+    const v = ['a', 'b'];
+    spostaVoce(v, 0, 1);
+    expect(v).toEqual(['a', 'b']);
+  });
+
+  it('la colonna è libera nelle edizioni di mercato, occupata nelle altre', () => {
+    expect(colonnaLibera(pagina())).toBe(true);
+    expect(colonnaLibera(pagina({ classifica: [{ nome: 'X', punti: 3 }] }))).toBe(false);
+    expect(colonnaLibera(pagina({ prossimi: [{ casa: 'A', ospite: 'B' }] }))).toBe(false);
+    expect(colonnaLibera(pagina({ gironi: [{ gruppo: 'A', righe: [] }] }))).toBe(false);
+    expect(colonnaLibera(pagina({ tabellone: [{ turno: 'x', testo: 'y' }] }))).toBe(false);
+  });
+
+  it('porta un paragrafo nella colonna, creandola se non c\'è', () => {
+    const d = allaColonna(pagina(), 1);
+    expect(d.altre.map((x) => x.titolo)).toEqual(['uno', 'tre']);
+    expect(d.colonna?.voci.map((x) => x.titolo)).toEqual(['due']);
+    expect(d.colonna?.titolo).toBe('In breve');
+  });
+
+  it('e lo accoda a quella che c\'è già', () => {
+    const con = pagina({ colonna: { titolo: 'Gli scambi', voci: [voce('zero')] } });
+    const d = allaColonna(con, 0);
+    expect(d.colonna?.titolo).toBe('Gli scambi');
+    expect(d.colonna?.voci.map((x) => x.titolo)).toEqual(['zero', 'uno']);
+  });
+
+  it('non ci porta niente quando la colonna è occupata dalla classifica', () => {
+    const conClassifica = pagina({ classifica: [{ nome: 'X', punti: 3 }] });
+    expect(allaColonna(conClassifica, 0)).toBe(conClassifica);
+  });
+
+  it('riporta un paragrafo nel riquadro, e l\'ultimo si porta via la colonna', () => {
+    const con = pagina({ colonna: { titolo: 'Gli scambi', voci: [voce('x'), voce('y')] } });
+    const uno = alRiquadro(con, 0);
+    expect(uno.colonna?.voci.map((v) => v.titolo)).toEqual(['y']);
+    expect(uno.altre.map((v) => v.titolo)).toEqual(['uno', 'due', 'tre', 'x']);
+
+    const vuota = alRiquadro(uno, 0);
+    expect(vuota.colonna).toBeNull();
+  });
+
+  it('un indice che non esiste non combina danni', () => {
+    const d = pagina();
+    expect(allaColonna(d, 9)).toBe(d);
+    expect(alRiquadro(d, 0)).toBe(d);
+  });
+
+  it('il giro completo riporta la pagina com\'era', () => {
+    const d = pagina();
+    const tornata = alRiquadro(allaColonna(d, 2), 0);
+    expect(tornata.altre.map((x) => x.titolo)).toEqual(['uno', 'due', 'tre']);
+    expect(tornata.colonna).toBeNull();
   });
 });

@@ -384,3 +384,63 @@ export function dataEstesa(d: Date): string {
     'LUGLIO', 'AGOSTO', 'SETTEMBRE', 'OTTOBRE', 'NOVEMBRE', 'DICEMBRE'];
   return `${d.getUTCDate()} ${mesi[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
+
+// =====================================================================
+// Spostare i paragrafi
+// =====================================================================
+
+/**
+ * Sposta una voce dentro il suo elenco, di una posizione per volta.
+ *
+ * Fuori dai bordi non si va: un pulsante che non fa niente è meglio di un
+ * elenco che si accorcia di nascosto.
+ */
+export function spostaVoce<T>(voci: T[], da: number, verso: -1 | 1): T[] {
+  const a = da + verso;
+  if (da < 0 || da >= voci.length || a < 0 || a >= voci.length) return voci;
+  const copia = [...voci];
+  [copia[da], copia[a]] = [copia[a], copia[da]];
+  return copia;
+}
+
+/**
+ * La colonna di destra è libera?
+ *
+ * Nelle edizioni di campionato e di coppa è occupata dalla classifica (o dai
+ * gironi, o dal tabellone) e dai prossimi incontri: spostarci un paragrafo
+ * li cancellerebbe, perché il componente disegna la colonna libera **al
+ * posto** di quella roba. Nelle edizioni di mercato invece è a disposizione.
+ */
+export function colonnaLibera(d: DatiPrima): boolean {
+  return !(d.gironi?.length || d.tabellone?.length
+    || d.classifica.length || d.prossimi.length);
+}
+
+/** Porta il paragrafo `i` dal riquadro di sinistra alla colonna di destra. */
+export function allaColonna(d: DatiPrima, i: number, titolo = 'In breve'): DatiPrima {
+  const voce = d.altre[i];
+  if (!voce || !colonnaLibera(d)) return d;
+  const colonna = d.colonna ?? { titolo, voci: [] };
+  return {
+    ...d,
+    altre: d.altre.filter((_, j) => j !== i),
+    colonna: { ...colonna, voci: [...colonna.voci, voce] },
+  };
+}
+
+/**
+ * Riporta il paragrafo `i` dalla colonna al riquadro di sinistra.
+ *
+ * Svuotata l'ultima voce la colonna sparisce del tutto invece di restare
+ * come intestazione senza niente sotto.
+ */
+export function alRiquadro(d: DatiPrima, i: number): DatiPrima {
+  const voce = d.colonna?.voci[i];
+  if (!d.colonna || !voce) return d;
+  const restano = d.colonna.voci.filter((_, j) => j !== i);
+  return {
+    ...d,
+    altre: [...d.altre, voce],
+    colonna: restano.length ? { ...d.colonna, voci: restano } : null,
+  };
+}

@@ -4,8 +4,9 @@ import { useActionState, useMemo, useState } from 'react';
 import { Prima, ALTEZZA, LARGHEZZA } from '@/lib/gazzetta/Prima';
 import { italianizza } from '@/lib/gazzetta/glifi';
 import {
-  ZOOM_MASSIMO, ZOOM_MINIMO, disposizioneFoto, riquadroDellaFoto, spazioDiManovra,
-  zoomPerSpostarsi, zoomValido, type DatiPrima, type FotoPrima,
+  ZOOM_MASSIMO, ZOOM_MINIMO, allaColonna, alRiquadro, colonnaLibera, disposizioneFoto,
+  riquadroDellaFoto, spazioDiManovra, spostaVoce, zoomPerSpostarsi, zoomValido,
+  type DatiPrima, type FotoPrima,
 } from '@/lib/gazzetta/prima';
 import { limitiTitolo } from '@/lib/gazzetta/testi';
 import { salvaPrima, segnaMandata, type GazState } from './actions';
@@ -100,6 +101,48 @@ function misuraImmagineNelBrowser(
     };
     img.src = sorgente;
   });
+}
+
+/**
+ * Un paragrafo del riquadro: titolo, testo, e i comandi per spostarlo.
+ *
+ * La `key` di chi lo monta è la posizione e non il titolo: col titolo
+ * modificabile, una chiave presa dal titolo cambierebbe a ogni lettera
+ * battuta, React rimonterebbe il campo e il cursore uscirebbe dalla casella
+ * a metà parola.
+ */
+function Paragrafo({
+  titolo, testo, limite, righe, primo, ultimo, suGiu, sposta, spostaEtichetta,
+  onTitolo, onTesto,
+}: {
+  titolo: string; testo: string; limite: number; righe: number;
+  primo: boolean; ultimo: boolean;
+  suGiu: (verso: -1 | 1) => void;
+  sposta: (() => void) | null;
+  spostaEtichetta: string;
+  onTitolo: (v: string) => void;
+  onTesto: (v: string) => void;
+}) {
+  return (
+    <div className="gaz-paragrafo">
+      <div className="gaz-paragrafo-cima">
+        <input
+          className="gaz-titoletto" value={titolo} aria-label="Titolo del paragrafo"
+          onChange={(e) => onTitolo(e.target.value)}
+        />
+        <button type="button" className="ghost" disabled={primo}
+          onClick={() => suGiu(-1)} aria-label="Sposta su">↑</button>
+        <button type="button" className="ghost" disabled={ultimo}
+          onClick={() => suGiu(1)} aria-label="Sposta giù">↓</button>
+      </div>
+      <Campo etichetta="" valore={testo} righe={righe} limite={limite} onChange={onTesto} />
+      {sposta && (
+        <button type="button" className="ghost gaz-sposta" onClick={sposta}>
+          {spostaEtichetta}
+        </button>
+      )}
+    </div>
+  );
 }
 
 export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }: {
@@ -215,19 +258,45 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
         <Campo etichetta="Cappello" valore={dati.cappello} righe={4}
           onChange={(v) => tocca({ cappello: v })} />
 
-        <h3>{dati.titoloAltre ?? 'Le altre partite'}</h3>
+        {/*
+          * I paragrafi: titolo modificabile, ordine modificabile, e si
+          * spostano da una colonna all'altra.
+          *
+          * I titoletti li scrive il generatore perché sono fatti — il nome
+          * del club, il giocatore col suo club — ma l'ultima parola è di chi
+          * impagina: a volte «Chi se lo contende» sta meglio scritto
+          * altrimenti, e due paragrafi che nel riquadro largo finiscono
+          * separati stanno meglio uno sotto l'altro nella colonna.
+          */}
+        <Campo etichetta="Titolo del riquadro" valore={dati.titoloAltre ?? 'Le altre partite'}
+          onChange={(v) => tocca({ titoloAltre: v })} />
         {dati.altre.map((a, i) => (
-          <Campo
-            key={a.titolo}
-            etichetta={a.titolo}
-            valore={a.testo}
-            righe={3}
+          <Paragrafo
+            key={`altre-${i}`}
+            titolo={a.titolo}
+            testo={a.testo}
             limite={190}
-            onChange={(v) => tocca({
+            righe={3}
+            suGiu={(verso) => tocca({ altre: spostaVoce(dati.altre, i, verso) })}
+            primo={i === 0}
+            ultimo={i === dati.altre.length - 1}
+            sposta={colonnaLibera(dati) ? () => setDati((d) => allaColonna(d, i)) : null}
+            spostaEtichetta="Porta nella colonna di destra →"
+            onTitolo={(v) => tocca({
+              altre: dati.altre.map((x, j) => (j === i ? { ...x, titolo: v } : x)),
+            })}
+            onTesto={(v) => tocca({
               altre: dati.altre.map((x, j) => (j === i ? { ...x, testo: v } : x)),
             })}
           />
         ))}
+        {!colonnaLibera(dati) && (
+          <p className="gaz-nota">
+            In questa edizione la colonna di destra è occupata dalla classifica e dai
+            prossimi incontri, quindi i paragrafi si possono riordinare ma non spostare
+            di là: prenderebbero il posto della classifica.
+          </p>
+        )}
 
         {/*
           * La colonna di destra libera — nel mercato chiuso sono gli scambi.
@@ -237,15 +306,29 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
           */}
         {dati.colonna && (
           <>
-            <h3>{dati.colonna.titolo}</h3>
+            <Campo etichetta="Titolo della colonna di destra" valore={dati.colonna.titolo}
+              onChange={(v) => tocca({ colonna: { ...dati.colonna!, titolo: v } })} />
             {dati.colonna.voci.map((v, i) => (
-              <Campo
-                key={v.titolo}
-                etichetta={v.titolo}
-                valore={v.testo}
-                righe={2}
+              <Paragrafo
+                key={`colonna-${i}`}
+                titolo={v.titolo}
+                testo={v.testo}
                 limite={170}
-                onChange={(t) => tocca({
+                righe={2}
+                primo={i === 0}
+                ultimo={i === dati.colonna!.voci.length - 1}
+                suGiu={(verso) => tocca({
+                  colonna: { ...dati.colonna!, voci: spostaVoce(dati.colonna!.voci, i, verso) },
+                })}
+                sposta={() => setDati((d) => alRiquadro(d, i))}
+                spostaEtichetta="← Riporta nel riquadro di sinistra"
+                onTitolo={(t) => tocca({
+                  colonna: {
+                    ...dati.colonna!,
+                    voci: dati.colonna!.voci.map((x, j) => (j === i ? { ...x, titolo: t } : x)),
+                  },
+                })}
+                onTesto={(t) => tocca({
                   colonna: {
                     ...dati.colonna!,
                     voci: dati.colonna!.voci.map((x, j) => (j === i ? { ...x, testo: t } : x)),

@@ -23,7 +23,7 @@ const richiesta = (p: Partial<RichiestaChiusura> = {}): RichiestaChiusura => {
   return {
     tono: 4, sessione: 1, quando: 'giovedì 1 ottobre alle 21.30',
     disposizione: 'sfondo', aste, apertura: astaDiApertura(aste) ?? 'l1',
-    scambi: [], paroleVietate: [], nomiVietati: [],
+    scambi: [], fermi: [], paroleVietate: [], nomiVietati: [],
     ...p,
   };
 };
@@ -88,17 +88,21 @@ describe('il prompt', () => {
   });
   const p = costruisciPromptChiusura(r);
 
-  it('mette in apertura l\'asta scelta e le altre contese nei blocchi', () => {
+  it('mette in apertura l\'asta scelta e le altre contese in un paragrafo solo', () => {
     expect(p).toContain('## L\'asta di apertura');
     expect(p.split('## Le altre aste contese')[0]).toContain('ZHEGROVA');
-    expect(p).toContain('lottoId: l2');
-    expect(p.split('## Le altre aste contese')[1].split('## Passati')[0]).toContain('OSMAJIC');
+    expect(p.split('## Le altre aste contese')[1].split('## Chi è passato')[0]).toContain('OSMAJIC');
+    expect(p).toContain('vanno tutte in UN paragrafo solo');
   });
 
-  it('i non contesi stanno nel loro elenco, non fra i blocchi', () => {
-    const senza = p.split('## Passati senza che nessuno si opponesse')[1].split('## Gli scambi')[0];
-    expect(senza).toContain('HAINAUT');
-    expect(p).not.toContain('lottoId: l3');
+  it('i non contesi sono raggruppati per club, non lotto per lotto', () => {
+    const senza = p.split('club per club — un paragrafo per club')[1].split('## I club usciti')[0];
+    expect(senza).toContain('### FC NTONIA');
+    expect(senza).toContain('si è preso: HAINAUT');
+  });
+
+  it('non dice mai che qualcuno è dovuto uscire', () => {
+    expect(p).toContain('Non scrivere mai che un club ha dovuto privarsi di qualcuno');
   });
 
   it('chiede l\'indicativo e vieta il condizionale', () => {
@@ -128,8 +132,9 @@ describe('la verifica', () => {
   const buono = (): TestiChiusura => ({
     titolo: 'Zhegrova al Ntonia', gancio: 'per 34', 
     cappello: 'Il centrocampista della Cremonese è il colpo di questa finestra: il Ntonia se l\'è portato a casa per 34 dopo un duello lungo col Joga Benito, che ha alzato bandiera bianca quando i numeri hanno smesso di tornare e ha guardato gli altri festeggiare in silenzio.',
-    blocchi: [{ lottoId: 'l2', testo: 'Il Qarabaggio ci ha provato, ma Osmajic è finito al Ntonia per 21.' }],
-    svincolati: 'Nessun giocatore è passato senza opposizione.',
+    contesi: 'Il Qarabaggio ci ha provato, ma Osmajic è finito al Ntonia per 21.',
+    squadre: [],
+    ferme: '',
     scambi: [{ id: 's1', testo: 'Montester e Pirati si sono scambiati De Bruyne e Zaccagni.' }],
     spalla: { numero: '34', didascalia: 'il prezzo più alto della sessione.' },
   });
@@ -142,7 +147,7 @@ describe('la verifica', () => {
 
   it('boccia un numero inventato', () => {
     const t = buono();
-    t.blocchi[0].testo = 'Il Qarabaggio si era spinto fino a 17, ma Osmajic è finito al Ntonia per 21.';
+    t.contesi = 'Il Qarabaggio si era spinto fino a 17, ma Osmajic è finito al Ntonia per 21.';
     const e = verificaChiusura(t, r);
     expect(e.inventati).toContain(17);
     expect(e.ok).toBe(false);
@@ -150,13 +155,13 @@ describe('la verifica', () => {
 
   it('boccia il condizionale: qui è tutto già successo', () => {
     const t = buono();
-    t.blocchi[0].testo = 'Il Qarabaggio avrebbe provato a inserirsi.';
+    t.contesi = 'Il Qarabaggio avrebbe provato a inserirsi.';
     expect(verificaChiusura(t, r).problemi.join(' ')).toContain('condizionale');
   });
 
   it('boccia un nome che in pagina non deve comparire', () => {
     const t = buono();
-    t.svincolati = 'Anche LUKAKU è passato senza opposizione.';
+    t.contesi = 'Anche LUKAKU è passato senza opposizione.';
     expect(verificaChiusura(t, r).problemi.join(' ')).toContain('LUKAKU');
   });
 
@@ -170,13 +175,21 @@ describe('la verifica', () => {
     expect(verificaChiusura(t2, r).problemi.join(' ')).toContain('listone');
   });
 
-  it('boccia un blocco mancante e uno di troppo', () => {
-    const senza = buono(); senza.blocchi = [];
-    expect(verificaChiusura(senza, r).problemi.join(' ')).toContain('manca il blocco del lotto l2');
+  it('si accorge se manca il paragrafo delle aste contese', () => {
+    const senza = buono(); senza.contesi = '';
+    expect(verificaChiusura(senza, r).problemi.join(' ')).toContain('manca il paragrafo sulle altre aste contese');
+  });
 
+  it('e se ne arriva uno di un club che non ha preso nessuno in esclusiva', () => {
     const troppo = buono();
-    troppo.blocchi.push({ lottoId: 'inesistente', testo: 'boh' });
-    expect(verificaChiusura(troppo, r).problemi.join(' ')).toContain('non corrisponde a nessuna asta contesa');
+    troppo.squadre.push({ squadra: 'Qarabaggio', testo: 'boh' });
+    expect(verificaChiusura(troppo, r).problemi.join(' ')).toContain('c\'è un paragrafo di Qarabaggio');
+  });
+
+  it('boccia «ha dovuto privarsi di un centrocampista» e la sua famiglia', () => {
+    const t = buono();
+    t.contesi = 'Il Ntonia l\'ha spuntata ma ha dovuto privarsi di un centrocampista.';
+    expect(verificaChiusura(t, r).problemi.join(' ')).toContain('è sottinteso');
   });
 
   it('boccia uno scambio mancante: il riquadro resterebbe con un buco', () => {
@@ -226,8 +239,9 @@ describe('il ripiego', () => {
     expect(t.titolo).toContain('ZHEGROVA');
     expect(t.gancio).toContain('34');
     expect(t.cappello).toContain('FC Joga Benito');
-    expect(t.svincolati).toContain('HAINAUT');
-    expect(t.blocchi.map((b) => b.lottoId)).toEqual(['l2']);
+    expect(t.squadre.map((x) => x.squadra)).toEqual(['FC NTONIA']);
+    expect(t.squadre[0].testo).toContain('HAINAUT');
+    expect(t.contesi).toContain('OSMAJIC');
     expect(t.scambi.map((s) => s.id)).toEqual(['s1']);
   });
 
@@ -252,13 +266,12 @@ describe('il montaggio', () => {
 
   it('è la sua edizione, e non finisce nel mazzo delle altre', () => {
     expect(d.tipo).toBe('mercato_chiuso');
-    expect(d.titoloAltre).toBe('Le altre aste');
+    expect(d.titoloAltre).toBe('Squadra per squadra');
   });
 
-  it('il riquadro di sinistra ha le altre aste e, in fondo, il Mercato Svincolati', () => {
-    expect(d.altre.map((x) => x.titolo)).toEqual([
-      'OSMAJIC (Cremonese) · 21', 'Mercato Svincolati',
-    ]);
+  it('il riquadro di sinistra ha le altre aste e poi un paragrafo per club', () => {
+    expect(d.altre.map((x) => x.titolo)).toEqual(['Le altre aste', 'Qarabaggio']);
+    expect(d.altre[0].testo).toContain('OSMAJIC');
     expect(d.altre[1].testo).toContain('HAINAUT');
   });
 
@@ -286,9 +299,10 @@ describe('il montaggio', () => {
 
 describe('daJsonChiusura', () => {
   it('regge un JSON storto senza esplodere', () => {
-    const t = daJsonChiusura({ titolo: 42, blocchi: 'no', scambi: [{ id: 's1' }] });
+    const t = daJsonChiusura({ titolo: 42, squadre: 'no', scambi: [{ id: 's1' }] });
     expect(t.titolo).toBe('42');
-    expect(t.blocchi).toEqual([]);
+    expect(t.squadre).toEqual([]);
+    expect(t.contesi).toBe('');
     expect(t.scambi).toEqual([{ id: 's1', testo: '' }]);
     expect(t.spalla).toBeNull();
   });
@@ -312,12 +326,12 @@ describe('cosa manda al ripiego, e cosa no', () => {
   const buono = (): TestiChiusura => ({
     titolo: 'Romano al Ntonia', gancio: 'per 12',
     cappello: Array.from({ length: 30 }, () => 'parola').join(' '),
-    blocchi: [], svincolati: 'Nessuno.', scambi: [], spalla: null,
+    contesi: '', squadre: [], ferme: '', scambi: [], spalla: null,
   });
 
   it('un numero inventato resta un avviso: la pagina la rileggi tu', () => {
     const t = buono();
-    t.svincolati = 'Un rilancio da 999 non lo aveva visto nessuno.';
+    t.contesi = 'Un rilancio da 999 non lo aveva visto nessuno.';
     const e = verificaChiusura(t, r);
     expect(e.problemi.join(' ')).toContain('999');
     expect(e.gravi).toEqual([]);
@@ -325,7 +339,7 @@ describe('cosa manda al ripiego, e cosa no', () => {
 
   it('e nemmeno un nome vietato o un condizionale', () => {
     const t = buono();
-    t.svincolati = 'Anche LUKAKU sarebbe passato senza opposizione.';
+    t.contesi = 'Anche LUKAKU sarebbe passato senza opposizione.';
     const e = verificaChiusura(t, r);
     expect(e.problemi.length).toBeGreaterThan(0);
     expect(e.gravi).toEqual([]);

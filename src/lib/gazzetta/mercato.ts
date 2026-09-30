@@ -85,8 +85,50 @@ export interface TestiMercato {
   titolo: string;
   gancio: string;
   cappello: string;
-  blocchi: { lottoId: string; testo: string }[];
+  /** un paragrafo solo su tutti i duelli, non uno per lotto */
+  contesi: string;
+  /** un paragrafo per squadra, sulle sue trattative in esclusiva */
+  squadre: { squadra: string; testo: string }[];
+  /** le squadre che non si sono mosse, tutte insieme */
+  ferme: string;
   spalla: { numero: string; didascalia: string } | null;
+}
+
+/** Le trattative su cui si sono mossi in due o più: i duelli. */
+export function contese(trattative: Trattativa[]): Trattativa[] {
+  return trattative.filter((t) => t.inCorsa.length >= 2);
+}
+
+/** Le trattative su cui, per ora, si è mosso uno solo. */
+export function inEsclusiva(trattative: Trattativa[]): Trattativa[] {
+  return trattative.filter((t) => t.inCorsa.length <= 1);
+}
+
+export interface SpesaDiSquadra { squadra: string; trattative: Trattativa[] }
+
+/**
+ * Le trattative in esclusiva raccolte per squadra.
+ *
+ * È il cuore della pagina nuova: non un riepilogo per lotto — otto paragrafi
+ * che dicono tutti la stessa cosa — ma la spesa di ciascuno messa in fila,
+ * «il Joga Benito è andato al supermercato e vuole Hainaut, Coulibaly e
+ * Cambiaghi». I duelli stanno nel loro paragrafo e non tornano qui: ogni
+ * trattativa compare una volta sola in tutta la pagina.
+ *
+ * L'ordine è chi ne ha di più, poi il nome: deterministico, così due
+ * generazioni della stessa sessione impaginano uguale.
+ */
+export function perSquadra(trattative: Trattativa[]): SpesaDiSquadra[] {
+  const per = new Map<string, Trattativa[]>();
+  for (const t of inEsclusiva(trattative)) {
+    const chi = chiamante(t)?.squadra;
+    if (!chi) continue;
+    per.set(chi, [...(per.get(chi) ?? []), t]);
+  }
+  return [...per.entries()]
+    .map(([squadra, suoi]) => ({ squadra, trattative: suoi }))
+    .sort((a, b) => (b.trattative.length - a.trattative.length)
+      || a.squadra.localeCompare(b.squadra));
 }
 
 export const RIGHE_BLOCCO = 3;
@@ -193,28 +235,38 @@ export function rivali(t: Trattativa): ClubInCorsa[] {
 // Il prompt
 // =====================================================================
 
+/**
+ * Una trattativa come la legge il modello.
+ *
+ * Del giocatore che dovrebbe uscire non c'è più traccia, nemmeno il ruolo.
+ * Era l'informazione che generava «dovrà privarsi di un centrocampista» in
+ * fondo a ogni paragrafo, otto volte su otto: una frase che non aggiunge
+ * niente, perché in questa lega chi chiama qualcuno svincola qualcun altro
+ * per definizione, e che schiacciava tutta la pagina sullo stesso stampo.
+ */
 function riga(t: Trattativa): string {
   const primo = chiamante(t);
   const altri = rivali(t);
   const righe = [
     `### ${t.giocatore}, ${NOME_RUOLO[t.ruolo]} del ${t.club}`,
-    `lottoId: ${t.lottoId}`,
-    primo ? `ha bussato per primo: ${primo.squadra}`
-      + (primo.ruoloInUscita ? ` (per far posto dovrebbe privarsi di un ${NOME_RUOLO[primo.ruoloInUscita]})` : '')
-      : 'nessuno',
+    primo ? `ha bussato per primo: ${primo.squadra}` : 'nessuno',
   ];
-  if (altri.length) {
-    righe.push(`si sono inseriti: ${altri.map((c) => c.squadra
-      + (c.ruoloInUscita ? ` (uscirebbe un ${NOME_RUOLO[c.ruoloInUscita]})` : '')).join('; ')}`);
-  } else {
-    righe.push('nessun altro si è mosso: per ora è una trattativa in esclusiva');
-  }
+  if (altri.length) righe.push(`si sono inseriti: ${altri.map((c) => c.squadra).join('; ')}`);
   return righe.join('\n');
+}
+
+/** «Hainaut (Lecce), Coulibaly L. (Udinese) e Cambiaghi (Atalanta)» */
+function elencoGiocatori(trattative: Trattativa[]): string {
+  const nomi = trattative.map((t) => `${t.giocatore} (${t.club})`);
+  if (nomi.length <= 1) return nomi[0] ?? '';
+  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
 }
 
 export function costruisciPromptMercato(r: RichiestaMercato): string {
   const ap = r.trattative.find((t) => t.lottoId === r.apertura) ?? r.trattative[0];
   const altre = r.trattative.filter((t) => t.lottoId !== ap?.lottoId);
+  const duelli = contese(altre);
+  const gruppi = perSquadra(altre);
   const cap = paroleDelCappello(r.disposizione);
 
   return `Sei il giornalista di mercato della "Gazzetta della Mansarda". Le chiamate per la sessione ${r.sessione} d'asta sono chiuse e l'asta non si è ancora giocata: scrivi la prima pagina delle indiscrezioni.
@@ -240,17 +292,23 @@ Al massimo ${MASSIME_LICENZE} in tutta la pagina. Tutto il resto dev'essere vero
 ## Regole assolute
 1. Non scrivere MAI un numero che non ti ho dato qui sotto.
 2. **Non nominare nessun giocatore che non sia uno di quelli in trattativa qui sotto.** Nessun altro nome, per nessun motivo: né chi potrebbe uscire, né chi gioca in quelle squadre.
-3. Chi dovrebbe fare posto si nomina per **ruolo** e mai per nome: «dovrà privarsi di un centrocampista».
-4. Non inventare risultati, voti o partite: qui si parla solo di mercato.${
+3. **Non scrivere mai che un club dovrà privarsi di qualcuno, rinunciare a un giocatore, fare spazio o liberare un posto.** In questa lega chi prende qualcuno lascia andare qualcun altro: è sottinteso, e ripeterlo a ogni paragrafo è la cosa che rende la pagina tutta uguale. Non nominare nemmeno il ruolo di chi uscirebbe.
+4. Non inventare risultati, voti o partite: qui si parla solo di mercato.
+5. Ogni paragrafo comincia in modo diverso dagli altri: cambia il verbo, l'ordine, l'attacco. Se due paragrafi cominciano con la stessa formula, riscrivili.${
   r.paroleVietate.length ? `\n5. Parole vietate: ${r.paroleVietate.join(', ')}.` : ''}
 
 ## La trattativa di apertura
 ${ap ? riga(ap) : 'nessuna trattativa aperta'}
 
-## Le altre trattative
-${altre.map(riga).join('\n\n') || 'nessuna'}
+## Gli altri duelli — vanno tutti in UN paragrafo solo
+${duelli.map(riga).join('\n\n') || 'nessun altro duello'}
 
-## I club che non si sono mossi
+## Le trattative in esclusiva, club per club — un paragrafo per club
+Su questi nomi, per ora, si è mosso un club solo. Racconta la spesa di
+ciascuno: che tipo di sessione sta facendo, cosa dice del suo momento.
+${gruppi.map((g) => `### ${g.squadra}\nvuole: ${elencoGiocatori(g.trattative)}`).join('\n\n') || 'nessuna'}
+
+## I club che non si sono mossi — tutti in UN paragrafo solo
 ${r.fermi.length ? r.fermi.join(', ') : 'nessuno: si sono mossi tutti'}
 
 ## Cosa devi restituire
@@ -260,11 +318,13 @@ Solo JSON, senza testo intorno e senza blocchi di codice:
   "titolo": "il titolo dell'apertura, al massimo 44 caratteri: il nome del giocatore e il fatto",
   "gancio": "la seconda riga, al massimo 30 caratteri: chi spinge e chi si oppone",
   "cappello": "il pezzo dell'apertura: fra ${cap.min} e ${cap.max} parole, due o tre frasi",
-  "blocchi": [${altre.map((t) => `{ "lottoId": "${t.lottoId}", "testo": "due righe su ${t.giocatore}, al massimo 190 caratteri" }`).join(', ') || ''}],
+  "contesi": "${duelli.length ? `un paragrafo solo su tutti gli altri duelli (${duelli.map((t) => t.giocatore).join(', ')}), al massimo 320 caratteri` : 'stringa vuota: non ci sono altri duelli'}",
+  "squadre": [${gruppi.map((g) => `{ "squadra": "${g.squadra}", "testo": "cosa sta facendo sul mercato, coi nomi che vuole, al massimo 220 caratteri" }`).join(', ') || ''}],
+  "ferme": "${r.fermi.length ? 'un paragrafo solo sui club fermi, al massimo 200 caratteri' : 'stringa vuota: si sono mossi tutti'}",
   "spalla": { "numero": "UN numero solo fra quelli che ti ho dato, in cifre", "didascalia": "cosa significa, al massimo 110 caratteri" }
 }
 
-L'array "blocchi" deve contenere tutte e ${altre.length} le altre trattative, coi lottoId esatti.${
+L'array "squadre" deve contenere tutti e ${gruppi.length} i club qui sopra, col nome scritto **esattamente** com'è scritto qui. Ogni trattativa compare una volta sola in tutta la pagina: quelle dei duelli stanno in "contesi" e non si ripetono in "squadre".${
   r.correzioni?.length
     ? `\n\n## Il tentativo precedente è stato respinto\n${r.correzioni.map((c) => `- ${c}`).join('\n')}\nRiscrivi tutto correggendo questi punti.`
     : ''}`;
@@ -276,17 +336,19 @@ L'array "blocchi" deve contenere tutte e ${altre.length} le altre trattative, co
 
 export function daJsonMercato(grezzo: unknown): TestiMercato {
   const p = (grezzo ?? {}) as Record<string, unknown>;
-  const blocchi = Array.isArray(p.blocchi) ? p.blocchi : [];
+  const squadre = Array.isArray(p.squadre) ? p.squadre : [];
   const spalla = p.spalla as { numero?: unknown; didascalia?: unknown } | null | undefined;
 
   return {
     titolo: String(p.titolo ?? '').trim(),
     gancio: String(p.gancio ?? '').trim(),
     cappello: String(p.cappello ?? '').trim(),
-    blocchi: blocchi.map((b) => {
+    contesi: String(p.contesi ?? '').trim(),
+    squadre: squadre.map((b) => {
       const x = (b ?? {}) as Record<string, unknown>;
-      return { lottoId: String(x.lottoId ?? ''), testo: String(x.testo ?? '').trim() };
+      return { squadra: String(x.squadra ?? '').trim(), testo: String(x.testo ?? '').trim() };
     }),
+    ferme: String(p.ferme ?? '').trim(),
     spalla: spalla && String(spalla.numero ?? '').trim()
       ? { numero: String(spalla.numero).trim(), didascalia: String(spalla.didascalia ?? '').trim() }
       : null,
@@ -359,8 +421,8 @@ export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMerc
   const problemi: string[] = [];
   const gravi: string[] = [];
   const grave = (m: string) => { problemi.push(m); gravi.push(m); };
-  const tutto = [t.titolo, t.gancio, t.cappello, ...t.blocchi.map((b) => b.testo),
-    t.spalla?.didascalia ?? ''].join('\n');
+  const tutto = [t.titolo, t.gancio, t.cappello, t.contesi,
+    ...t.squadre.map((b) => b.testo), t.ferme, t.spalla?.didascalia ?? ''].join('\n');
 
   if (!t.titolo) grave('manca il titolo');
   if (!t.cappello) grave('manca il cappello');
@@ -373,17 +435,45 @@ export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMerc
     problemi.push(`il cappello ha ${parole} parole invece di ${cap.min}-${cap.max}`);
   }
 
-  // ---- tutte le trattative, coi loro identificativi
-  const attesi = new Set(r.trattative.filter((x) => x.lottoId !== r.apertura).map((x) => x.lottoId));
-  const arrivati = new Set(t.blocchi.map((b) => b.lottoId));
-  for (const id of attesi) {
-    if (!arrivati.has(id)) {
-      const x = r.trattative.find((y) => y.lottoId === id)!;
-      problemi.push(`manca il blocco su ${x.giocatore}`);
-    }
+  // ---- le sezioni: i duelli, un paragrafo per club, i fermi
+  const altre = r.trattative.filter((x) => x.lottoId !== r.apertura);
+  const duelli = contese(altre);
+  const gruppi = perSquadra(altre);
+
+  if (duelli.length && !t.contesi) problemi.push('manca il paragrafo sui duelli');
+  if (t.contesi.length > 320) problemi.push(`il paragrafo sui duelli è di ${t.contesi.length} caratteri invece di 320`);
+  if (r.fermi.length && !t.ferme) problemi.push('manca il paragrafo sui club fermi');
+  if (t.ferme.length > 200) problemi.push(`il paragrafo sui club fermi è di ${t.ferme.length} caratteri invece di 200`);
+
+  const attese = new Set(gruppi.map((g) => g.squadra));
+  const arrivate = new Set(t.squadre.map((x) => x.squadra));
+  for (const nome of attese) if (!arrivate.has(nome)) problemi.push(`manca il paragrafo di ${nome}`);
+  for (const nome of arrivate) {
+    if (!attese.has(nome)) problemi.push(`c'è un paragrafo di ${nome}, che non ha trattative in esclusiva`);
   }
-  for (const id of arrivati) {
-    if (!attesi.has(id)) problemi.push(`c'è un blocco su una trattativa che non va in pagina (${id})`);
+  for (const x of t.squadre) {
+    if (x.testo.length > 220) problemi.push(`il paragrafo di ${x.squadra} è di ${x.testo.length} caratteri invece di 220`);
+  }
+
+  // ---- «dovrà privarsi di un centrocampista», e tutta la famiglia
+  //
+  // È sottinteso che chi prende qualcuno svincoli qualcun altro: scriverlo
+  // ogni volta era quello che rendeva gli otto paragrafi indistinguibili.
+  const sottinteso = tutto.match(
+    /\b(?:privars\w+|rinunciare a un\w*|sacrificare un\w*|fare spazio|liberare un posto|dovr[àa] cedere)\b/gi,
+  );
+  if (sottinteso?.length) {
+    problemi.push(`dice che qualcuno deve uscire («${sottinteso[0]}»): è sottinteso, non si scrive`);
+  }
+
+  // ---- due paragrafi che cominciano uguale
+  const attacchi = new Map<string, string>();
+  for (const x of [{ squadra: 'i duelli', testo: t.contesi }, ...t.squadre, { squadra: 'i fermi', testo: t.ferme }]) {
+    const attacco = x.testo.toLowerCase().split(/\s+/).slice(0, 4).join(' ');
+    if (!attacco) continue;
+    const gia = attacchi.get(attacco);
+    if (gia) problemi.push(`${x.squadra} e ${gia} cominciano allo stesso modo: «${attacco}»`);
+    else attacchi.set(attacco, x.squadra);
   }
 
   // ---- i nomi vietati: gli svincolandi e chiunque non sia in trattativa
@@ -464,20 +554,21 @@ export function mercatoDiRipiego(r: RichiestaMercato): TestiMercato {
     cappello = cappello ? `${cappello} ${f}` : f;
   }
 
+  const duelli = contese(altre);
+  const gruppi = perSquadra(altre);
+
   return {
     titolo: ap ? ap.giocatore.slice(0, 44) : 'Mercato fermo',
     gancio: sfidanti.length ? 'è sfida' : ap ? 'trattativa in esclusiva' : '',
     cappello,
-    blocchi: altre.map((t) => {
-      const p = chiamante(t);
-      const r2 = rivali(t);
-      return {
-        lottoId: t.lottoId,
-        testo: r2.length
-          ? `${p?.squadra ?? 'Un club'} avrebbe bussato per prima, ma ${r2.map((x) => x.squadra).join(' e ')} non starebbe a guardare.`
-          : `${p?.squadra ?? 'Un club'} avrebbe avviato i contatti, per ora senza concorrenza.`,
-      };
-    }),
+    contesi: duelli.length
+      ? duelli.map((t) => `Su ${t.giocatore} si sarebbero mossi ${t.inCorsa.map((c) => c.squadra).join(' e ')}.`).join(' ')
+      : '',
+    squadre: gruppi.map((g) => ({
+      squadra: g.squadra,
+      testo: `${g.squadra} avrebbe messo gli occhi su ${elencoGiocatori(g.trattative)}.`,
+    })),
+    ferme: r.fermi.length ? `Nessun movimento, per ora, da ${r.fermi.join(', ')}.` : '',
     spalla: r.trattative.length
       ? {
         numero: String(r.trattative.length),
@@ -505,7 +596,20 @@ export function montaMercato(
 ): DatiPrima {
   const r = p.richiesta;
   const ap = r.trattative.find((x) => x.lottoId === r.apertura) ?? r.trattative[0] ?? null;
-  const testoDi = new Map(t.blocchi.map((b) => [b.lottoId, b.testo]));
+  const altre = r.trattative.filter((x) => x.lottoId !== ap?.lottoId);
+  const testoDi = new Map(t.squadre.map((x) => [x.squadra, x.testo]));
+
+  /*
+   * Tre tipi di voce, nell'ordine in cui si leggono: i duelli, poi la spesa
+   * di ogni club, poi chi è rimasto a guardare. I titoletti li scriviamo
+   * noi — il nome del club è un fatto, e un fatto che il modello non scrive
+   * è un fatto che non può sbagliare.
+   */
+  const voci = [
+    ...(contese(altre).length ? [{ titolo: 'Chi se lo contende', testo: t.contesi }] : []),
+    ...perSquadra(altre).map((g) => ({ titolo: g.squadra, testo: testoDi.get(g.squadra) ?? '' })),
+    ...(r.fermi.length ? [{ titolo: 'Chi sta a guardare', testo: t.ferme }] : []),
+  ];
 
   return {
     tipo: 'fantamercato',
@@ -526,10 +630,8 @@ export function montaMercato(
     prossimi: [],
     gironi: null,
     tabellone: null,
-    titoloAltre: 'Le altre trattative',
-    altre: r.trattative
-      .filter((x) => x.lottoId !== ap?.lottoId)
-      .map((x) => ({ titolo: titoloTrattativa(x), testo: testoDi.get(x.lottoId) ?? '' })),
+    titoloAltre: 'Squadra per squadra',
+    altre: voci,
     spalla: t.spalla,
     piedeSinistra: 'FANTA MANSARDA',
     piedeDestra: 'TUTTE VOCI, PER ORA',

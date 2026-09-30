@@ -100,16 +100,37 @@ describe('costruisciPromptMercato', () => {
     }
   });
 
-  it('del giocatore che esce dice il ruolo', () => {
+  it('di chi deve uscire non dice più niente, nemmeno il ruolo', () => {
+    // era la riga che generava «dovrà privarsi di un centrocampista» in
+    // fondo a ogni paragrafo, e che schiacciava la pagina sullo stesso stampo
     const p = costruisciPromptMercato(richiesta());
-    expect(p).toContain('dovrebbe privarsi di un centrocampista');
+    expect(p).not.toContain('dovrebbe privarsi');
+    expect(p).toContain('Non scrivere mai che un club dovrà privarsi di qualcuno');
   });
 
-  it('mette in apertura la trattativa scelta e nelle altre il resto', () => {
+  it('mette in apertura la trattativa scelta, e le altre nelle sezioni giuste', () => {
     const p = costruisciPromptMercato(richiesta());
-    const ap = p.slice(p.indexOf('## La trattativa di apertura'), p.indexOf('## Le altre'));
-    expect(ap).toContain('lottoId: l-zhegrova');
-    expect(ap).not.toContain('lottoId: a-osmajic');
+    const ap = p.slice(p.indexOf('## La trattativa di apertura'), p.indexOf('## Gli altri duelli'));
+    expect(ap).toContain('ZHEGROVA');
+    expect(ap).not.toContain('OSMAJIC');
+  });
+
+  it('raggruppa per club le trattative in esclusiva, coi nomi in fila', () => {
+    const p = costruisciPromptMercato(richiesta());
+    const sezione = p.slice(p.indexOf('## Le trattative in esclusiva'), p.indexOf('## I club che non'));
+    expect(sezione).toContain('### FC NTONIA');
+    expect(sezione).toContain('vuole: OSMAJIC (Genoa)');
+    expect(sezione).toContain('### FC Joga Benito');
+    expect(sezione).toContain('vuole: HAINAUT (Venezia)');
+  });
+
+  it('chiede un paragrafo per club, col nome esatto', () => {
+    const p = costruisciPromptMercato(richiesta());
+    // a parità di trattative l'ordine è alfabetico, non quello di arrivo:
+    // due generazioni della stessa sessione devono impaginare uguale
+    expect(p).toContain('"squadre": [{ "squadra": "FC Joga Benito"');
+    expect(p).toContain('{ "squadra": "FC NTONIA"');
+    expect(p).toContain('Ogni trattativa compare una volta sola');
   });
 
   it('dice che l\'asta non si è ancora giocata', () => {
@@ -144,14 +165,22 @@ describe('licenzeUsate', () => {
 
 // ------------------------------------------------------------ verifica
 
+/*
+ * La pagina nuova: nessun duello oltre all'apertura (Zhegrova è l'apertura),
+ * quindi «contesi» resta vuoto; un paragrafo a testa per NTONIA e Joga
+ * Benito, che hanno una trattativa in esclusiva ciascuno; un paragrafo per i
+ * tre club fermi.
+ */
 const testi = (p: Partial<TestiMercato> = {}): TestiMercato => ({
   titolo: 'Zhegrova, è sfida',
   gancio: 'l\'NTONIA accelera',
   cappello: Array.from({ length: 34 }, () => 'parola').join(' '),
-  blocchi: [
-    { lottoId: 'a-osmajic', testo: 'L\'NTONIA avrebbe avviato i contatti, per ora senza concorrenza.' },
-    { lottoId: 'b-hainaut', testo: 'Il Joga Benito si sarebbe mosso in silenzio sul difensore.' },
+  contesi: '',
+  squadre: [
+    { squadra: 'FC NTONIA', testo: 'L\'NTONIA avrebbe avviato i contatti per il genoano, senza concorrenza.' },
+    { squadra: 'FC Joga Benito', testo: 'Il Joga Benito si sarebbe mosso in silenzio sul difensore del Venezia.' },
   ],
+  ferme: 'Fermi invece gli altri tre, che non avrebbero sondato nessuno.',
   spalla: null, ...p,
 });
 
@@ -187,9 +216,9 @@ describe('verificaMercato', () => {
     // la regressione del 30 settembre: «guastare» contiene «asta», e la
     // prima pagina di indiscrezioni vera è finita al ripiego per questo
     const e = verificaMercato(
-      testi({ blocchi: [
-        { lottoId: 'a-osmajic', testo: 'Il Joga Benito vuole guastare la festa all\'NTONIA.' },
-        { lottoId: 'b-hainaut', testo: 'Nessuno si sarebbe mosso sul difensore.' },
+      testi({ squadre: [
+        { squadra: 'FC NTONIA', testo: 'Il Joga Benito vuole guastare la festa all\'NTONIA.' },
+        { squadra: 'FC Joga Benito', testo: 'Nessuno si sarebbe mosso sul difensore.' },
       ] }),
       richiesta(),
     );
@@ -199,9 +228,9 @@ describe('verificaMercato', () => {
   it('conta le licenze di colore e boccia chi esagera', () => {
     const troppo = Array.from({ length: MASSIME_LICENZE + 1 }, () => 'si dice che').join(' ');
     const e = verificaMercato(
-      testi({ blocchi: [
-        { lottoId: 'a-osmajic', testo: troppo },
-        { lottoId: 'b-hainaut', testo: 'ok' },
+      testi({ squadre: [
+        { squadra: 'FC NTONIA', testo: troppo },
+        { squadra: 'FC Joga Benito', testo: 'ok' },
       ] }),
       richiesta(),
     );
@@ -210,18 +239,57 @@ describe('verificaMercato', () => {
 
   it('tiene le licenze entro il limite senza lamentarsi', () => {
     const e = verificaMercato(
-      testi({ blocchi: [
-        { lottoId: 'a-osmajic', testo: 'Si dice che il club abbia sondato il terreno.' },
-        { lottoId: 'b-hainaut', testo: 'Nell\'ambiente se ne parla da giorni.' },
+      testi({ squadre: [
+        { squadra: 'FC NTONIA', testo: 'Si dice che il club abbia sondato il terreno.' },
+        { squadra: 'FC Joga Benito', testo: 'Nell\'ambiente se ne parla da giorni.' },
       ] }),
       richiesta(),
     );
     expect(e.problemi).toEqual([]);
   });
 
-  it('si accorge se manca una trattativa', () => {
-    const e = verificaMercato(testi({ blocchi: [] }), richiesta());
-    expect(e.problemi.join(' ')).toContain('manca il blocco su OSMAJIC');
+  it('si accorge se manca il paragrafo di un club', () => {
+    const e = verificaMercato(testi({ squadre: [] }), richiesta());
+    expect(e.problemi.join(' ')).toContain('manca il paragrafo di FC NTONIA');
+    expect(e.problemi.join(' ')).toContain('manca il paragrafo di FC Joga Benito');
+  });
+
+  it('e se ne arriva uno di un club che non ha trattative in esclusiva', () => {
+    const e = verificaMercato(
+      testi({ squadre: [...testi().squadre, { squadra: 'Qarabaggio', testo: 'boh' }] }),
+      richiesta(),
+    );
+    expect(e.problemi.join(' ')).toContain('c\'è un paragrafo di Qarabaggio');
+  });
+
+  it('boccia «dovrà privarsi di un centrocampista» e tutta la famiglia', () => {
+    for (const frase of [
+      'Il club dovrà privarsi di un centrocampista.',
+      'Toccherà rinunciare a un attaccante.',
+      'Dovrà sacrificare un difensore.',
+      'Serve fare spazio in rosa.',
+    ]) {
+      const e = verificaMercato(
+        testi({ squadre: [
+          { squadra: 'FC NTONIA', testo: frase },
+          { squadra: 'FC Joga Benito', testo: 'Il Joga Benito guarda al Venezia.' },
+        ] }),
+        richiesta(),
+      );
+      expect({ frase, detto: e.problemi.join(' ').includes('è sottinteso') })
+        .toEqual({ frase, detto: true });
+    }
+  });
+
+  it('si accorge di due paragrafi che cominciano allo stesso modo', () => {
+    const e = verificaMercato(
+      testi({ squadre: [
+        { squadra: 'FC NTONIA', testo: 'Il club avrebbe avviato i contatti per il genoano.' },
+        { squadra: 'FC Joga Benito', testo: 'Il club avrebbe avviato i contatti per il veneziano.' },
+      ] }),
+      richiesta(),
+    );
+    expect(e.problemi.join(' ')).toContain('cominciano allo stesso modo');
   });
 
   it('boccia i numeri inventati', () => {
@@ -247,7 +315,9 @@ describe('daJsonMercato', () => {
   it('regge una risposta vuota', () => {
     const t = daJsonMercato({});
     expect(t.titolo).toBe('');
-    expect(t.blocchi).toEqual([]);
+    expect(t.contesi).toBe('');
+    expect(t.squadre).toEqual([]);
+    expect(t.ferme).toBe('');
     expect(t.spalla).toBeNull();
   });
 
@@ -255,8 +325,8 @@ describe('daJsonMercato', () => {
     expect(daJsonMercato({ spalla: { didascalia: 'x' } }).spalla).toBeNull();
   });
 
-  it('non si fida del tipo dei blocchi', () => {
-    expect(daJsonMercato({ blocchi: 'no' }).blocchi).toEqual([]);
+  it('non si fida del tipo dei paragrafi di squadra', () => {
+    expect(daJsonMercato({ squadre: 'no' }).squadre).toEqual([]);
   });
 });
 
@@ -274,7 +344,8 @@ describe('mercatoDiRipiego', () => {
   it('non nomina nessuno svincolando: non li ha nemmeno', () => {
     const r = richiesta();
     const t = mercatoDiRipiego(r);
-    const tutto = [t.titolo, t.gancio, t.cappello, ...t.blocchi.map((b) => b.testo)].join(' ');
+    const tutto = [t.titolo, t.gancio, t.cappello, t.contesi, t.ferme,
+      ...t.squadre.map((b) => b.testo)].join(' ');
     for (const nome of r.nomiVietati) expect(tutto).not.toContain(nome);
   });
 

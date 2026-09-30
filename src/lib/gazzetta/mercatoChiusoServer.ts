@@ -213,6 +213,11 @@ export async function materialeChiusura(
   const nomiVietati = [...giocatoreDi.values()]
     .map((g) => g.nome).filter((n) => !inPagina.has(n));
 
+  // chi non si è portato a casa nessuno: il silenzio è una notizia anche a
+  // sala chiusa, e va in fondo alla pagina in un paragrafo solo
+  const vincitori = new Set(aste.map((a) => a.vincitore));
+  const fermi = [...nomeDi.values()].filter((n) => !vincitori.has(n));
+
   const apertura = astaDiApertura(aste) ?? aste[0].lottoId;
   const foto = await fotoDelPiuPregiato(aste.find((a) => a.lottoId === apertura) ?? null);
 
@@ -223,7 +228,7 @@ export async function materialeChiusura(
       sessione: Number(sessione.number),
       quando: quandoApreLaSala(sessione.auction_at as string),
       disposizione: disposizioneFoto(foto),
-      aste, apertura,
+      aste, apertura, fermi,
       scambi: scelti.map(({ dallUltimaAsta: _d, quando: _q, ...s }) => s),
       paroleVietate: (lega?.redazione_parole_vietate as string[] | undefined) ?? [],
       nomiVietati: [...new Set(nomiVietati)],

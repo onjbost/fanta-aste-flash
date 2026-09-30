@@ -67,6 +67,8 @@ export interface RichiestaChiusura {
   /** il lotto che va in apertura */
   apertura: string;
   scambi: ScambioFatto[];
+  /** i club che non si sono portati a casa nessuno */
+  fermi: string[];
   paroleVietate: string[];
   /** i nomi che in pagina non possono comparire */
   nomiVietati: string[];
@@ -77,13 +79,41 @@ export interface TestiChiusura {
   titolo: string;
   gancio: string;
   cappello: string;
-  /** un blocco per ogni altra asta contesa */
-  blocchi: { lottoId: string; testo: string }[];
-  /** il riquadro di chi è passato senza contendenti */
-  svincolati: string;
+  /** un paragrafo solo su tutte le altre aste contese */
+  contesi: string;
+  /** un paragrafo per club, su chi si è preso senza contendenti */
+  squadre: { squadra: string; testo: string }[];
+  /** i club usciti a mani vuote, tutti insieme */
+  ferme: string;
   /** una riga per ogni scambio, legata al suo id */
   scambi: { id: string; testo: string }[];
   spalla: { numero: string; didascalia: string } | null;
+}
+
+export interface SpesaChiusa { squadra: string; aste: AstaConclusa[] }
+
+/**
+ * Le aste senza contendenti raccolte per club.
+ *
+ * Stessa idea della pagina delle indiscrezioni: non un riepilogo per lotto,
+ * ma la spesa di ciascuno. Le aste contese stanno nel loro paragrafo e non
+ * tornano qui, così ogni acquisto compare una volta sola.
+ */
+export function perSquadra(aste: AstaConclusa[]): SpesaChiusa[] {
+  const per = new Map<string, AstaConclusa[]>();
+  for (const a of senzaContendenti(aste)) {
+    per.set(a.vincitore, [...(per.get(a.vincitore) ?? []), a]);
+  }
+  return [...per.entries()]
+    .map(([squadra, suoi]) => ({ squadra, aste: suoi }))
+    .sort((a, b) => (b.aste.length - a.aste.length) || a.squadra.localeCompare(b.squadra));
+}
+
+/** «HAINAUT (Lecce) per 1, COULIBALY L. (Udinese) per 3 e CAMBIAGHI (Atalanta) per 1» */
+function elencoAcquisti(aste: AstaConclusa[]): string {
+  const nomi = aste.map((a) => `${a.giocatore} (${a.club}) per ${a.prezzo}`);
+  if (nomi.length <= 1) return nomi[0] ?? '';
+  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
 }
 
 /** Quello che la pagina mette accanto ai testi. */
@@ -190,8 +220,9 @@ function tono(v: number): string {
 
 export function costruisciPromptChiusura(r: RichiestaChiusura): string {
   const ap = r.aste.find((a) => a.lottoId === r.apertura) ?? r.aste[0];
-  const altre = contese(r.aste).filter((a) => a.lottoId !== ap?.lottoId);
-  const liberi = senzaContendenti(r.aste).filter((a) => a.lottoId !== ap?.lottoId);
+  const altre = r.aste.filter((a) => a.lottoId !== ap?.lottoId);
+  const duelli = contese(altre);
+  const gruppi = perSquadra(altre);
   const cap = paroleDelCappello(r.disposizione);
 
   return `Sei il giornalista di mercato della "Gazzetta della Mansarda". L'asta ${r.sessione} si è giocata ${r.quando} e la sala ha chiuso: scrivi la prima pagina del mercato **concluso**.
@@ -209,17 +240,24 @@ I prezzi si scrivono: sono la notizia. Un giocatore «è costato 34», un club �
 1. Non scrivere MAI un numero che non ti ho dato qui sotto.
 2. **Non nominare nessun giocatore che non sia in questa pagina**: né altri della rosa, né chi è uscito per far posto.
 3. Non inventare rilanci, cifre intermedie o retroscena d'asta che non ti ho dato: di ogni lotto sai solo chi ha vinto, a quanto, e chi è rimasto a mani vuote.
-4. Non inventare risultati, voti o partite: qui si parla solo di mercato.${
+4. Non inventare risultati, voti o partite: qui si parla solo di mercato.
+5. **Non scrivere mai che un club ha dovuto privarsi di qualcuno, rinunciare a un giocatore o fare spazio.** Chi prende qualcuno lascia andare qualcun altro: è sottinteso, e ripeterlo a ogni paragrafo rende la pagina tutta uguale.
+6. Ogni paragrafo comincia in modo diverso dagli altri: cambia il verbo, l'ordine, l'attacco.${
   r.paroleVietate.length ? `\n5. Parole vietate: ${r.paroleVietate.join(', ')}.` : ''}
 
 ## L'asta di apertura — la più pregiata fra quelle contese
 ${ap ? rigaAsta(ap) : 'nessuna asta conclusa'}
 
-## Le altre aste contese
-${altre.map(rigaAsta).join('\n\n') || 'nessuna'}
+## Le altre aste contese — vanno tutte in UN paragrafo solo
+${duelli.map(rigaAsta).join('\n\n') || 'nessun altro duello'}
 
-## Passati senza che nessuno si opponesse
-${liberi.map((a) => `- ${a.giocatore} (${NOME_RUOLO[a.ruolo]} del ${a.club}) al ${a.vincitore} per ${a.prezzo}`).join('\n') || 'nessuno'}
+## Chi è passato senza opposizione, club per club — un paragrafo per club
+Su questi nomi non si è presentato nessun altro. Racconta la spesa di
+ciascuno: che sessione ha fatto, cosa si è portato a casa.
+${gruppi.map((g) => `### ${g.squadra}\nsi è preso: ${elencoAcquisti(g.aste)}`).join('\n\n') || 'nessuno'}
+
+## I club usciti a mani vuote — tutti in UN paragrafo solo
+${r.fermi.length ? r.fermi.join(', ') : 'nessuno: hanno preso tutti qualcuno'}
 
 ## Gli scambi fra allenatori in questa finestra
 ${r.scambi.map(rigaScambio).join('\n\n') || 'nessuno'}
@@ -231,13 +269,14 @@ Solo JSON, senza testo intorno e senza blocchi di codice:
   "titolo": "il titolo dell'apertura, al massimo 44 caratteri: il giocatore e chi l'ha preso",
   "gancio": "la seconda riga, al massimo 30 caratteri: il prezzo o chi è rimasto a bocca asciutta",
   "cappello": "il pezzo dell'apertura: fra ${cap.min} e ${cap.max} parole, due o tre frasi",
-  "blocchi": [${altre.map((a) => `{ "lottoId": "${a.lottoId}", "testo": "due righe su ${a.giocatore}, al massimo 190 caratteri" }`).join(', ') || ''}],
-  "svincolati": "un unico paragrafo sui giocatori passati senza opposizione, al massimo 240 caratteri${liberi.length ? '' : ' — se non ce ne sono, scrivi una riga che lo dica'}",
+  "contesi": "${duelli.length ? `un paragrafo solo su tutte le altre aste contese (${duelli.map((a) => a.giocatore).join(', ')}), al massimo 320 caratteri` : 'stringa vuota: non ci sono altre aste contese'}",
+  "squadre": [${gruppi.map((g) => `{ "squadra": "${g.squadra}", "testo": "cosa si è portato a casa, coi nomi e i prezzi, al massimo 220 caratteri" }`).join(', ') || ''}],
+  "ferme": "${r.fermi.length ? 'un paragrafo solo sui club rimasti a mani vuote, al massimo 200 caratteri' : 'stringa vuota: hanno preso tutti qualcuno'}",
   "scambi": [${r.scambi.map((s) => `{ "id": "${s.id}", "testo": "una riga sullo scambio fra ${s.squadraA} e ${s.squadraB}, al massimo 170 caratteri" }`).join(', ') || ''}],
   "spalla": { "numero": "UN numero solo fra quelli che ti ho dato, in cifre", "didascalia": "cosa significa, al massimo 110 caratteri" }
 }
 
-L'array "blocchi" deve contenere tutte e ${altre.length} le altre aste contese, coi lottoId esatti. L'array "scambi" deve contenere tutti e ${r.scambi.length} gli scambi, con gli id esatti.${
+L'array "squadre" deve contenere tutti e ${gruppi.length} i club qui sopra, col nome scritto **esattamente** com'è scritto qui. L'array "scambi" deve contenere tutti e ${r.scambi.length} gli scambi, con gli id esatti. Ogni acquisto compare una volta sola in tutta la pagina.${
   r.correzioni?.length
     ? `\n\n## Il tentativo precedente è stato respinto\n${r.correzioni.map((c) => `- ${c}`).join('\n')}\nRiscrivi tutto correggendo questi punti.`
     : ''}`;
@@ -249,7 +288,7 @@ L'array "blocchi" deve contenere tutte e ${altre.length} le altre aste contese, 
 
 export function daJsonChiusura(grezzo: unknown): TestiChiusura {
   const p = (grezzo ?? {}) as Record<string, unknown>;
-  const blocchi = Array.isArray(p.blocchi) ? p.blocchi : [];
+  const squadre = Array.isArray(p.squadre) ? p.squadre : [];
   const scambi = Array.isArray(p.scambi) ? p.scambi : [];
   const spalla = p.spalla as { numero?: unknown; didascalia?: unknown } | null | undefined;
 
@@ -257,11 +296,12 @@ export function daJsonChiusura(grezzo: unknown): TestiChiusura {
     titolo: String(p.titolo ?? '').trim(),
     gancio: String(p.gancio ?? '').trim(),
     cappello: String(p.cappello ?? '').trim(),
-    blocchi: blocchi.map((b) => {
+    contesi: String(p.contesi ?? '').trim(),
+    squadre: squadre.map((b) => {
       const x = (b ?? {}) as Record<string, unknown>;
-      return { lottoId: String(x.lottoId ?? ''), testo: String(x.testo ?? '').trim() };
+      return { squadra: String(x.squadra ?? '').trim(), testo: String(x.testo ?? '').trim() };
     }),
-    svincolati: String(p.svincolati ?? '').trim(),
+    ferme: String(p.ferme ?? '').trim(),
     scambi: scambi.map((s) => {
       const x = (s ?? {}) as Record<string, unknown>;
       return { id: String(x.id ?? ''), testo: String(x.testo ?? '').trim() };
@@ -288,7 +328,7 @@ export interface EsitoChiusura {
 export function numeriDellaChiusura(r: RichiestaChiusura): Set<number> {
   const n = new Set<number>([
     r.sessione, r.aste.length, r.scambi.length,
-    contese(r.aste).length, senzaContendenti(r.aste).length,
+    contese(r.aste).length, senzaContendenti(r.aste).length, r.fermi.length,
   ]);
   for (const a of r.aste) {
     n.add(a.prezzo); n.add(a.quotazione); n.add(a.battute.length + 1);
@@ -317,14 +357,16 @@ export function verificaChiusura(t: TestiChiusura, r: RichiestaChiusura): EsitoC
   const problemi: string[] = [];
   const gravi: string[] = [];
   const grave = (m: string) => { problemi.push(m); gravi.push(m); };
-  const tutto = [t.titolo, t.gancio, t.cappello, ...t.blocchi.map((b) => b.testo),
-    t.svincolati, ...t.scambi.map((s) => s.testo), t.spalla?.didascalia ?? ''].join('\n');
+  const tutto = [t.titolo, t.gancio, t.cappello, t.contesi,
+    ...t.squadre.map((b) => b.testo), t.ferme,
+    ...t.scambi.map((s) => s.testo), t.spalla?.didascalia ?? ''].join('\n');
 
   if (!t.titolo) grave('manca il titolo');
   if (!t.cappello) grave('manca il cappello');
   if (t.titolo.length > 44) problemi.push(`il titolo è di ${t.titolo.length} caratteri invece di 44`);
   if (t.gancio.length > 30) problemi.push(`il gancio è di ${t.gancio.length} caratteri invece di 30`);
-  if (t.svincolati.length > 240) problemi.push(`il riquadro degli svincolati è di ${t.svincolati.length} caratteri invece di 240`);
+  if (t.contesi.length > 320) problemi.push(`il paragrafo sulle aste contese è di ${t.contesi.length} caratteri invece di 320`);
+  if (t.ferme.length > 200) problemi.push(`il paragrafo sui club a mani vuote è di ${t.ferme.length} caratteri invece di 200`);
 
   const parole = t.cappello.trim().split(/\s+/).filter(Boolean).length;
   const cap = paroleDelCappello(r.disposizione);
@@ -332,13 +374,37 @@ export function verificaChiusura(t: TestiChiusura, r: RichiestaChiusura): EsitoC
     problemi.push(`il cappello è di ${parole} parole invece che fra ${cap.min} e ${cap.max}`);
   }
 
-  // i blocchi e gli scambi devono esserci tutti, e con le chiavi giuste
-  const attesi = contese(r.aste).filter((a) => a.lottoId !== r.apertura).map((a) => a.lottoId);
-  const arrivati = new Set(t.blocchi.map((b) => b.lottoId));
-  for (const id of attesi) if (!arrivati.has(id)) problemi.push(`manca il blocco del lotto ${id}`);
-  for (const b of t.blocchi) {
-    if (!attesi.includes(b.lottoId)) problemi.push(`il blocco ${b.lottoId} non corrisponde a nessuna asta contesa`);
-    if (b.testo.length > 190) problemi.push(`un blocco è di ${b.testo.length} caratteri invece di 190`);
+  // le sezioni devono esserci tutte, e con le chiavi giuste
+  const altre = r.aste.filter((a) => a.lottoId !== r.apertura);
+  if (contese(altre).length && !t.contesi) problemi.push('manca il paragrafo sulle altre aste contese');
+  if (r.fermi.length && !t.ferme) problemi.push('manca il paragrafo sui club a mani vuote');
+
+  const attese = new Set(perSquadra(altre).map((g) => g.squadra));
+  const arrivate = new Set(t.squadre.map((x) => x.squadra));
+  for (const nome of attese) if (!arrivate.has(nome)) problemi.push(`manca il paragrafo di ${nome}`);
+  for (const x of t.squadre) {
+    if (!attese.has(x.squadra)) problemi.push(`c'è un paragrafo di ${x.squadra}, che non ha preso nessuno senza contendenti`);
+    if (x.testo.length > 220) problemi.push(`il paragrafo di ${x.squadra} è di ${x.testo.length} caratteri invece di 220`);
+  }
+
+  // «ha dovuto privarsi di un centrocampista» e tutta la famiglia: è
+  // sottinteso che chi prende qualcuno lasci andare qualcun altro
+  const sottinteso = tutto.match(
+    /\b(?:privars\w+|rinunciare a un\w*|sacrificare un\w*|fare spazio|liberare un posto|dovuto cedere)\b/gi,
+  );
+  if (sottinteso?.length) {
+    problemi.push(`dice che qualcuno è dovuto uscire («${sottinteso[0]}»): è sottinteso, non si scrive`);
+  }
+
+  // due paragrafi che cominciano uguale
+  const attacchi = new Map<string, string>();
+  for (const x of [{ squadra: 'le aste contese', testo: t.contesi }, ...t.squadre,
+    { squadra: 'i club a mani vuote', testo: t.ferme }]) {
+    const attacco = x.testo.toLowerCase().split(/\s+/).slice(0, 4).join(' ');
+    if (!attacco) continue;
+    const gia = attacchi.get(attacco);
+    if (gia) problemi.push(`${x.squadra} e ${gia} cominciano allo stesso modo: «${attacco}»`);
+    else attacchi.set(attacco, x.squadra);
   }
 
   const idScambi = r.scambi.map((s) => s.id);
@@ -389,8 +455,9 @@ export function verificaChiusura(t: TestiChiusura, r: RichiestaChiusura): EsitoC
  */
 export function chiusuraDiRipiego(r: RichiestaChiusura): TestiChiusura {
   const ap = r.aste.find((a) => a.lottoId === r.apertura) ?? r.aste[0] ?? null;
-  const altre = contese(r.aste).filter((a) => a.lottoId !== ap?.lottoId);
-  const liberi = senzaContendenti(r.aste).filter((a) => a.lottoId !== ap?.lottoId);
+  const altre = r.aste.filter((a) => a.lottoId !== ap?.lottoId);
+  const duelli = contese(altre);
+  const gruppi = perSquadra(altre);
 
   const conta = (x: string) => x.trim().split(/\s+/).filter(Boolean).length;
   const cap = paroleDelCappello(r.disposizione);
@@ -416,13 +483,14 @@ export function chiusuraDiRipiego(r: RichiestaChiusura): TestiChiusura {
     titolo: ap ? `${ap.giocatore} al ${ap.vincitore}`.slice(0, 44) : 'Sala chiusa',
     gancio: ap ? `per ${ap.prezzo}`.slice(0, 30) : '',
     cappello,
-    blocchi: altre.map((a) => ({
-      lottoId: a.lottoId,
-      testo: `${a.vincitore} l'ha spuntata per ${a.prezzo}, davanti a ${a.battute.join(' e ')}.`,
+    contesi: duelli.length
+      ? duelli.map((a) => `Su ${a.giocatore} l'ha spuntata ${a.vincitore} per ${a.prezzo}, davanti a ${a.battute.join(' e ')}.`).join(' ')
+      : '',
+    squadre: gruppi.map((g) => ({
+      squadra: g.squadra,
+      testo: `${g.squadra} si è preso ${elencoAcquisti(g.aste)}.`,
     })),
-    svincolati: liberi.length
-      ? `Senza contendenti: ${liberi.map((a) => `${a.giocatore} al ${a.vincitore} per ${a.prezzo}`).join('; ')}.`
-      : 'Nessun giocatore è passato senza opposizione.',
+    ferme: r.fermi.length ? `A mani vuote ${r.fermi.join(', ')}.` : '',
     scambi: r.scambi.map((s) => ({
       id: s.id,
       testo: `${s.squadraA} e ${s.squadraB} si sono scambiati ${[...s.versoB, ...s.versoA].join(', ')}.`,
@@ -453,14 +521,18 @@ export function montaChiusura(
 ): DatiPrima {
   const r = p.richiesta;
   const ap = r.aste.find((x) => x.lottoId === r.apertura) ?? r.aste[0] ?? null;
-  const testoDi = new Map(t.blocchi.map((b) => [b.lottoId, b.testo]));
-  const altre = contese(r.aste).filter((x) => x.lottoId !== ap?.lottoId);
-  const liberi = senzaContendenti(r.aste).filter((x) => x.lottoId !== ap?.lottoId);
+  const altre = r.aste.filter((x) => x.lottoId !== ap?.lottoId);
+  const testoDi = new Map(t.squadre.map((x) => [x.squadra, x.testo]));
 
-  const voci = altre.map((x) => ({ titolo: titoloAsta(x), testo: testoDi.get(x.lottoId) ?? '' }));
-  if (liberi.length || t.svincolati) {
-    voci.push({ titolo: 'Mercato Svincolati', testo: t.svincolati });
-  }
+  /*
+   * Tre tipi di voce, nell'ordine in cui si leggono: i duelli, la spesa di
+   * ogni club, e chi è uscito a mani vuote. I titoletti li scriviamo noi.
+   */
+  const voci = [
+    ...(contese(altre).length ? [{ titolo: 'Le altre aste', testo: t.contesi }] : []),
+    ...perSquadra(altre).map((g) => ({ titolo: g.squadra, testo: testoDi.get(g.squadra) ?? '' })),
+    ...(r.fermi.length ? [{ titolo: 'A mani vuote', testo: t.ferme }] : []),
+  ];
 
   const testoScambio = new Map(t.scambi.map((s) => [s.id, s.testo]));
 
@@ -483,7 +555,7 @@ export function montaChiusura(
     prossimi: [],
     gironi: null,
     tabellone: null,
-    titoloAltre: 'Le altre aste',
+    titoloAltre: 'Squadra per squadra',
     altre: voci,
     colonna: r.scambi.length
       ? {

@@ -10,3 +10,7 @@ sync.tgz
 sync2.tgz
 sync3.tgz
 sync4.tgz
+
+# Gli script di promozione fra development e production: servono sul PC,
+# non fanno parte di quello che Vercel costruisce.
+scripts/git/*.ps1

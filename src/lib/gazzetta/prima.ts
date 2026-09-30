@@ -52,6 +52,8 @@ export interface VoceTabellone { turno: string; testo: string }
 export interface Incontro { casa: string; ospite: string }
 
 export interface BloccoAltra {
+  /** l'interlinea di questo paragrafo, quando quella della pagina non va */
+  interlinea?: number;
   /** «Joga Benito 2-1 Montester» */
   titolo: string;
   /** due righe secche e cattive, non un paragrafo */
@@ -144,6 +146,16 @@ export interface DatiPrima {
    * hanno e si rendono identiche.
    */
   colonna?: { titolo: string; voci: BloccoAltra[] } | null;
+  /**
+   * Le interlinee, quando quelle di riposo non vanno bene.
+   *
+   * Sono una scelta di impaginazione, non di contenuto: un titolo su tre
+   * righe vuole un'interlinea più stretta di uno su una, e un cappello
+   * corto in un riquadro grande respira meglio largo. Assenti valgono i
+   * valori di riposo, quindi le prime pagine già salvate si rendono
+   * identiche.
+   */
+  interlinee?: Partial<Record<CampoInterlinea, number>>;
   /** opzionale: la pagina regge anche senza */
   spalla?: Spalla | null;
   piedeSinistra: string;
@@ -194,6 +206,69 @@ export function paroleDelCappello(d: Disposizione): { min: number; max: number }
 
 /** Una riga di testo, col suo rientro. */
 export interface RigaDiTesto { testo: string; rientro: number }
+
+// =====================================================================
+// Le interlinee
+// =====================================================================
+
+/**
+ * Le interlinee di riposo, quelle con cui la pagina è nata.
+ *
+ * Stanno qui e non sparse dentro il componente perché sono numeri che si
+ * regolano guardando la pagina: averli in un posto solo è la differenza fra
+ * cambiarne uno e andarlo a cercare in mezzo a quindici `lineHeight`.
+ */
+export const INTERLINEA = {
+  /** il titolone dell'apertura */
+  titolo: 0.92,
+  /** la riga gialla sotto il titolo */
+  gancio: 0.98,
+  /** il sommario dell'apertura */
+  cappello: 1.45,
+  /** il titoletto di un paragrafo del riquadro */
+  titoletto: 1.2,
+  /** il testo di un paragrafo del riquadro */
+  paragrafo: 1.5,
+  /** le voci della colonna di destra */
+  colonna: 1.3,
+  /** le righe del tabellone e dei prossimi incontri */
+  elenco: 1.25,
+  /** la didascalia del numerone */
+  spalla: 1.35,
+} as const;
+
+export type CampoInterlinea = keyof typeof INTERLINEA;
+
+export const INTERLINEA_MINIMA = 0.7;
+export const INTERLINEA_MASSIMA = 2.5;
+
+/**
+ * Un'interlinea entro i limiti, o quella di riposo.
+ *
+ * Sotto 0.7 le righe si accavallano e il testo diventa illeggibile; sopra
+ * 2.5 un paragrafo di tre righe sfonda il riquadro. Non sono limiti di
+ * gusto: sono i due punti oltre i quali la pagina esce rotta e non si
+ * recupera più, perché quello che si manda nel gruppo è un'immagine.
+ */
+export function interlineaValida(v: number | undefined, riposo: number): number {
+  if (!Number.isFinite(v as number)) return riposo;
+  const arrotondata = Math.round((v as number) * 100) / 100;
+  return Math.min(INTERLINEA_MASSIMA, Math.max(INTERLINEA_MINIMA, arrotondata));
+}
+
+/**
+ * L'interlinea da usare: prima quella del singolo paragrafo, poi quella
+ * della pagina, poi quella di riposo.
+ */
+export function interlineaDi(
+  d: { interlinee?: Partial<Record<CampoInterlinea, number>> },
+  campo: CampoInterlinea,
+  propria?: number,
+): number {
+  const riposo = INTERLINEA[campo];
+  if (Number.isFinite(propria as number)) return interlineaValida(propria, riposo);
+  return interlineaValida(d.interlinee?.[campo], riposo);
+}
 
 /**
  * Le righe di un testo, con gli a capo decisi dall'admin.

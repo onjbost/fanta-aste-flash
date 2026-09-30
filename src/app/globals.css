@@ -829,6 +829,16 @@ th.ordinabile .livello{
 .gaz-paragrafo-cima button{padding:4px 9px;line-height:1}
 .gaz-sposta{margin-top:2px;font-size:.76rem}
 
+/* I cursori delle interlinee: etichetta, valore e il tasto per rimettere
+   quello di riposo sulla stessa riga, così si capisce a colpo d'occhio
+   quali sono stati toccati. */
+.gaz-interlinea{margin-top:6px}
+.gaz-interlinea .gaz-etichetta{display:flex;align-items:center;gap:8px}
+.gaz-interlinea .gaz-etichetta em{font-style:normal;font-variant-numeric:tabular-nums}
+.gaz-interlinea .gaz-etichetta button{
+  margin-left:auto;padding:2px 7px;font-size:.7rem;text-transform:none;letter-spacing:0;
+}
+
 .gaz-stato{font-size:.82rem;color:var(--muted);margin:14px 0 6px}
 
 /* Due colonne su schermo largo, l'anteprima appiccicata in alto mentre si

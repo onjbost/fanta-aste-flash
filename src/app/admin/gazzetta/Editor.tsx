@@ -4,9 +4,10 @@ import { useActionState, useMemo, useState } from 'react';
 import { Prima, ALTEZZA, LARGHEZZA } from '@/lib/gazzetta/Prima';
 import { italianizza } from '@/lib/gazzetta/glifi';
 import {
-  ZOOM_MASSIMO, ZOOM_MINIMO, allaColonna, alRiquadro, colonnaLibera, disposizioneFoto,
+  INTERLINEA, INTERLINEA_MASSIMA, INTERLINEA_MINIMA, ZOOM_MASSIMO, ZOOM_MINIMO,
+  allaColonna, alRiquadro, colonnaLibera, disposizioneFoto, interlineaDi,
   riquadroDellaFoto, spazioDiManovra, spostaVoce, zoomPerSpostarsi, zoomValido,
-  type DatiPrima, type FotoPrima,
+  type CampoInterlinea, type DatiPrima, type FotoPrima,
 } from '@/lib/gazzetta/prima';
 import { limitiTitolo } from '@/lib/gazzetta/testi';
 import { salvaPrima, segnaMandata, type GazState } from './actions';
@@ -104,6 +105,48 @@ function misuraImmagineNelBrowser(
 }
 
 /**
+ * I pezzi della pagina che hanno un'interlinea regolabile, in italiano.
+ *
+ * L'ordine è quello in cui si leggono sulla pagina, non quello alfabetico:
+ * chi regola sta guardando l'anteprima, non l'elenco.
+ */
+const ETICHETTE_INTERLINEA: [CampoInterlinea, string][] = [
+  ['titolo', 'Titolo dell\'apertura'],
+  ['gancio', 'Gancio (la riga gialla)'],
+  ['cappello', 'Cappello dell\'apertura'],
+  ['titoletto', 'Titoletti dei paragrafi'],
+  ['paragrafo', 'Testo dei paragrafi'],
+  ['colonna', 'Voci della colonna di destra'],
+  ['elenco', 'Tabellone e prossimi incontri'],
+  ['spalla', 'Didascalia del numerone'],
+];
+
+/** Un cursore per un'interlinea, col valore scritto accanto. */
+function Interlinea({ etichetta, valore, suo, onChange }: {
+  etichetta: string; valore: number;
+  /** vero se questo valore è stato scelto, falso se è quello di riposo */
+  suo: boolean;
+  onChange: (v: number | undefined) => void;
+}) {
+  return (
+    <label className="gaz-campo gaz-interlinea">
+      <span className="gaz-etichetta">
+        {etichetta} <em>{valore.toFixed(2)}</em>
+        {suo && (
+          <button type="button" className="ghost" onClick={() => onChange(undefined)}>
+            rimetti com'era
+          </button>
+        )}
+      </span>
+      <input
+        type="range" min={INTERLINEA_MINIMA} max={INTERLINEA_MASSIMA} step={0.05}
+        value={valore} onChange={(e) => onChange(Number(e.target.value))}
+      />
+    </label>
+  );
+}
+
+/**
  * Un paragrafo del riquadro: titolo, testo, e i comandi per spostarlo.
  *
  * La `key` di chi lo monta è la posizione e non il titolo: col titolo
@@ -113,7 +156,7 @@ function misuraImmagineNelBrowser(
  */
 function Paragrafo({
   titolo, testo, limite, righe, primo, ultimo, suGiu, sposta, spostaEtichetta,
-  onTitolo, onTesto,
+  onTitolo, onTesto, interlinea, interlineaDefault, onInterlinea,
 }: {
   titolo: string; testo: string; limite: number; righe: number;
   primo: boolean; ultimo: boolean;
@@ -122,6 +165,11 @@ function Paragrafo({
   spostaEtichetta: string;
   onTitolo: (v: string) => void;
   onTesto: (v: string) => void;
+  /** l'interlinea di questo paragrafo, se ne ha una sua */
+  interlinea: number | undefined;
+  /** quella che userebbe altrimenti, cioè quella della pagina */
+  interlineaDefault: number;
+  onInterlinea: (v: number | undefined) => void;
 }) {
   return (
     <div className="gaz-paragrafo">
@@ -136,6 +184,12 @@ function Paragrafo({
           onClick={() => suGiu(1)} aria-label="Sposta giù">↓</button>
       </div>
       <Campo etichetta="" valore={testo} righe={righe} limite={limite} onChange={onTesto} />
+      <Interlinea
+        etichetta="Interlinea di questo paragrafo"
+        valore={interlinea ?? interlineaDefault}
+        suo={interlinea != null}
+        onChange={onInterlinea}
+      />
       {sposta && (
         <button type="button" className="ghost gaz-sposta" onClick={sposta}>
           {spostaEtichetta}
@@ -280,6 +334,11 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
             suGiu={(verso) => tocca({ altre: spostaVoce(dati.altre, i, verso) })}
             primo={i === 0}
             ultimo={i === dati.altre.length - 1}
+            interlinea={a.interlinea}
+            interlineaDefault={interlineaDi(dati, 'paragrafo')}
+            onInterlinea={(v) => tocca({
+              altre: dati.altre.map((x, j) => (j === i ? { ...x, interlinea: v } : x)),
+            })}
             sposta={colonnaLibera(dati) ? () => setDati((d) => allaColonna(d, i)) : null}
             spostaEtichetta="Porta nella colonna di destra →"
             onTitolo={(v) => tocca({
@@ -317,6 +376,14 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
                 righe={2}
                 primo={i === 0}
                 ultimo={i === dati.colonna!.voci.length - 1}
+                interlinea={v.interlinea}
+                interlineaDefault={interlineaDi(dati, 'colonna')}
+                onInterlinea={(t) => tocca({
+                  colonna: {
+                    ...dati.colonna!,
+                    voci: dati.colonna!.voci.map((x, j) => (j === i ? { ...x, interlinea: t } : x)),
+                  },
+                })}
                 suGiu={(verso) => tocca({
                   colonna: { ...dati.colonna!, voci: spostaVoce(dati.colonna!.voci, i, verso) },
                 })}
@@ -338,6 +405,29 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
             ))}
           </>
         )}
+
+        {/*
+          * Le interlinee della pagina.
+          *
+          * Un cursore per ogni pezzo che ha più di una riga, con il valore
+          * di riposo già impostato e il tasto per tornarci. Le righe che
+          * una riga sola ce l'hanno sempre — la testata, il numerone — non
+          * hanno cursore: sarebbe un comando che non fa niente.
+          */}
+        <h3>Le interlinee</h3>
+        <p className="gaz-nota">
+          Quanto respirano le righe. Si vede nell&apos;anteprima mentre trascini:
+          i valori partono da quelli di riposo, e ogni paragrafo può averne uno suo.
+        </p>
+        {ETICHETTE_INTERLINEA.map(([campo, etichetta]) => (
+          <Interlinea
+            key={campo}
+            etichetta={etichetta}
+            valore={interlineaDi(dati, campo)}
+            suo={dati.interlinee?.[campo] != null}
+            onChange={(v) => tocca({ interlinee: { ...dati.interlinee, [campo]: v } })}
+          />
+        ))}
 
         <h3>Il numerone</h3>
         {dati.spalla ? (

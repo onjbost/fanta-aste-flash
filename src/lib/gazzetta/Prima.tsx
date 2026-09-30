@@ -19,8 +19,8 @@
 
 import { soloTesto } from './glifi';
 import {
-  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto, riquadroDellaFoto,
-  righeDelTesto,
+  COLORI, ETICHETTA_EDIZIONE, coperturaFoto, disposizioneFoto, interlineaDi,
+  riquadroDellaFoto, righeDelTesto,
   type DatiPrima, type Disposizione, type FotoPrima, type RigaClassifica,
   type RigaDiTesto,
 } from './prima';
@@ -125,11 +125,11 @@ function TestoApertura({ d, largo }: { d: DatiPrima; largo: number }) {
     <div style={{ display: 'flex', flexDirection: 'column', width: largo }}>
       <Etichetta colore={COLORI.giallo}>{d.occhiello}</Etichetta>
       <Testo stile={{
-        fontFamily: TITOLO, fontSize: 64, lineHeight: 0.92,
+        fontFamily: TITOLO, fontSize: 64, lineHeight: interlineaDi(d, 'titolo'),
         color: COLORI.carta, marginTop: 10,
       }}>{d.titolo}</Testo>
       <Testo stile={{
-        fontFamily: TITOLO, fontSize: 44, lineHeight: 0.98,
+        fontFamily: TITOLO, fontSize: 44, lineHeight: interlineaDi(d, 'gancio'),
         color: COLORI.giallo, marginTop: 2,
       }}>{d.gancio}</Testo>
       <Testo stile={{
@@ -143,7 +143,7 @@ function TestoApertura({ d, largo }: { d: DatiPrima; largo: number }) {
         */}
       <div style={{ display: 'flex', width: 70, height: 2, background: COLORI.giallo, marginTop: 8 }} />
       <Testo stile={{
-        fontFamily: TESTO, fontSize: 15, lineHeight: 1.45,
+        fontFamily: TESTO, fontSize: 15, lineHeight: interlineaDi(d, 'cappello'),
         color: COLORI.carta, marginTop: 9,
       }}>{d.cappello}</Testo>
     </div>
@@ -302,10 +302,11 @@ function Colonna({ d }: { d: DatiPrima }) {
             <div key={v.titolo} style={{ display: 'flex', flexDirection: 'column', paddingBottom: 9 }}>
               <div style={{
                 display: 'flex', flexWrap: 'wrap', fontFamily: FORTE, fontSize: 12.5,
-                lineHeight: 1.25, color: COLORI.inchiostro,
+                lineHeight: interlineaDi(d, 'titoletto'), color: COLORI.inchiostro,
               }}>{T(v.titolo)}</div>
               <Testo stile={{
-                fontFamily: TESTO, fontSize: 11.5, lineHeight: 1.3,
+                fontFamily: TESTO, fontSize: 11.5,
+                lineHeight: interlineaDi(d, 'colonna', v.interlinea),
                 color: COLORI.inchiostro, marginTop: 2, flexWrap: 'wrap',
               }}>{v.testo}</Testo>
             </div>
@@ -342,7 +343,7 @@ function Colonna({ d }: { d: DatiPrima }) {
                 )}
                 <div style={{
                   display: 'flex', flexWrap: 'wrap', fontFamily: FORTE, fontSize: 12.5,
-                  lineHeight: 1.25, color: COLORI.inchiostro, marginTop: 3,
+                  lineHeight: interlineaDi(d, 'elenco'), color: COLORI.inchiostro, marginTop: 3,
                 }}>{T(v.testo)}</div>
               </div>
             ))}
@@ -365,7 +366,8 @@ function Colonna({ d }: { d: DatiPrima }) {
           // colonna sfondava il piede della pagina.
           <div key={`${p.casa}-${p.ospite}`} style={{
             display: 'flex', flexWrap: 'wrap', padding: '5px 0',
-            fontFamily: FORTE, fontSize: 12, lineHeight: 1.25, color: COLORI.inchiostro,
+            fontFamily: FORTE, fontSize: 12, lineHeight: interlineaDi(d, 'elenco'),
+            color: COLORI.inchiostro,
           }}>{T(`${p.casa} - ${p.ospite}`)}</div>
         ))}
       </div>
@@ -386,7 +388,7 @@ function Spalla({ d, largo = 520 }: { d: DatiPrima; largo?: number }) {
         color: COLORI.giallo, marginRight: 18,
       }}>{T(d.spalla.numero)}</div>
       <Testo stile={{
-        fontFamily: TESTO, fontSize: 14, lineHeight: 1.35,
+        fontFamily: TESTO, fontSize: 14, lineHeight: interlineaDi(d, 'spalla'),
         color: COLORI.carta, flex: 1,
       }}>{d.spalla.didascalia}</Testo>
     </div>
@@ -421,8 +423,15 @@ function Altre({ d, aTuttaPagina = false }: { d: DatiPrima; aTuttaPagina?: boole
           <div key={a.titolo} style={{
             display: 'flex', flexDirection: 'column', marginTop: 13, width: bloccoLargo,
           }}>
-            <Testo stile={{ fontFamily: FORTE, fontSize: 17, lineHeight: 1.2, color: COLORI.inchiostro }}>{a.titolo}</Testo>
-            <Testo stile={{ fontFamily: TESTO, fontSize: 14, lineHeight: 1.5, color: COLORI.inchiostro, marginTop: 5, width: bloccoLargo }}>{a.testo}</Testo>
+            <Testo stile={{
+              fontFamily: FORTE, fontSize: 17, lineHeight: interlineaDi(d, 'titoletto'),
+              color: COLORI.inchiostro,
+            }}>{a.titolo}</Testo>
+            <Testo stile={{
+              fontFamily: TESTO, fontSize: 14,
+              lineHeight: interlineaDi(d, 'paragrafo', a.interlinea),
+              color: COLORI.inchiostro, marginTop: 5, width: bloccoLargo,
+            }}>{a.testo}</Testo>
           </div>
         ))}
       </div>

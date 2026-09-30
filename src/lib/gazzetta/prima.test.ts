@@ -4,6 +4,7 @@ import {
   faseDiCoppa, fuocoValido, numeroEdizione, paroleDelCappello, righeDelTesto,
   riquadroDellaFoto, spazioDiManovra, zoomPerSpostarsi, zoomValido,
   allaColonna, alRiquadro, colonnaLibera, spostaVoce,
+  INTERLINEA, INTERLINEA_MASSIMA, INTERLINEA_MINIMA, interlineaDi, interlineaValida,
   type DatiPrima, type FotoPrima,
 } from './prima';
 
@@ -422,5 +423,45 @@ describe('spostare i paragrafi', () => {
     const tornata = alRiquadro(allaColonna(d, 2), 0);
     expect(tornata.altre.map((x) => x.titolo)).toEqual(['uno', 'due', 'tre']);
     expect(tornata.colonna).toBeNull();
+  });
+});
+
+describe('le interlinee', () => {
+  const pagina = (p: Partial<DatiPrima> = {}): DatiPrima => ({
+    tipo: 'settimanale', numero: '', data: '', sottotestata: '', occhiello: '',
+    titolo: '', gancio: '', sottotitolo: '', cappello: '', foto: null,
+    classifica: [], prossimi: [], gironi: null, tabellone: null,
+    altre: [], colonna: null, spalla: null, piedeSinistra: '', piedeDestra: '',
+    ...p,
+  });
+
+  it('senza niente valgono quelle di riposo: le pagine già salvate non cambiano', () => {
+    const d = pagina();
+    expect(interlineaDi(d, 'titolo')).toBe(INTERLINEA.titolo);
+    expect(interlineaDi(d, 'cappello')).toBe(INTERLINEA.cappello);
+    expect(interlineaDi(d, 'paragrafo')).toBe(INTERLINEA.paragrafo);
+  });
+
+  it('quella della pagina vince su quella di riposo', () => {
+    expect(interlineaDi(pagina({ interlinee: { cappello: 1.2 } }), 'cappello')).toBe(1.2);
+  });
+
+  it('e quella del singolo paragrafo vince su quella della pagina', () => {
+    const d = pagina({ interlinee: { paragrafo: 1.2 } });
+    expect(interlineaDi(d, 'paragrafo', 1.8)).toBe(1.8);
+    expect(interlineaDi(d, 'paragrafo', undefined)).toBe(1.2);
+  });
+
+  it('fuori dai limiti si riporta dentro invece di rompere la pagina', () => {
+    // sotto 0.7 le righe si accavallano, sopra 2.5 il paragrafo sfonda il
+    // riquadro: in un'immagine da mandare nel gruppo non si recupera
+    expect(interlineaDi(pagina({ interlinee: { titolo: 0.1 } }), 'titolo')).toBe(INTERLINEA_MINIMA);
+    expect(interlineaDi(pagina({ interlinee: { titolo: 9 } }), 'titolo')).toBe(INTERLINEA_MASSIMA);
+  });
+
+  it('un valore storto non manda tutto a monte', () => {
+    expect(interlineaDi(pagina({ interlinee: { titolo: NaN } }), 'titolo')).toBe(INTERLINEA.titolo);
+    expect(interlineaValida(undefined, 1.4)).toBe(1.4);
+    expect(interlineaValida(1.333, 1.4)).toBe(1.33);
   });
 });

@@ -288,6 +288,32 @@ function Titoletto({ children, sopra = 0 }: { children: string; sopra?: number }
 function Colonna({ d }: { d: DatiPrima }) {
   const gironi = d.gironi ?? null;
   const tabellone = d.tabellone ?? null;
+  const libera = d.colonna ?? null;
+
+  // una colonna libera sostituisce tutto il resto: nel mercato chiuso lì ci
+  // vanno gli scambi, e classifiche e calendari non c'entrano niente
+  if (libera) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingLeft: 22 }}>
+        <Titoletto>{libera.titolo}</Titoletto>
+        <Linea spessore={2} sopra={7} />
+        <div style={{ display: 'flex', flexDirection: 'column', marginTop: 8 }}>
+          {libera.voci.map((v) => (
+            <div key={v.titolo} style={{ display: 'flex', flexDirection: 'column', paddingBottom: 9 }}>
+              <div style={{
+                display: 'flex', flexWrap: 'wrap', fontFamily: FORTE, fontSize: 12.5,
+                lineHeight: 1.25, color: COLORI.inchiostro,
+              }}>{T(v.titolo)}</div>
+              <Testo stile={{
+                fontFamily: TESTO, fontSize: 11.5, lineHeight: 1.3,
+                color: COLORI.inchiostro, marginTop: 2, flexWrap: 'wrap',
+              }}>{v.testo}</Testo>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, paddingLeft: 22 }}>
@@ -370,7 +396,8 @@ function Spalla({ d, largo = 520 }: { d: DatiPrima; largo?: number }) {
 /** La colonna di destra ha qualcosa da mostrare? */
 function haColonna(d: DatiPrima): boolean {
   return Boolean(
-    d.gironi?.length || d.tabellone?.length
+    d.colonna?.voci.length
+    || d.gironi?.length || d.tabellone?.length
     || d.classifica.length || d.prossimi.length,
   );
 }

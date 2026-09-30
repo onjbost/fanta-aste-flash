@@ -4,6 +4,7 @@ import {
   licenzeUsate, mercatoDiRipiego, numeriDelMercato, quandoApreLaSala, rivali, ruoloPerEsteso,
   titoloTrattativa, trattativaDiApertura, verificaMercato,
   type RichiestaMercato, type TestiMercato, type Trattativa,
+  paroleCheIniziano,
 } from './mercato';
 
 /*
@@ -182,6 +183,19 @@ describe('verificaMercato', () => {
     expect(e.problemi.join(' ')).toContain('crediti');
   });
 
+  it('ma NON boccia una parola che contiene una radice per caso', () => {
+    // la regressione del 30 settembre: «guastare» contiene «asta», e la
+    // prima pagina di indiscrezioni vera è finita al ripiego per questo
+    const e = verificaMercato(
+      testi({ blocchi: [
+        { lottoId: 'a-osmajic', testo: 'Il Joga Benito vuole guastare la festa all\'NTONIA.' },
+        { lottoId: 'b-hainaut', testo: 'Nessuno si sarebbe mosso sul difensore.' },
+      ] }),
+      richiesta(),
+    );
+    expect(e.problemi).toEqual([]);
+  });
+
   it('conta le licenze di colore e boccia chi esagera', () => {
     const troppo = Array.from({ length: MASSIME_LICENZE + 1 }, () => 'si dice che').join(' ');
     const e = verificaMercato(
@@ -287,5 +301,35 @@ describe('quandoApreLaSala', () => {
   it('tiene conto dell\'ora solare, quando arriva', () => {
     // a dicembre l'Italia è a UTC+1, non +2
     expect(quandoApreLaSala('2026-12-02T19:30:00+00:00')).toBe('mercoledì 2 dicembre alle 20.30');
+  });
+});
+
+describe('paroleCheIniziano — il difetto che ha mandato al ripiego il primo pezzo vero', () => {
+  it('«guastare» non è un\'asta, e nemmeno «bastardo» o «catasta»', () => {
+    // il pezzo del 30 settembre è finito al ripiego per questo: la verifica
+    // cercava «asta» dentro le parole e l'ha trovata in «guastare»
+    expect(paroleCheIniziano('vuole guastare la festa', ['asta'])).toEqual([]);
+    expect(paroleCheIniziano('un bastardo dentro una catasta', ['asta'])).toEqual([]);
+    expect(paroleCheIniziano('la rugiada sulle rose', ['rosa'])).toEqual([]);
+  });
+
+  it('ma la parola vera la prende, anche attaccata a un apostrofo', () => {
+    expect(paroleCheIniziano('si va all\'asta giovedì', ['asta'])).toEqual(['asta']);
+    expect(paroleCheIniziano('due aste in tre settimane', ['aste'])).toEqual(['aste']);
+    expect(paroleCheIniziano('ha speso i crediti', ['credit'])).toEqual(['crediti']);
+  });
+
+  it('le radici restano prefissi: svincol prende svincolati e svincolando', () => {
+    expect(paroleCheIniziano('gli svincolati e lo svincolando', ['svincol']))
+      .toEqual(['svincolati', 'svincolando']);
+  });
+
+  it('torna la parola come l\'ha scritta il modello, non la radice', () => {
+    expect(paroleCheIniziano('la sua QUOTAZIONE', ['quotazion'])).toEqual(['quotazione']);
+  });
+
+  it('niente radici, niente problemi', () => {
+    expect(paroleCheIniziano('un testo qualunque', [])).toEqual([]);
+    expect(paroleCheIniziano('', ['asta'])).toEqual([]);
   });
 });

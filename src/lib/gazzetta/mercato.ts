@@ -324,9 +324,34 @@ export function numeriDelMercato(r: RichiestaMercato): Set<number> {
  * il gioco, e nessun'altra verifica se ne accorgerebbe.
  */
 const DA_FANTACALCIO = [
-  'credit', 'quotazion', 'fantapunt', 'fantamedia', 'asta', 'lotto', 'lotti',
+  'credit', 'quotazion', 'fantapunt', 'fantamedia', 'asta', 'aste', 'lotto', 'lotti',
   'svincol', 'rosa', 'rose', 'fantacalcio', 'fantallenator', 'listone',
 ];
+
+/**
+ * Le parole del testo che **cominciano** con una di queste radici.
+ *
+ * L'inizio della parola non è un dettaglio di stile: cercare la radice in
+ * mezzo bocciava pezzi puliti. «guastare» contiene «asta», «bastardo» pure,
+ * e il primo pezzo di indiscrezioni vero è finito al ripiego proprio così —
+ * il modello aveva scritto «guastare la festa» e la verifica ha letto
+ * un'asta lì dentro. Le radici sono prefissi apposta (svincol → svincolati,
+ * svincolando), quindi la regola giusta è «la parola comincia per», non «la
+ * parola contiene».
+ *
+ * Torna le parole com'erano scritte, non le radici: all'admin serve sapere
+ * cosa cambiare, non come le cerchiamo.
+ */
+export function paroleCheIniziano(testo: string, radici: string[]): string[] {
+  const minuscolo = testo.toLowerCase();
+  const trovate = radici.flatMap((radice) => {
+    if (!radice) return [];
+    const scappata = radice.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const re = new RegExp(`(^|[^\\p{L}\\p{N}])(${scappata}\\p{L}*)`, 'gu');
+    return [...minuscolo.matchAll(re)].map((m) => m[2]);
+  });
+  return [...new Set(trovate)];
+}
 
 export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMercato {
   const problemi: string[] = [];
@@ -365,13 +390,7 @@ export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMerc
   }
 
   // ---- il registro
-  const minuscolo = tutto.toLowerCase();
-  // si segnala la parola com'è scritta nel pezzo, non la radice che l'ha
-  // riconosciuta: all'admin serve sapere cosa cambiare, non come cerchiamo
-  const scivoloni = [...new Set(
-    DA_FANTACALCIO.flatMap((radice) =>
-      minuscolo.match(new RegExp(`\\p{L}*${radice}\\p{L}*`, 'gu')) ?? []),
-  )];
+  const scivoloni = paroleCheIniziano(tutto, DA_FANTACALCIO);
   if (scivoloni.length) {
     problemi.push(`usa parole da fantacalcio invece che da mercato: ${scivoloni.join(', ')}`);
   }
@@ -392,8 +411,9 @@ export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMerc
   const inventati = numeriInventati(tutto, ammessi);
   if (inventati.length) problemi.push(`numeri che non ti ho dato: ${inventati.join(', ')}`);
 
-  // ---- parole vietate di lega
-  const vietate = r.paroleVietate.filter((p) => p && minuscolo.includes(p.toLowerCase()));
+  // ---- parole vietate di lega, con la stessa regola del registro: una
+  // parola vietata è una parola, non una sequenza di lettere dentro un'altra
+  const vietate = paroleCheIniziano(tutto, r.paroleVietate.filter(Boolean));
   if (vietate.length) problemi.push(`parole vietate usate: ${vietate.join(', ')}`);
 
   return { ok: problemi.length === 0, problemi, inventati };

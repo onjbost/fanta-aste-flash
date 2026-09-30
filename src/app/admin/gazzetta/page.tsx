@@ -5,7 +5,8 @@ import { ultimaGazzetta, ultimaGazzettaDiMercato } from '@/lib/gazzetta/gazzetta
 import { indiceFoto } from '@/lib/gazzetta/newsServer';
 import { TopBar } from '../../TopBar';
 import { Editor, type FotoScelta } from './Editor';
-import { AggiornaFoto, Genera, GeneraRumors } from './Genera';
+import { AggiornaFoto, Genera, GeneraChiusura, GeneraRumors } from './Genera';
+import { scambiPerLaGazzetta } from '@/lib/gazzetta/mercatoChiusoServer';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,11 +25,15 @@ export default async function GazzettaPage({ searchParams }: {
 
   const db = supabaseAdmin();
   const { giornata, tipo: tipoGrezzo, sessione } = await searchParams;
-  const tipo: 'settimanale' | 'coppa' | 'fantamercato' =
+  const tipo: 'settimanale' | 'coppa' | 'fantamercato' | 'mercato_chiuso' =
     tipoGrezzo === 'coppa' ? 'coppa'
       : tipoGrezzo === 'fantamercato' ? 'fantamercato'
-        : 'settimanale';
-  const diMercato = tipo === 'fantamercato';
+        : tipoGrezzo === 'mercato_chiuso' ? 'mercato_chiuso'
+          : 'settimanale';
+  // le due edizioni di mercato si scelgono per sessione d'asta, non per
+  // giornata: cambia quando escono, non da dove leggono
+  const chiuso = tipo === 'mercato_chiuso';
+  const diMercato = tipo === 'fantamercato' || chiuso;
 
   /*
    * Le sessioni d'asta che hanno già delle chiamate.
@@ -40,16 +45,24 @@ export default async function GazzettaPage({ searchParams }: {
    */
   const { data: sessioni } = diMercato
     ? await db.from('auction_sessions')
-      .select('id, number, status, auction_at, lots(id)')
+      .select('id, number, status, auction_at, lots(id, winner_team_id)')
       .eq('league_id', ctx.team.leagueId).order('number', { ascending: false })
     : { data: null };
 
+  type LottoBreve = { id: string; winner_team_id: string | null };
   const elencoSessioni = (sessioni ?? [])
     .filter((x) => Array.isArray(x.lots) && x.lots.length > 0)
-    .map((x) => ({
-      id: x.id as string, numero: x.number as number, stato: x.status as string,
-      chiamate: (x.lots as unknown[]).length,
-    }));
+    .map((x) => {
+      const lotti = x.lots as unknown as LottoBreve[];
+      return {
+        id: x.id as string, numero: x.number as number, stato: x.status as string,
+        chiamate: lotti.length,
+        assegnati: lotti.filter((l) => l.winner_team_id).length,
+      };
+    })
+    // il mercato chiuso ha senso solo dove qualcosa è stato assegnato: una
+    // sessione ancora da giocare darebbe un bottone che fallisce
+    .filter((x) => !chiuso || x.assegnati > 0);
 
   const sessioneScelta = elencoSessioni.find((x) => x.id === sessione) ?? elencoSessioni[0] ?? null;
 
@@ -78,8 +91,17 @@ export default async function GazzettaPage({ searchParams }: {
 
   const scelta = elenco.find((m) => m.id === giornata) ?? elenco[0] ?? null;
   const gazzetta = diMercato
-    ? await ultimaGazzettaDiMercato(ctx.team.leagueId)
-    : scelta ? await ultimaGazzetta(scelta.id, tipo) : null;
+    ? await ultimaGazzettaDiMercato(ctx.team.leagueId, chiuso ? 'mercato_chiuso' : 'fantamercato')
+    : scelta ? await ultimaGazzetta(scelta.id, tipo as 'settimanale' | 'coppa') : null;
+
+  // gli scambi da spuntare: solo per il mercato chiuso, e solo se c'è una
+  // sessione scelta — altrimenti è una lettura inutile a ogni caricamento
+  const scambi = chiuso && sessioneScelta
+    ? (await scambiPerLaGazzetta(sessioneScelta.id)).map((x) => ({
+      id: x.id, quando: x.quando, squadraA: x.squadraA, squadraB: x.squadraB,
+      versoA: x.versoA, versoB: x.versoB, dallUltimaAsta: x.dallUltimaAsta,
+    }))
+    : [];
 
   // le foto fra cui l'admin può scegliere: le più recenti, con le misure
   // già lette al momento della raccolta — cambiare foto nell'editor
@@ -111,6 +133,7 @@ export default async function GazzettaPage({ searchParams }: {
             <option value="settimanale">Campionato</option>
             <option value="coppa">Coppa Mansarda</option>
             <option value="fantamercato">Fantamercato · indiscrezioni</option>
+            <option value="mercato_chiuso">Fantamercato · mercato chiuso</option>
           </select>
         </label>
         {diMercato ? (
@@ -119,7 +142,9 @@ export default async function GazzettaPage({ searchParams }: {
             <select name="sessione" defaultValue={sessioneScelta?.id ?? ''}>
               {elencoSessioni.map((x) => (
                 <option key={x.id} value={x.id}>
-                  Sessione {x.numero} — {x.chiamate} chiamate ({x.stato})
+                  Sessione {x.numero} — {chiuso
+                    ? `${x.assegnati} ${x.assegnati === 1 ? 'asta assegnata' : 'aste assegnate'}`
+                    : `${x.chiamate} chiamate`} ({x.stato})
                 </option>
               ))}
             </select>
@@ -147,16 +172,19 @@ export default async function GazzettaPage({ searchParams }: {
       )}
       {diMercato && !sessioneScelta && (
         <p className="vuoto">
-          Nessuna sessione d&apos;asta con delle chiamate: le indiscrezioni si
-          scrivono su quelle.
+          {chiuso
+            ? 'Nessuna sessione d\u2019asta con dei lotti assegnati: il mercato chiuso esce quando la sala ha chiuso.'
+            : 'Nessuna sessione d\u2019asta con delle chiamate: le indiscrezioni si scrivono su quelle.'}
         </p>
       )}
 
       {(diMercato ? sessioneScelta : scelta) && (
         <>
-          {diMercato && sessioneScelta
-            ? <GeneraRumors sessionId={sessioneScelta.id} esiste={Boolean(gazzetta)} />
-            : scelta && <Genera matchdayId={scelta.id} esiste={Boolean(gazzetta)} tipo={tipo === 'coppa' ? 'coppa' : 'settimanale'} />}
+          {chiuso && sessioneScelta
+            ? <GeneraChiusura sessionId={sessioneScelta.id} esiste={Boolean(gazzetta)} scambi={scambi} />
+            : diMercato && sessioneScelta
+              ? <GeneraRumors sessionId={sessioneScelta.id} esiste={Boolean(gazzetta)} />
+              : scelta && <Genera matchdayId={scelta.id} esiste={Boolean(gazzetta)} tipo={tipo === 'coppa' ? 'coppa' : 'settimanale'} />}
           <AggiornaFoto />
 
           {gazzetta && (
@@ -168,7 +196,20 @@ export default async function GazzettaPage({ searchParams }: {
                 {gazzetta.inviataIl ? ` · mandata il ${quando(gazzetta.inviataIl)}` : ''}
               </p>
 
+              {/*
+                * La `key` è l'id della gazzetta, e non è un dettaglio.
+                *
+                * L'editor tiene i testi in uno stato suo, avviato da
+                * `iniziali`; un valore iniziale React lo legge **solo al
+                * montaggio**. Senza key, rigenerando la pagina il server
+                * mandava la versione nuova ma il componente restava montato
+                * con i testi della vecchia: in alto si leggeva «versione 5
+                * scritta da gemini» e sotto c'era ancora il testo di ripiego
+                * della 4. Una versione nuova è una riga nuova, quindi un id
+                * nuovo, quindi un editor nuovo.
+                */}
               <Editor
+                key={gazzetta.id}
                 id={gazzetta.id}
                 iniziali={gazzetta.dati}
                 foto={foto}

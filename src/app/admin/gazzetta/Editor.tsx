@@ -215,7 +215,7 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
         <Campo etichetta="Cappello" valore={dati.cappello} righe={4}
           onChange={(v) => tocca({ cappello: v })} />
 
-        <h3>Le altre partite</h3>
+        <h3>{dati.titoloAltre ?? 'Le altre partite'}</h3>
         {dati.altre.map((a, i) => (
           <Campo
             key={a.titolo}
@@ -228,6 +228,33 @@ export function Editor({ id, iniziali, foto, problemi, modificataIl, inviataIl }
             })}
           />
         ))}
+
+        {/*
+          * La colonna di destra libera — nel mercato chiuso sono gli scambi.
+          * Si corregge come tutto il resto: una pagina dove metà dei testi
+          * si possono sistemare e metà no è peggio di una tutta bloccata,
+          * perché il limite lo si scopre solo quando serve.
+          */}
+        {dati.colonna && (
+          <>
+            <h3>{dati.colonna.titolo}</h3>
+            {dati.colonna.voci.map((v, i) => (
+              <Campo
+                key={v.titolo}
+                etichetta={v.titolo}
+                valore={v.testo}
+                righe={2}
+                limite={170}
+                onChange={(t) => tocca({
+                  colonna: {
+                    ...dati.colonna!,
+                    voci: dati.colonna!.voci.map((x, j) => (j === i ? { ...x, testo: t } : x)),
+                  },
+                })}
+              />
+            ))}
+          </>
+        )}
 
         <h3>Il numerone</h3>
         {dati.spalla ? (

@@ -6,6 +6,7 @@ import {
 } from '@/lib/gazzetta/gazzettaServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
 import { generaGazzettaMercato } from '@/lib/gazzetta/mercatoServer';
+import { generaGazzettaChiusura } from '@/lib/gazzetta/mercatoChiusoServer';
 import type { DatiPrima } from '@/lib/gazzetta/prima';
 import { supabaseServer } from '@/lib/supabase';
 
@@ -153,6 +154,47 @@ export async function generaRumors(_prev: GazState, form: FormData): Promise<Gaz
 
   try {
     const e = await generaGazzettaMercato(sessionId, { tono });
+    revalidatePath('/admin/gazzetta');
+    const problemi = e.verifica.problemi;
+    return {
+      ok: true, id: e.gazzettaId,
+      message: `Versione ${e.versione} scritta da ${e.provider}`
+        + (e.tentativi > 1 ? ` in ${e.tentativi} tentativi` : '')
+        + (problemi.length ? ` — da controllare: ${problemi.join(' · ')}` : '.'),
+    };
+  } catch (err) {
+    return { ok: false, message: (err as Error).message };
+  }
+}
+
+/**
+ * Il mercato chiuso: le stesse aste delle indiscrezioni, ma a cose fatte.
+ *
+ * Gli scambi arrivano dal form come una lista di id spuntati. Se non ne
+ * arriva nessuno **non** si ripiega sulla scelta automatica: vorrebbe dire
+ * rimettere dentro quello che l'admin ha appena tolto, e una pagina che
+ * ignora le spunte è peggio di una senza scambi. Il campo nascosto
+ * «scambiPresenti» distingue «non ne ho scelto nessuno» da «questo form non
+ * li chiedeva affatto».
+ */
+export async function generaChiusura(_prev: GazState, form: FormData): Promise<GazState> {
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
+
+  const sessionId = String(form.get('sessionId') ?? '');
+  if (!sessionId) return { ok: false, message: 'Manca la sessione.' };
+  const tono = form.get('tono') ? Number(form.get('tono')) : undefined;
+  const scambi = form.get('scambiPresenti')
+    ? form.getAll('scambi').map(String).filter(Boolean)
+    : undefined;
+
+  const db = await supabaseServer();
+  const { data: s } = await db.from('auction_sessions')
+    .select('id').eq('id', sessionId).eq('league_id', admin.leagueId).maybeSingle();
+  if (!s) return { ok: false, message: 'Questa sessione non esiste.' };
+
+  try {
+    const e = await generaGazzettaChiusura(sessionId, { tono, scambi });
     revalidatePath('/admin/gazzetta');
     const problemi = e.verifica.problemi;
     return {

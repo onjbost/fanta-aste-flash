@@ -797,6 +797,22 @@ th.ordinabile .livello{
 .gaz-genera label{display:flex;flex-direction:column;gap:4px;font-size:.8rem;color:var(--muted)}
 .gaz-genera p{flex-basis:100%;margin:0}
 
+.gaz-genera-largo{flex-direction:column;align-items:stretch}
+
+/* Gli scambi da mandare in pagina: spunte, non un campo di testo. La
+   proposta arriva già fatta, e quello che si legge dev'essere chi scambia
+   con chi — i nomi dei giocatori stanno sotto, più piccoli. */
+.gaz-scambi{display:flex;flex-direction:column;gap:6px;width:100%}
+.gaz-scambi h4{margin:0 0 2px;font-size:.82rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.gaz-scambi>button{align-self:flex-start;margin-top:4px}
+.gaz-scambio{
+  display:flex;flex-direction:row!important;align-items:flex-start;gap:8px;
+  padding:7px 9px;border:1px solid var(--border);border-radius:8px;background:var(--surface);
+  font-size:.86rem;color:var(--ink);cursor:pointer;
+}
+.gaz-scambio input{margin-top:3px}
+.gaz-scambio small{color:var(--muted)}
+
 .gaz-stato{font-size:.82rem;color:var(--muted);margin:14px 0 6px}
 
 /* Due colonne su schermo largo, l'anteprima appiccicata in alto mentre si

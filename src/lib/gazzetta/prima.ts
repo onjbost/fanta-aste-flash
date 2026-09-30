@@ -16,12 +16,13 @@
  * cose diverse e l'admin manderebbe nel gruppo qualcosa che non ha visto.
  */
 
-export type TipoEdizione = 'settimanale' | 'coppa' | 'fantamercato';
+export type TipoEdizione = 'settimanale' | 'coppa' | 'fantamercato' | 'mercato_chiuso';
 
 export const ETICHETTA_EDIZIONE: Record<TipoEdizione, string> = {
   settimanale: 'EDIZIONE SETTIMANALE',
   coppa: 'EDIZIONE COPPA',
   fantamercato: 'EDIZIONE FANTAMERCATO',
+  mercato_chiuso: 'MERCATO CHIUSO',
 };
 
 /** I colori del template, presi dal file originale. */
@@ -133,6 +134,16 @@ export interface DatiPrima {
    * altre trattative».
    */
   titoloAltre?: string;
+  /**
+   * Una colonna di destra libera: un titolo e delle voci brevi.
+   *
+   * Nelle edizioni di campionato e di coppa quella colonna è occupata dalla
+   * classifica e dai prossimi incontri; nel fantamercato restava vuota e la
+   * pagina si allargava. Il mercato chiuso la riempie con gli scambi, che
+   * sono il terzo riquadro. Opzionale: le prime pagine già salvate non la
+   * hanno e si rendono identiche.
+   */
+  colonna?: { titolo: string; voci: BloccoAltra[] } | null;
   /** opzionale: la pagina regge anche senza */
   spalla?: Spalla | null;
   piedeSinistra: string;
@@ -363,7 +374,8 @@ export function numeroEdizione(tipo: TipoEdizione, n: number, fase?: FaseCoppa):
     // solo il font dei titoli, e questa riga la disegna quello dei corpi
     return `COPPA \u00b7 GIORNATA ${n}`;
   }
-  return tipo === 'settimanale' ? `N. ${n}` : `MERCATO N. ${n}`;
+  if (tipo === 'settimanale') return `N. ${n}`;
+  return tipo === 'mercato_chiuso' ? `MERCATO \u00b7 ASTA ${n}` : `MERCATO N. ${n}`;
 }
 
 /** La data come la stamperebbe un giornale: «28 SETTEMBRE 2026». */

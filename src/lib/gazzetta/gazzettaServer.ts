@@ -477,10 +477,12 @@ export async function ultimaGazzetta(
  * tipo e si prende la più recente: nel gruppo si parla dell'ultima uscita di
  * mercato, non di quella della sessione 3.
  */
-export async function ultimaGazzettaDiMercato(leagueId: string): Promise<GazzettaSalvata | null> {
+export async function ultimaGazzettaDiMercato(
+  leagueId: string, tipo: 'fantamercato' | 'mercato_chiuso' = 'fantamercato',
+): Promise<GazzettaSalvata | null> {
   const db = supabaseAdmin();
   const { data } = await db.from('gazzette')
-    .select('*').eq('league_id', leagueId).eq('tipo', 'fantamercato')
+    .select('*').eq('league_id', leagueId).eq('tipo', tipo)
     .order('generated_at', { ascending: false }).limit(1);
   return data?.[0] ? daRiga(data[0] as Record<string, unknown>) : null;
 }

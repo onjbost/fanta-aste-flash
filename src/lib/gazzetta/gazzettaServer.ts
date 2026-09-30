@@ -395,14 +395,18 @@ export async function generaGazzetta(
         if (v.ok) break;
         r.correzioni = v.problemi;          // seconda passata: gli si dice cosa non andava
       } catch (e) {
-        esito = { ok: false, problemi: [`il modello non ha risposto: ${(e as Error).message}`], inventati: [] };
+        const perche = `il modello non ha risposto: ${(e as Error).message}`;
+        // nessun testo da correggere: qui il ripiego è l'unica strada
+        esito = { ok: false, problemi: [perche], gravi: [perche], inventati: [] };
         testi = null;
       }
     }
   }
 
   // la rete di sicurezza: asciutta ma corretta, e parte sempre
-  if (!testi || !esito?.ok) {
+  // il ripiego scatta solo sui problemi gravi: un errore di forma si
+  // corregge nell'editor, e non vale la prosa del modello
+  if (!testi || !esito || esito.gravi.length > 0) {
     const ripiego = primaDiRipiego(r);
     const v = verificaPrima(ripiego, r, materiale.leciti);
     const prima = esito?.problemi ?? [];

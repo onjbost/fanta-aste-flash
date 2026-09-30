@@ -296,6 +296,8 @@ export function daJsonMercato(grezzo: unknown): TestiMercato {
 export interface EsitoMercato {
   ok: boolean;
   problemi: string[];
+  /** il modello non ha risposto, o ha risposto con niente: vedi EsitoPrima.gravi */
+  gravi: string[];
   inventati: number[];
 }
 
@@ -355,11 +357,13 @@ export function paroleCheIniziano(testo: string, radici: string[]): string[] {
 
 export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMercato {
   const problemi: string[] = [];
+  const gravi: string[] = [];
+  const grave = (m: string) => { problemi.push(m); gravi.push(m); };
   const tutto = [t.titolo, t.gancio, t.cappello, ...t.blocchi.map((b) => b.testo),
     t.spalla?.didascalia ?? ''].join('\n');
 
-  if (!t.titolo) problemi.push('manca il titolo');
-  if (!t.cappello) problemi.push('manca il cappello');
+  if (!t.titolo) grave('manca il titolo');
+  if (!t.cappello) grave('manca il cappello');
   if (t.titolo.length > 44) problemi.push(`il titolo è di ${t.titolo.length} caratteri invece di 44`);
   if (t.gancio.length > 30) problemi.push(`il gancio è di ${t.gancio.length} caratteri invece di 30`);
 
@@ -385,6 +389,9 @@ export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMerc
   // ---- i nomi vietati: gli svincolandi e chiunque non sia in trattativa
   for (const vietato of r.nomiVietati) {
     if (nominato(tutto, vietato)) {
+      // gli svincolandi sono il segreto di questa edizione: resta
+      // l'avviso più importante che l'editor possa mostrarti, ma la
+      // decisione di mandarla o correggerla è tua
       problemi.push(`nomina ${vietato}, che in questa pagina non deve comparire`);
     }
   }
@@ -416,7 +423,7 @@ export function verificaMercato(t: TestiMercato, r: RichiestaMercato): EsitoMerc
   const vietate = paroleCheIniziano(tutto, r.paroleVietate.filter(Boolean));
   if (vietate.length) problemi.push(`parole vietate usate: ${vietate.join(', ')}`);
 
-  return { ok: problemi.length === 0, problemi, inventati };
+  return { ok: problemi.length === 0, problemi, gravi, inventati };
 }
 
 // =====================================================================

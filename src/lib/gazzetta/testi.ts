@@ -334,8 +334,22 @@ export function daJsonPrima(grezzo: unknown): TestiPrima {
 // =====================================================================
 
 export interface EsitoPrima {
+  /** vero quando non c'è niente da segnalare, nemmeno di forma */
   ok: boolean;
+  /** tutto quello che non va, di forma e di sostanza */
   problemi: string[];
+  /**
+   * Il sottoinsieme che fa scartare il pezzo, e che è volutamente piccolo:
+   * **il modello non ha risposto, o ha risposto con niente**.
+   *
+   * Tutto il resto — una riga lunga, un numero che non gli avevamo dato,
+   * una parola fuori registro — resta in `problemi`, il pezzo esce lo
+   * stesso e l'avviso te lo trovi nell'editor. È una scelta esplicita:
+   * buttare via la prosa del modello per un refuso vuol dire mandare nel
+   * gruppo il template, che è peggio, e niente parte senza che tu l'abbia
+   * riletto. Il ripiego serve quando non c'è un testo da correggere.
+   */
+  gravi: string[];
   inventati: number[];
 }
 
@@ -353,13 +367,18 @@ export function numeriDellaPrima(r: RichiestaPrima, leciti: Set<number>): Set<nu
 
 export function verificaPrima(t: TestiPrima, r: RichiestaPrima, leciti: Set<number>): EsitoPrima {
   const problemi: string[] = [];
+  const gravi: string[] = [];
+  // un problema grave è anche un problema: finisce in tutt'e due gli elenchi
+  const grave = (m: string) => { problemi.push(m); gravi.push(m); };
   const lim = limitiTitolo(r.disposizione);
   const cap = paroleDelCappello(r.disposizione);
   const largo = larghezzaApertura(r.disposizione);
 
   // ---- il minimo sindacale
-  if (!t.titolo) problemi.push('manca il titolo');
-  if (!t.cappello) problemi.push('manca il cappello');
+  // senza titolo o senza cappello non c'è niente da correggere a mano: non
+  // è un refuso, è una pagina vuota
+  if (!t.titolo) grave('manca il titolo');
+  if (!t.cappello) grave('manca il cappello');
 
   // ---- le lunghezze, che qui sono spazio e non stile
   if (t.titolo.length > lim.titolo) {
@@ -420,7 +439,7 @@ export function verificaPrima(t: TestiPrima, r: RichiestaPrima, leciti: Set<numb
   const vietate = r.paroleVietate.filter((p) => p && minuscolo.includes(p.toLowerCase()));
   if (vietate.length) problemi.push(`parole vietate usate: ${vietate.join(', ')}`);
 
-  return { ok: problemi.length === 0, problemi, inventati };
+  return { ok: problemi.length === 0, problemi, gravi, inventati };
 }
 
 // =====================================================================

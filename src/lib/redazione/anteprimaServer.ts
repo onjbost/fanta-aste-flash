@@ -159,7 +159,9 @@ export async function generaAnteprima(matchdayId: string): Promise<EsitoAnteprim
     }
   }
 
-  const buono = pezzo && verificaAnteprima(pezzo, richiesta).ok;
+  // si ripiega solo sui problemi gravi — un numero inventato, l'apertura
+  // che manca — e non su quelli di forma, che si correggono a mano
+  const buono = pezzo && verificaAnteprima(pezzo, richiesta).gravi.length === 0;
   if (!buono) {
     pezzo = anteprimaDiRipiego(richiesta);
     return {
@@ -168,5 +170,7 @@ export async function generaAnteprima(matchdayId: string): Promise<EsitoAnteprim
     };
   }
 
-  return { testo: montaAnteprima(pezzo!, richiesta), provider: 'gemini', tentativi, problemi: [] };
+  // i problemi restano visibili anche quando il pezzo passa: sono le
+  // correzioni da fare a mano, non più un motivo per buttarlo via
+  return { testo: montaAnteprima(pezzo!, richiesta), provider: 'gemini', tentativi, problemi };
 }

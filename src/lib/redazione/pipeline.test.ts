@@ -133,5 +133,15 @@ describe('la catena intera, sulla giornata 1 vera', () => {
     const e = verificaPezzo(pezzo, r, numeriLeciti(contesto, r.spunti));
     expect(e.ok).toBe(false);
     expect(e.problemi.some((p) => p.includes('parole invece di 150'))).toBe(true);
+    // ma è un avviso, non un motivo per buttare via il pezzo del modello:
+    // il ripiego serve solo quando il modello non risponde
+    expect(e.gravi).toEqual([]);
+  });
+
+  it('solo un pezzo senza apertura manda al ripiego', async () => {
+    const r = richiestaDa(contesto);
+    const pezzo = await new ScrittoreTemplate().scrivi(r);
+    const e = verificaPezzo({ ...pezzo, apertura: '   ' }, r, numeriLeciti(contesto, r.spunti));
+    expect(e.gravi).toEqual(['manca l\'apertura']);
   });
 });

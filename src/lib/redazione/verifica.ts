@@ -15,6 +15,11 @@ import type { Pezzo, RichiestaPezzo } from './scrittore';
 export interface EsitoVerifica {
   ok: boolean;
   problemi: string[];
+  /**
+   * Il modello non ha risposto, o ha risposto con niente: vedi
+   * EsitoPrima.gravi. Tutto il resto si corregge a mano prima di mandarlo.
+   */
+  gravi: string[];
   /** i numeri che il pezzo cita e che nessuno gli aveva dato */
   inventati: number[];
   parole: Record<string, number>;
@@ -70,6 +75,8 @@ export function verificaPezzo(
   pezzo: Pezzo, r: RichiestaPezzo, leciti: Set<number>,
 ): EsitoVerifica {
   const problemi: string[] = [];
+  const gravi: string[] = [];
+  const grave = (m: string) => { problemi.push(m); gravi.push(m); };
   const parole: Record<string, number> = {};
 
   const ammessi = new Set<number>(leciti);
@@ -116,9 +123,9 @@ export function verificaPezzo(
   if (vietate.length) problemi.push(`parole vietate usate: ${vietate.join(', ')}`);
 
   // ---- il minimo sindacale
-  if (!pezzo.apertura.trim()) problemi.push('manca l\'apertura');
+  if (!pezzo.apertura.trim()) grave('manca l\'apertura');
 
-  return { ok: problemi.length === 0, problemi, inventati, parole };
+  return { ok: problemi.length === 0, problemi, gravi, inventati, parole };
 }
 
 /**

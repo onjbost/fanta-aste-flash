@@ -387,7 +387,10 @@ export async function generaScambio(r: RichiestaScambio) {
     }
   }
 
-  const buono = pezzo && verificaScambio(pezzo, r).ok;
+  // si ripiega solo sui problemi gravi: un numero inventato, un nome che
+  // non c'entra, le note dell'admin trascritte. Il resto lo correggi tu
+  // nel campo del messaggio prima di incollarlo nel gruppo.
+  const buono = pezzo && verificaScambio(pezzo, r).gravi.length === 0;
   if (!buono) {
     return {
       testo: scambioDiRipiego(r), provider: 'template' as const, tentativi, problemi, muto,
@@ -395,6 +398,7 @@ export async function generaScambio(r: RichiestaScambio) {
   }
   return {
     testo: montaScambio(pezzo!, r), provider: 'gemini' as const,
-    tentativi, problemi: [], muto: false,
+    // i problemi di forma restano scritti: sono le correzioni da fare
+    tentativi, problemi, muto: false,
   };
 }

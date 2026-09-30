@@ -209,6 +209,8 @@ export function daJsonAnteprima(grezzo: unknown): Anteprima {
 export interface EsitoAnteprima {
   ok: boolean;
   problemi: string[];
+  /** il modello non ha risposto, o ha risposto con niente: vedi EsitoPrima.gravi */
+  gravi: string[];
   inventati: number[];
   parole: number;
 }
@@ -233,6 +235,8 @@ export function numeriLecitiAnteprima(r: RichiestaAnteprima): Set<number> {
 
 export function verificaAnteprima(a: Anteprima, r: RichiestaAnteprima): EsitoAnteprima {
   const problemi: string[] = [];
+  const gravi: string[] = [];
+  const grave = (m: string) => { problemi.push(m); gravi.push(m); };
   const parole = contaParole(a.panoramica);
 
   if (parole < MIN_PAROLE) problemi.push(`la panoramica ha ${parole} parole invece di ${MIN_PAROLE}`);
@@ -258,9 +262,9 @@ export function verificaAnteprima(a: Anteprima, r: RichiestaAnteprima): EsitoAnt
   const vietate = r.paroleVietate.filter((p) => p && minuscolo.includes(p.toLowerCase()));
   if (vietate.length) problemi.push(`parole vietate usate: ${vietate.join(', ')}`);
 
-  if (!a.apertura.trim()) problemi.push('manca l\'apertura');
+  if (!a.apertura.trim()) grave('manca l\'apertura');
 
-  return { ok: problemi.length === 0, problemi, inventati, parole };
+  return { ok: problemi.length === 0, problemi, gravi, inventati, parole };
 }
 
 // =====================================================================

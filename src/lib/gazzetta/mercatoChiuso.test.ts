@@ -305,3 +305,34 @@ describe('le briciole', () => {
     expect(paganteDi(scambio({ id: 's', conguaglio: 5, pagante: 'B' }))).toBe('Pirati dei Caracoli');
   });
 });
+
+
+describe('cosa manda al ripiego, e cosa no', () => {
+  const r = richiesta({ aste: [asta({ lottoId: 'l1', battute: ['X'] })], nomiVietati: ['LUKAKU'] });
+  const buono = (): TestiChiusura => ({
+    titolo: 'Romano al Ntonia', gancio: 'per 12',
+    cappello: Array.from({ length: 30 }, () => 'parola').join(' '),
+    blocchi: [], svincolati: 'Nessuno.', scambi: [], spalla: null,
+  });
+
+  it('un numero inventato resta un avviso: la pagina la rileggi tu', () => {
+    const t = buono();
+    t.svincolati = 'Un rilancio da 999 non lo aveva visto nessuno.';
+    const e = verificaChiusura(t, r);
+    expect(e.problemi.join(' ')).toContain('999');
+    expect(e.gravi).toEqual([]);
+  });
+
+  it('e nemmeno un nome vietato o un condizionale', () => {
+    const t = buono();
+    t.svincolati = 'Anche LUKAKU sarebbe passato senza opposizione.';
+    const e = verificaChiusura(t, r);
+    expect(e.problemi.length).toBeGreaterThan(0);
+    expect(e.gravi).toEqual([]);
+  });
+
+  it('solo il vuoto è grave', () => {
+    expect(verificaChiusura({ ...buono(), titolo: '', cappello: '' }, r).gravi)
+      .toEqual(['manca il titolo', 'manca il cappello']);
+  });
+});

@@ -417,13 +417,16 @@ export async function generaArticolo(
       // seconda passata: gli si dice cosa non andava
       richiesta.correzioni = v.problemi;
     } catch (e) {
-      esito = { ok: false, problemi: [`il modello non ha risposto: ${(e as Error).message}`], inventati: [], parole: {} };
+      const perche = `il modello non ha risposto: ${(e as Error).message}`;
+      esito = { ok: false, problemi: [perche], gravi: [perche], inventati: [], parole: {} };
       pezzo = null;
     }
   }
 
   // la rete di sicurezza: asciutto ma corretto, e parte sempre
-  if (!pezzo || !esito?.ok) {
+  // il ripiego scatta solo sui problemi gravi: la forma si corregge a mano
+  // prima di incollare il messaggio, e non vale il testo del modello
+  if (!pezzo || !esito || esito.gravi.length > 0) {
     const ripiego = await new ScrittoreTemplate().scrivi(richiesta);
     const v = verificaPezzo(ripiego, richiesta, leciti);
     const problemiPrima = esito?.problemi ?? [];

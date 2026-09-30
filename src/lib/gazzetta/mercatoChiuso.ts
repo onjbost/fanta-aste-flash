@@ -275,6 +275,8 @@ export function daJsonChiusura(grezzo: unknown): TestiChiusura {
 export interface EsitoChiusura {
   ok: boolean;
   problemi: string[];
+  /** il modello non ha risposto, o ha risposto con niente: vedi EsitoPrima.gravi */
+  gravi: string[];
   inventati: number[];
 }
 
@@ -313,11 +315,13 @@ const DA_FOGLIO_DI_CALCOLO = ['fantapunt', 'fantamedia', 'fantallenator', 'listo
 
 export function verificaChiusura(t: TestiChiusura, r: RichiestaChiusura): EsitoChiusura {
   const problemi: string[] = [];
+  const gravi: string[] = [];
+  const grave = (m: string) => { problemi.push(m); gravi.push(m); };
   const tutto = [t.titolo, t.gancio, t.cappello, ...t.blocchi.map((b) => b.testo),
     t.svincolati, ...t.scambi.map((s) => s.testo), t.spalla?.didascalia ?? ''].join('\n');
 
-  if (!t.titolo) problemi.push('manca il titolo');
-  if (!t.cappello) problemi.push('manca il cappello');
+  if (!t.titolo) grave('manca il titolo');
+  if (!t.cappello) grave('manca il cappello');
   if (t.titolo.length > 44) problemi.push(`il titolo è di ${t.titolo.length} caratteri invece di 44`);
   if (t.gancio.length > 30) problemi.push(`il gancio è di ${t.gancio.length} caratteri invece di 30`);
   if (t.svincolati.length > 240) problemi.push(`il riquadro degli svincolati è di ${t.svincolati.length} caratteri invece di 240`);
@@ -368,7 +372,7 @@ export function verificaChiusura(t: TestiChiusura, r: RichiestaChiusura): EsitoC
   }
   if (inventati.length) problemi.push(`numeri inventati: ${inventati.join(', ')}`);
 
-  return { ok: problemi.length === 0, problemi, inventati };
+  return { ok: problemi.length === 0, problemi, gravi, inventati };
 }
 
 // =====================================================================

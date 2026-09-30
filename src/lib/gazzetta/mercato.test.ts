@@ -333,3 +333,26 @@ describe('paroleCheIniziano — il difetto che ha mandato al ripiego il primo pe
     expect(paroleCheIniziano('', ['asta'])).toEqual([]);
   });
 });
+
+
+describe('cosa manda al ripiego, e cosa no', () => {
+  it('nemmeno uno svincolando nominato butta via il pezzo: resta un avviso', () => {
+    const e = verificaMercato(
+      testi({ cappello: `${Array.from({ length: 30 }, () => 'parola').join(' ')} e saluta El Shaarawy` }),
+      richiesta(),
+    );
+    expect(e.problemi.join(' ')).toContain('EL SHAARAWY');
+    expect(e.gravi).toEqual([]);   // il pezzo esce, con l'avviso in cima
+  });
+
+  it('il registro e i numeri sono avvisi', () => {
+    const e = verificaMercato(testi({ gancio: 'venti crediti' }), richiesta());
+    expect(e.problemi.length).toBeGreaterThan(0);
+    expect(e.gravi).toEqual([]);
+  });
+
+  it('l\'unica cosa grave è non avere un testo', () => {
+    expect(verificaMercato(testi({ titolo: '', cappello: '' }), richiesta()).gravi)
+      .toEqual(['manca il titolo', 'manca il cappello']);
+  });
+});

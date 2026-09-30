@@ -155,6 +155,26 @@ describe('la verifica', () => {
     expect(v.inventati).toContain(1.93);
   });
 
+  it('niente manda al ripiego, tranne un\'anteprima vuota', () => {
+    // forma: il pezzo passa lo stesso, con l'avviso
+    const corto = verificaAnteprima(anteprima({ panoramica: 'Due parole.' }), richiesta());
+    expect(corto.problemi.length).toBeGreaterThan(0);
+    expect(corto.gravi).toEqual([]);
+
+    // anche un numero inventato resta un avviso: il messaggio lo rileggi
+    // prima di incollarlo, e correggerlo è più facile che riscriverlo
+    const falso = verificaAnteprima(
+      anteprima({ panoramica: `${panoramicaBuona()} Alfa viaggia a 78,4 di media.` }),
+      richiesta(),
+    );
+    expect(falso.problemi.join(' ')).toContain('numeri che non ti ho dato');
+    expect(falso.gravi).toEqual([]);
+
+    // e l'apertura che manca non è un refuso: non c'è niente da correggere
+    const vuota = verificaAnteprima(anteprima({ apertura: '  ' }), richiesta());
+    expect(vuota.gravi.join(' ')).toContain('manca l\'apertura');
+  });
+
   it('si accorge se una squadra resta fuori dal racconto', () => {
     const due = richiesta({
       sfide: [sfida(), sfida({ casa: 'Gamma', ospite: 'Delta', posCasa: 3, posOspite: 4, scontro: null })],

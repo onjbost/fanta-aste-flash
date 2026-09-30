@@ -270,13 +270,17 @@ export async function generaGazzettaChiusura(
         if (v.ok) break;
         r.correzioni = v.problemi;
       } catch (e) {
-        esito = { ok: false, problemi: [`il modello non ha risposto: ${(e as Error).message}`], inventati: [] };
+        const perche = `il modello non ha risposto: ${(e as Error).message}`;
+        // nessun testo da correggere: qui il ripiego è l'unica strada
+        esito = { ok: false, problemi: [perche], gravi: [perche], inventati: [] };
         testi = null;
       }
     }
   }
 
-  if (!testi || !esito?.ok) {
+  // il ripiego scatta solo sui problemi gravi: un errore di forma si
+  // corregge nell'editor, e non vale la prosa del modello
+  if (!testi || !esito || esito.gravi.length > 0) {
     const ripiego = chiusuraDiRipiego(r);
     const v = verificaChiusura(ripiego, r);
     const prima = esito?.problemi ?? [];

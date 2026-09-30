@@ -196,6 +196,28 @@ describe('verificaPrima', () => {
     expect(e.ok).toBe(true);
   });
 
+  it('niente manda al ripiego, tranne una pagina vuota', () => {
+    // il ripiego serve solo se il modello non risponde: tutto quello che si
+    // può correggere nell'editor resta un avviso, e la pagina esce lo stesso
+
+    // forma: titolo lungo
+    const forma = verificaPrima(testi({ titolo: 'a'.repeat(200) }), richiesta(), new Set());
+    expect(forma.problemi.length).toBeGreaterThan(0);
+    expect(forma.gravi).toEqual([]);
+
+    // sostanza: un numero che nessuno gli ha dato. Resta l'avviso più
+    // importante dell'editor, ma la pagina la decidi tu
+    const falso = verificaPrima(
+      testi({ cappello: 'Ha chiuso a 4321 fantapunti, un record.' }), richiesta(), new Set(),
+    );
+    expect(falso.problemi.join(' ')).toContain('numeri che non ti ho dato');
+    expect(falso.gravi).toEqual([]);
+
+    // l'unica eccezione: senza titolo non c'è niente da correggere
+    expect(verificaPrima(testi({ titolo: '' }), richiesta(), new Set()).gravi)
+      .toContain('manca il titolo');
+  });
+
   it('boccia il titolo troppo lungo', () => {
     const e = verificaPrima(testi({ titolo: 'a'.repeat(200) }), richiesta(), new Set());
     expect(e.problemi.join(' ')).toContain('il titolo è di 200 caratteri');

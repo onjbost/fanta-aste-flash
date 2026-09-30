@@ -326,6 +326,22 @@ describe('verificaScambio', () => {
     expect(verificaScambio(pezzo(), richiesta()).ok).toBe(true);
   });
 
+  it('nessun problema di contenuto manda al template: solo il vuoto', () => {
+    // il ripiego serve quando il modello non risponde. Un numero sbagliato,
+    // un nome di troppo, le note trascritte: restano avvisi, e il messaggio
+    // lo correggi nel campo prima di incollarlo nel gruppo.
+    const cifra = verificaScambio(pezzo({ verdetto: 'Ha fatto 94.5 di media.' }), richiesta());
+    expect(cifra.problemi.length).toBeGreaterThan(0);
+    expect(cifra.gravi).toEqual([]);
+
+    const corto = verificaScambio(pezzo({ corpo: 'Due parole.' }), richiesta());
+    expect(corto.problemi.join(' ')).toContain('troppo corto');
+    expect(corto.gravi).toEqual([]);
+
+    const vuoto = verificaScambio(pezzo({ apertura: '', corpo: '  ', verdetto: '' }), richiesta());
+    expect(vuoto.gravi).toEqual(['il modello ha risposto con un messaggio vuoto']);
+  });
+
   it('boccia una cifra che nessuno gli aveva dato', () => {
     const v = verificaScambio(pezzo({ verdetto: 'Ha fatto 94.5 di media.' }), richiesta());
     expect(v.ok).toBe(false);

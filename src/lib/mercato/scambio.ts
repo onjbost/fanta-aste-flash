@@ -398,6 +398,12 @@ export interface PezzoScambio {
 export interface EsitoScambio {
   ok: boolean;
   problemi: string[];
+  /**
+   * Il modello non ha risposto, o ha risposto con niente: vedi
+   * EsitoPrima.gravi. Tutto il resto lo correggi nel campo del messaggio
+   * prima di incollarlo nel gruppo.
+   */
+  gravi: string[];
 }
 
 /**
@@ -511,7 +517,13 @@ function numeriInContestoStatistico(testo: string): number[] {
 
 export function verificaScambio(p: PezzoScambio, r: RichiestaScambio): EsitoScambio {
   const problemi: string[] = [];
+  const gravi: string[] = [];
+  const grave = (m: string) => { problemi.push(m); gravi.push(m); };
   const tutto = [p.apertura, p.corpo, p.verdetto].join('\n');
+
+  // l'unico caso in cui il ripiego resta la scelta giusta: non c'è un testo
+  // da correggere
+  if (!tutto.trim()) grave('il modello ha risposto con un messaggio vuoto');
 
   // ---- i numeri: quelli dello scambio più quelli che ha scritto l'admin
   const ammessi = new Set<number>(numeriDelloScambio(r));
@@ -560,7 +572,7 @@ export function verificaScambio(p: PezzoScambio, r: RichiestaScambio): EsitoScam
     if (tutto.toLowerCase().includes(v.toLowerCase())) problemi.push(`usa la parola vietata «${v}»`);
   }
 
-  return { ok: problemi.length === 0, problemi };
+  return { ok: problemi.length === 0, problemi, gravi };
 }
 
 /**

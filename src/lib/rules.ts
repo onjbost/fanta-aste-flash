@@ -382,6 +382,68 @@ export function expectedStatus(
   return 'calls_open';
 }
 
+/**
+ * L'assegnazione a mano di un lotto conteso.
+ *
+ * Non tutte le aste si fanno in sala: a volte il gruppo si accorda a voce,
+ * o si chiude in tre minuti su WhatsApp, e battere il timer dell'app per
+ * ricostruire un risultato già deciso è solo tempo perso. L'admin sceglie
+ * la squadra fra quelle in corsa e il prezzo, e il lotto si chiude come si
+ * sarebbe chiuso da solo.
+ *
+ * Le due condizioni che restano sono le stesse dell'asta vera, e sono
+ * quelle che tengono i conti in piedi: si può assegnare **solo a chi era
+ * in corsa** — altrimenti si regala un giocatore a chi non aveva messo
+ * niente sul piatto, e il suo svincolando non esiste — e **non oltre il
+ * budget** di quella squadra su quel lotto, che è crediti più rimborso:
+ * sforarlo vorrebbe dire crediti negativi, cioè una rosa che non si può
+ * più mettere a posto.
+ */
+export interface AssegnazioneContext {
+  /** lo stato del lotto adesso */
+  statoLotto: 'called' | 'uncontested' | 'live' | 'assigned' | 'cancelled';
+  /** le squadre in corsa su questo lotto, col loro budget */
+  inCorsa: { teamId: string; squadra: string; budget: number }[];
+  teamId: string;
+  prezzo: number;
+  cfg?: LeagueConfig;
+}
+
+export function validateAssegnazione(ctx: AssegnazioneContext): ValidationResult {
+  const cfg = ctx.cfg ?? DEFAULT_CONFIG;
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  if (ctx.statoLotto === 'assigned') errors.push('Questo lotto è già assegnato.');
+  if (ctx.statoLotto === 'cancelled') errors.push('Questo lotto è annullato.');
+
+  const vincitore = ctx.inCorsa.find((x) => x.teamId === ctx.teamId);
+  if (!vincitore) {
+    errors.push('Questa squadra non è in corsa su questo lotto: non ha uno svincolando da mettere sul piatto.');
+  }
+
+  if (!Number.isInteger(ctx.prezzo)) {
+    errors.push('Il prezzo dev\'essere un numero intero di crediti.');
+  } else if (ctx.prezzo < cfg.basePrice) {
+    errors.push(`Il prezzo non può stare sotto la base d'asta di ${cfg.basePrice}.`);
+  } else if (vincitore && ctx.prezzo > vincitore.budget) {
+    errors.push(
+      `${vincitore.squadra} ha ${vincitore.budget} crediti su questo lotto: non può pagarne ${ctx.prezzo}.`,
+    );
+  }
+
+  // non è un errore, ma è la cosa che chi assegna a mano sbaglia più spesso
+  if (vincitore && ctx.prezzo === vincitore.budget) {
+    warnings.push(`${vincitore.squadra} ci mette tutto quello che ha: resterà a zero su questo lotto.`);
+  }
+  const altri = ctx.inCorsa.filter((x) => x.teamId !== ctx.teamId);
+  if (vincitore && altri.some((x) => x.budget >= ctx.prezzo)) {
+    warnings.push('C\'era chi poteva arrivare a questa cifra: controlla di aver scelto la squadra giusta.');
+  }
+
+  return { ok: errors.length === 0, errors, warnings };
+}
+
 // ------------------------------------------------------------ validazioni
 
 export interface ValidationResult {

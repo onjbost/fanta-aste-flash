@@ -3,7 +3,7 @@ import {
   DEFAULT_CONFIG, refundValue, changesAllowance, changesUsed, changesLeft,
   changesSummary, auctionBudget, creditsAfter, liveBudget, callsCloseAt, joinsCloseAt, expectedStatus,
   validateCall, validateJoin, validateBid, resolveProxyBid, freeReleaseEligibility, freeReleaseScenarios,
-  salaApribile, stessoGiornoItaliano,
+  salaApribile, stessoGiornoItaliano, validateAssegnazione,
   type RosterPlayer, type ReleaseRecord, type SessionInfo, type Role,
 } from './rules';
 
@@ -535,5 +535,65 @@ describe('stessoGiornoItaliano', () => {
     expect(stessoGiornoItaliano(
       new Date('2026-10-01T22:30:00Z'), new Date('2026-10-01T19:30:00Z'),
     )).toBe(false);
+  });
+});
+
+describe('validateAssegnazione — assegnare un lotto a mano', () => {
+  const inCorsa = [
+    { teamId: 'ntonia', squadra: 'FC NTONIA', budget: 30 },
+    { teamId: 'montester', squadra: 'Montester United', budget: 18 },
+  ];
+  const ctx = (over: Partial<Parameters<typeof validateAssegnazione>[0]> = {}) =>
+    validateAssegnazione({
+      statoLotto: 'called', inCorsa, teamId: 'ntonia', prezzo: 12, ...over,
+    });
+
+  it('lascia passare un prezzo dentro il budget di chi era in corsa', () => {
+    const e = ctx();
+    expect(e.errors).toEqual([]);
+    expect(e.ok).toBe(true);
+  });
+
+  it('non si assegna a chi non era in corsa: il suo svincolando non esiste', () => {
+    const e = ctx({ teamId: 'qarabaggio' });
+    expect(e.ok).toBe(false);
+    expect(e.errors.join(' ')).toContain('non è in corsa');
+  });
+
+  it('non si sfora il budget: crediti negativi non si sistemano più', () => {
+    const e = ctx({ teamId: 'montester', prezzo: 19 });
+    expect(e.ok).toBe(false);
+    expect(e.errors.join(' ')).toContain('ha 18 crediti');
+  });
+
+  it('ma fino all\'ultimo credito sì, con l\'avviso', () => {
+    const e = ctx({ teamId: 'montester', prezzo: 18 });
+    expect(e.ok).toBe(true);
+    expect(e.warnings.join(' ')).toContain('resterà a zero');
+  });
+
+  it('sotto la base d\'asta no', () => {
+    expect(ctx({ prezzo: 0 }).errors.join(' ')).toContain('base d\'asta');
+  });
+
+  it('e nemmeno mezzo credito', () => {
+    expect(ctx({ prezzo: 12.5 }).errors.join(' ')).toContain('intero');
+  });
+
+  it('un lotto già assegnato o annullato non si tocca', () => {
+    expect(ctx({ statoLotto: 'assigned' }).errors.join(' ')).toContain('già assegnato');
+    expect(ctx({ statoLotto: 'cancelled' }).errors.join(' ')).toContain('annullato');
+  });
+
+  it('avvisa se un altro poteva arrivare a quella cifra: è l\'errore facile', () => {
+    // assegnare a chi aveva meno budget di un rivale è sospetto: o è un
+    // accordo vero, o si è scelta la squadra sbagliata dall'elenco
+    const e = ctx({ teamId: 'montester', prezzo: 10 });
+    expect(e.ok).toBe(true);
+    expect(e.warnings.join(' ')).toContain('controlla di aver scelto la squadra giusta');
+  });
+
+  it('un lotto col timer acceso si può comunque assegnare a mano', () => {
+    expect(ctx({ statoLotto: 'live' }).ok).toBe(true);
   });
 });

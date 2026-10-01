@@ -1,7 +1,9 @@
 import 'server-only';
 import { supabaseAdmin } from './supabase';
 import { loadMarketState, budgetForLot, cfgFromLeague, sessionInfo } from './market';
-import { refundValue, changesLeft, salaApribile, ROLE_LABEL, type Role } from './rules';
+import {
+  refundValue, changesLeft, salaApribile, validateAssegnazione, ROLE_LABEL, type Role,
+} from './rules';
 import { testoDellaCoda, type VoceDellaCoda } from './coda';
 import { notifyAdmin, tgLotSettled } from './telegram';
 import { queueSessionMessage } from './messageBuilder';
@@ -228,6 +230,81 @@ export async function closeLot(lotId: string, force = false): Promise<SettleResu
 
   await applyMovements(lotId, winner!, price ?? 0, false);
   return { ok: true, message: 'Lotto assegnato.', lotId };
+}
+
+/**
+ * Assegna un lotto a mano, senza passare dall'asta in sala.
+ *
+ * Stessa strada di `closeLot` per tutto quello che conta: il lotto diventa
+ * `assigned` con vincitore e prezzo, e `applyMovements` fa svincolo,
+ * rimborso, acquisto e riga da riportare su Leghe Fantacalcio. Cambia solo
+ * da dove arrivano vincitore e prezzo — dall'admin invece che dai rilanci.
+ *
+ * L'aggiornamento è condizionato allo stato di partenza: se nel frattempo
+ * il lotto si è chiuso da solo — timer scaduto, un altro admin, due schede
+ * aperte — questa non trova più la riga e si ferma, invece di assegnare due
+ * volte lo stesso giocatore.
+ */
+export async function assegnaAMano(
+  lotId: string, teamId: string, prezzo: number,
+): Promise<SettleResult> {
+  const db = supabaseAdmin();
+  const { data: lot } = await db.from('lots')
+    .select('id, status, session_id, players(name)').eq('id', lotId).single();
+  if (!lot) return { ok: false, message: 'Lotto inesistente.' };
+
+  const { data: session } = await db.from('auction_sessions')
+    .select('status, league_id').eq('id', lot.session_id).single();
+  if (session?.status !== 'live') {
+    return { ok: false, message: 'La sala non è aperta: aprila prima, così i lotti senza contendenti si sistemano da soli.' };
+  }
+
+  const { data: parts } = await db.from('lot_participants')
+    .select('team_id, release_player_id, teams(name)')
+    .eq('lot_id', lotId).eq('status', 'confirmed').eq('withdrawn', false);
+  type PartRow = { team_id: string; release_player_id: string; teams: { name: string } | null };
+  const suoi = (parts ?? []) as unknown as PartRow[];
+
+  // il budget vero di ciascuno su questo lotto: crediti di adesso più il
+  // rimborso del suo svincolando, lo stesso conto che fa la sala
+  const inCorsa = [];
+  for (const p of suoi) {
+    const state = await loadMarketState(p.team_id, lot.session_id);
+    inCorsa.push({
+      teamId: p.team_id,
+      squadra: p.teams?.name ?? '?',
+      budget: budgetForLot(state, p.release_player_id),
+    });
+  }
+
+  const { data: lega } = await db.from('leagues')
+    .select('*').eq('id', session.league_id as string).single();
+  const cfg = cfgFromLeague(lega ?? {});
+
+  const esito = validateAssegnazione({
+    statoLotto: lot.status as 'called' | 'uncontested' | 'live' | 'assigned' | 'cancelled',
+    inCorsa, teamId, prezzo, cfg,
+  });
+  if (!esito.ok) return { ok: false, message: esito.errors.join(' ') };
+
+  const { data: updated } = await db.from('lots').update({
+    status: 'assigned', winner_team_id: teamId, final_price: prezzo,
+    current_price: prezzo, current_leader: teamId,
+    closed_at: new Date().toISOString(),
+  }).eq('id', lotId).eq('status', lot.status).select('id');
+  if (!updated || updated.length === 0) {
+    return { ok: false, message: 'Il lotto è cambiato mentre lo assegnavi: ricarica e guarda com\'è finito.' };
+  }
+
+  await applyMovements(lotId, teamId, prezzo, false);
+
+  const nome = (lot as unknown as { players: { name: string } | null }).players?.name ?? 'il giocatore';
+  const chi = inCorsa.find((x) => x.teamId === teamId)?.squadra ?? 'la squadra';
+  return {
+    ok: true, lotId,
+    message: `${nome} assegnato a ${chi} per ${prezzo}.`
+      + (esito.warnings.length ? ` ${esito.warnings.join(' ')}` : ''),
+  };
 }
 
 /**

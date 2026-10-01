@@ -6,7 +6,7 @@ import {
   loadMarketState, participationsByRole, committedReleaseIds, budgetForLot,
   sessionInfo, runProxyBids, advanceSessions,
 } from '@/lib/market';
-import { openRoom, openLot, closeLot, closeSession } from '@/lib/settlement';
+import { openRoom, openLot, closeLot, closeSession, assegnaAMano } from '@/lib/settlement';
 import { notifyAdmin, tgSessionClosed, archiveMessage, tgParticipationCancelled } from '@/lib/telegram';
 import {
   validateCall, validateJoin, expectedStatus, callsCloseAt, joinsCloseAt,
@@ -569,6 +569,33 @@ export async function adminCloseLot(_prev: ActionState, form: FormData): Promise
   if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
   const r = await closeLot(String(form.get('lotId') ?? ''), true);
   revalidatePath('/asta/sala');
+  return r;
+}
+
+/**
+ * Assegna un lotto a mano, saltando l'asta in sala.
+ *
+ * Il controllo sulla lega lo fa `assegnaAMano` leggendo la sessione del
+ * lotto; qui basta sapere che chi chiede è admin. Il prezzo arriva come
+ * testo da un campo: `Number('')` farebbe 0, che passerebbe come numero e
+ * verrebbe bocciato solo dalla base d'asta — con un messaggio che parla
+ * d'altro. Meglio dirlo qui.
+ */
+export async function adminAssignLot(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+
+  const lotId = String(form.get('lotId') ?? '');
+  const teamId = String(form.get('teamId') ?? '');
+  const grezzo = String(form.get('prezzo') ?? '').trim();
+  if (!lotId || !teamId) return { ok: false, message: 'Scegli la squadra a cui assegnarlo.' };
+  if (!grezzo) return { ok: false, message: 'Scrivi a quanto è stato venduto.' };
+
+  const prezzo = Number(grezzo);
+  if (!Number.isFinite(prezzo)) return { ok: false, message: 'Il prezzo non è un numero.' };
+
+  const r = await assegnaAMano(lotId, teamId, prezzo);
+  revalidatePath('/asta/sala');
+  revalidatePath('/asta');
   return r;
 }
 

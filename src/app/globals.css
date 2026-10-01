@@ -839,6 +839,21 @@ th.ordinabile .livello{
   margin-left:auto;padding:2px 7px;font-size:.7rem;text-transform:none;letter-spacing:0;
 }
 
+/* L'assegnazione a mano: chiusa dietro un dettaglio, perché è la strada
+   alternativa e in sala, con l'asta in corso, non deve stare fra i piedi. */
+.assegna-blocco{margin-top:14px;border-top:1px solid var(--border);padding-top:10px}
+.assegna-blocco summary{cursor:pointer;font-size:.86rem;font-weight:600}
+.assegna-blocco summary small{color:var(--muted);font-weight:400}
+.assegna{padding:8px 0;border-bottom:1px dashed var(--border)}
+.assegna:last-of-type{border-bottom:0}
+.assegna-riga{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.assegna-nome{min-width:150px;font-size:.9rem}
+.assegna-nome small{color:var(--muted)}
+.assegna-prezzo{width:92px}
+.assegna-nota{margin:4px 0 0;font-size:.78rem;color:var(--muted)}
+.assegna-esito{margin:4px 0 0;font-size:.82rem;color:var(--ok)}
+.assegna-esito.ko{color:var(--crit)}
+
 /* La coda operativa: righe da spuntare mentre si lavora su un altro sito,
    quindi grandi abbastanza da cliccarle senza mirare e con la riga fatta
    che si spegne invece di sparire — serve poterla rileggere. */

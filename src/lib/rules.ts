@@ -380,6 +380,26 @@ export interface SessionInfo {
   excludesNewSignings: boolean;
 }
 
+/**
+ * L'asta attiva: la prima non chiusa, per numero.
+ *
+ * Non «la prima la cui data non è ancora passata», che era il criterio di
+ * prima e aveva un difetto preciso: il 1º ottobre l'asta era in calendario
+ * per le 21:30 ed è stata chiusa in mattinata, quindi per tutto il giorno
+ * l'app ha continuato a indicare quella — con scritto «Chiusa» e niente da
+ * fare — mentre la successiva, con le chiamate già aperte, non si vedeva.
+ *
+ * Chiudere un'asta deve far avanzare l'app. La data serve ancora, ma per le
+ * scadenze (T−5 e T−1), non per decidere di quale asta si sta parlando: una
+ * sessione `live` resta attiva anche a data passata, ed è giusto, perché
+ * l'asta si sta giocando.
+ */
+export function sessioneAttiva(sessions: SessionInfo[]): SessionInfo | null {
+  return [...sessions]
+    .sort((a, b) => a.number - b.number)
+    .find((s) => s.status !== 'closed') ?? null;
+}
+
 export function callsCloseAt(s: SessionInfo, cfg: LeagueConfig = DEFAULT_CONFIG): Date {
   const d = new Date(s.auctionAt);
   d.setUTCDate(d.getUTCDate() - cfg.callDeadlineDays);

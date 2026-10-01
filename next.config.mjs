@@ -41,6 +41,15 @@ const nextConfig = {
        */
       './node_modules/harfbuzzjs/hb.wasm',
     ],
+
+    /*
+     * Il changelog è il CHANGELOG.md del repo, letto a runtime: stesso
+     * problema dei font, stessa cura. Senza questa riga la pagina
+     * funzionerebbe in locale e in produzione direbbe «il file non è
+     * arrivato nel pacchetto» — che almeno è un messaggio onesto, ma non è
+     * la pagina.
+     */
+    '/admin/changelog': ['./CHANGELOG.md'],
   },
 };
 

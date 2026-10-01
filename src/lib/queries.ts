@@ -1,7 +1,7 @@
 import { redirect } from 'next/navigation';
 import { supabaseServer } from './supabase';
 import {
-  DEFAULT_CONFIG, changesSummary, refundValue,
+  DEFAULT_CONFIG, changesSummary, refundValue, sessioneAttiva,
   type LeagueConfig, type ReleaseRecord, type Role, type RosterPlayer,
   type PlayerStatus, type SessionInfo,
 } from './rules';
@@ -109,13 +109,13 @@ export async function loadTeamContext(): Promise<TeamContext | null> {
     }));
 
   const now = new Date();
-  const next = (sessions ?? [])
-    .map((s) => ({
-      id: s.id, number: s.number, auctionAt: s.auction_at,
-      status: s.status as SessionInfo['status'],
-      excludesNewSignings: s.excludes_new_signings,
-    }))
-    .find((s) => new Date(s.auctionAt) >= now || s.status === 'live') ?? null;
+  // l'asta attiva è la prima non chiusa, non la prima con la data nel futuro:
+  // chiudere una serata fa avanzare l'app (vedi `sessioneAttiva`)
+  const next = sessioneAttiva((sessions ?? []).map((s) => ({
+    id: s.id, number: s.number, auctionAt: s.auction_at,
+    status: s.status as SessionInfo['status'],
+    excludesNewSignings: s.excludes_new_signings,
+  })));
 
   return {
     team: {

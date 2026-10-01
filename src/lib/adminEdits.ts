@@ -3,6 +3,7 @@ import { supabaseAdmin } from './supabase';
 import { diffRosters, diffListone, type CurrentContract, type CurrentPlayer, type RosterDiff } from './sync';
 import type { ListonePlayer } from './listone';
 import type { PlayerStatus, Role } from './rules';
+import { annota, chiAgisce } from './registroServer';
 
 /**
  * Correzioni dell'admin sulle rose.
@@ -24,7 +25,7 @@ export async function updateContractPrice(
   }
   const db = supabaseAdmin();
   const { data: c } = await db.from('contracts')
-    .select('id, league_id, team_id, price, released_at, players(name)')
+    .select('id, league_id, team_id, price, player_id, released_at, players(name)')
     .eq('id', contractId).single();
   if (!c) return { ok: false, message: 'Contratto inesistente.' };
   if (c.released_at) return { ok: false, message: 'Questo contratto è già chiuso.' };
@@ -41,6 +42,13 @@ export async function updateContractPrice(
   await db.from('audit_log').insert({
     league_id: c.league_id, actor, action: 'contract_price_changed',
     payload: { contract_id: contractId, player: name, from: c.price, to: newPrice, note },
+  });
+
+  const { data: squadra } = await db.from('teams').select('name').eq('id', c.team_id).single();
+  await annota({
+    leagueId: c.league_id, azione: 'rosa_prezzo', attore: await chiAgisce(actor),
+    playerId: (c as unknown as { player_id?: string }).player_id ?? null,
+    dati: { squadra: squadra?.name ?? null, prima: c.price, dopo: newPrice, ...(note ? { nota: note } : {}) },
   });
 
   return {
@@ -75,6 +83,17 @@ export async function removeFromRoster(
   await db.from('audit_log').insert({
     league_id: c.league_id, actor, action: 'roster_player_removed',
     payload: { contract_id: contractId, player: name, price: c.price, refunded: refundCredits, note },
+  });
+
+  const { data: squadraTolto } = await db.from('teams').select('name').eq('id', c.team_id).single();
+  await annota({
+    leagueId: c.league_id, azione: 'rosa_tolto', attore: await chiAgisce(actor),
+    playerId: c.player_id,
+    dati: {
+      squadra: squadraTolto?.name ?? null,
+      ...(refundCredits ? { rimborso: c.price } : {}),
+      ...(note ? { nota: note } : {}),
+    },
   });
 
   return { ok: true, message: `${name} tolto dalla rosa${refundCredits ? `, ${c.price} crediti restituiti` : ''}.` };
@@ -123,6 +142,11 @@ export async function setTeamCredits(
     payload: { team_id: teamId, team: t.name, from: attuali, to: target, delta, note },
   });
 
+  await annota({
+    leagueId: t.league_id as string, azione: 'crediti_impostati', attore: await chiAgisce(actor),
+    dati: { squadra: t.name, prima: attuali, dopo: target, ...(note ? { nota: note } : {}) },
+  });
+
   return {
     ok: true,
     message: `${t.name}: ${attuali} → ${target} crediti (${delta > 0 ? '+' : ''}${delta}).`,
@@ -157,6 +181,11 @@ export async function addToRoster(
   await db.from('audit_log').insert({
     league_id: team.league_id, actor, action: 'roster_player_added',
     payload: { team: team.name, player: player?.name, price, note },
+  });
+
+  await annota({
+    leagueId: team.league_id, azione: 'rosa_aggiunto', attore: await chiAgisce(actor),
+    playerId, dati: { squadra: team.name, prezzo: price, ...(note ? { nota: note } : {}) },
   });
 
   return { ok: true, message: `${player?.name} aggiunto a ${team.name} per ${price} crediti.` };
@@ -371,6 +400,15 @@ export async function applySync(
     payload: {
       repriced: diff.repriced.length, removed: diff.removed.length,
       moved: diff.moved.length, added: diff.added.length,
+    },
+  });
+
+  await annota({
+    leagueId, azione: 'rose_importate', attore: await chiAgisce(opts.actor),
+    dati: {
+      giocatori: incoming.length,
+      squadre: new Set(incoming.map((p) => p.teamName).filter(Boolean)).size || undefined,
+      nota: details.join(' · ') || undefined,
     },
   });
 

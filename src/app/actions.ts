@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { annota, chiAgisce } from '@/lib/registroServer';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
@@ -130,6 +131,12 @@ export async function requestFreeRelease(_prev: ActionState, form: FormData): Pr
     target ? `la ${participation!.is_caller ? 'chiamata' : 'adesione'} su ${target}` : undefined,
   ));
 
+  await annota({
+    leagueId: team.league_id, azione: 'svincolo_richiesto',
+    attore: { userId: auth.user.id, teamId: team.id, nome: team.name },
+    playerId,
+  });
+
   revalidatePath('/');
   return {
     ok: true,
@@ -228,6 +235,23 @@ export async function decideFreeRelease(_prev: ActionState, form: FormData): Pro
     action: `free_release_${decision}`,
     payload: { request_id: requestId, team_id: req.team_id, player_id: req.player_id, note },
   });
+
+  /*
+   * Nel registro finiscono approvazione e rifiuto, non l'annullamento della
+   * richiesta: quello non decide niente sullo svincolo — rimette solo
+   * l'allenatore in condizione di rifarla — e in un elenco pubblico
+   * sembrerebbe un «no» che non è stato dato.
+   */
+  if (decision === 'approved' || decision === 'rejected') {
+    const { data: squadra } = await admin.from('teams').select('name').eq('id', req.team_id).single();
+    await annota({
+      leagueId: req.league_id,
+      azione: decision === 'approved' ? 'svincolo_approvato' : 'svincolo_respinto',
+      attore: await chiAgisce(auth.user.id),
+      playerId: req.player_id,
+      dati: { squadra: squadra?.name ?? null, ...(note ? { nota: note } : {}) },
+    });
+  }
 
   revalidatePath('/admin');
   revalidatePath('/');

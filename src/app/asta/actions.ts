@@ -6,6 +6,7 @@ import {
   loadMarketState, participationsByRole, committedReleaseIds, budgetForLot,
   sessionInfo, runProxyBids, advanceSessions,
 } from '@/lib/market';
+import { annota, chiAgisce } from '@/lib/registroServer';
 import {
   openRoom, openLot, closeLot, closeSession, assegnaAMano,
   confermaPresenza, partiComunque, riapriTimer, rimettiInProgramma, annullaAssegnazione,
@@ -133,7 +134,9 @@ export async function callPlayer(_prev: ActionState, form: FormData): Promise<Ac
   // se qualcuno l'ha già chiamato, la richiesta diventa un'adesione al lotto
   const existing = existingLots.find((l) => l.player_id === targetId);
   if (existing) {
-    return joinLotInternal(team.id, existing.id, releaseId, null, sessionId);
+    return joinLotInternal(team.id, existing.id, releaseId, null, sessionId, {
+      userId: team.userId, leagueId: team.league_id, nome: team.name,
+    });
   }
 
   // un lotto annullato sullo stesso giocatore si riapre invece di crearne uno
@@ -175,6 +178,14 @@ export async function callPlayer(_prev: ActionState, form: FormData): Promise<Ac
     callerTeam: team.name, playerId: targetId,
   });
 
+  // nel registro va la chiamata, non lo svincolando: quello è segreto fino
+  // all'apertura della sala, e il registro lo leggono tutti
+  await annota({
+    leagueId: team.league_id, azione: 'chiamata',
+    attore: { userId: team.userId, teamId: team.id, nome: team.name },
+    playerId: targetId, sessionId, lotId,
+  });
+
   revalidatePath('/asta');
   return {
     ok: true,
@@ -198,11 +209,15 @@ export async function joinLot(_prev: ActionState, form: FormData): Promise<Actio
   const { data: lot } = await db.from('lots').select('id, session_id').eq('id', lotId).single();
   if (!lot) return { ok: false, message: 'Lotto inesistente.' };
 
-  return joinLotInternal(team.id, lotId, releaseId, maxBid, lot.session_id);
+  return joinLotInternal(team.id, lotId, releaseId, maxBid, lot.session_id, {
+    userId: team.userId, leagueId: team.league_id, nome: team.name,
+  });
 }
 
 async function joinLotInternal(
   teamId: string, lotId: string, releaseId: string, maxBid: number | null, sessionId: string,
+  /** chi sta aderendo: serve al registro, che vuole la persona e non solo la squadra */
+  attore?: { userId: string; leagueId: string; nome: string },
 ): Promise<ActionState> {
   const db = supabaseAdmin();
   const state = await loadMarketState(teamId, sessionId);
@@ -246,6 +261,15 @@ async function joinLotInternal(
 
   if (maxBid != null) {
     await db.from('proxy_bids').upsert({ lot_id: lotId, team_id: teamId, max_amount: maxBid });
+  }
+
+  if (attore) {
+    const { data: lotto } = await db.from('lots').select('player_id').eq('id', lotId).single();
+    await annota({
+      leagueId: attore.leagueId, azione: 'adesione',
+      attore: { userId: attore.userId, teamId, nome: attore.nome },
+      playerId: lotto?.player_id ?? null, sessionId, lotId,
+    });
   }
 
   revalidatePath('/asta');
@@ -563,8 +587,9 @@ async function requireAdmin() {
 }
 
 export async function adminOpenRoom(_prev: ActionState, form: FormData): Promise<ActionState> {
-  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
-  const r = await openRoom(String(form.get('sessionId') ?? ''));
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
+  const r = await openRoom(String(form.get('sessionId') ?? ''), await chiAgisce(admin.userId));
   revalidatePath('/asta/sala');
   revalidatePath('/admin');
   return r;
@@ -629,8 +654,9 @@ export async function adminUnopenLot(_prev: ActionState, form: FormData): Promis
  * che si rifiuta di annullare a metà.
  */
 export async function adminCancelAssignment(_prev: ActionState, form: FormData): Promise<ActionState> {
-  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
-  const r = await annullaAssegnazione(String(form.get('lotId') ?? ''));
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
+  const r = await annullaAssegnazione(String(form.get('lotId') ?? ''), await chiAgisce(admin.userId));
   revalidatePath('/asta/sala');
   revalidatePath('/asta');
   revalidatePath('/');
@@ -647,7 +673,8 @@ export async function adminCancelAssignment(_prev: ActionState, form: FormData):
  * d'altro. Meglio dirlo qui.
  */
 export async function adminAssignLot(_prev: ActionState, form: FormData): Promise<ActionState> {
-  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+  const admin = await requireAdmin();
+  if (!admin) return { ok: false, message: 'Serve essere admin.' };
 
   const lotId = String(form.get('lotId') ?? '');
   const teamId = String(form.get('teamId') ?? '');
@@ -658,7 +685,7 @@ export async function adminAssignLot(_prev: ActionState, form: FormData): Promis
   const prezzo = Number(grezzo);
   if (!Number.isFinite(prezzo)) return { ok: false, message: 'Il prezzo non è un numero.' };
 
-  const r = await assegnaAMano(lotId, teamId, prezzo);
+  const r = await assegnaAMano(lotId, teamId, prezzo, await chiAgisce(admin.userId));
   revalidatePath('/asta/sala');
   revalidatePath('/asta');
   return r;

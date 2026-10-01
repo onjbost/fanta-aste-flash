@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
-export type NavKey = 'rosa' | 'asta' | 'schedine' | 'listone' | 'regolamento' | 'admin';
+export type NavKey = 'rosa' | 'asta' | 'schedine' | 'listone' | 'registro' | 'regolamento' | 'admin';
 
 // Icone in linea: niente libreria, niente richieste di rete, e il tratto
 // prende il colore della voce (currentColor) senza altro lavoro.
@@ -36,6 +36,15 @@ const ICONS: Record<NavKey, ReactNode> = {
       <path d="M18 14.5v6" /><path d="M15 17.5h6" />
     </svg>
   ),
+  // Il registro: righe scritte una sotto l'altra, in ordine di tempo. Non un
+  // libro (quello è il regolamento) e non una lista con i puntini (quello è
+  // il listone): un foglio dove le cose vengono annotate mano a mano.
+  registro: (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3h11A1.5 1.5 0 0 1 19 4.5v15A1.5 1.5 0 0 1 17.5 21h-11A1.5 1.5 0 0 1 5 19.5z" />
+      <path d="M8.5 8h7" /><path d="M8.5 12h7" /><path d="M8.5 16h4" />
+    </svg>
+  ),
   regolamento: (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H19v15H6.5A2.5 2.5 0 0 0 4 20.5z" />
@@ -56,6 +65,7 @@ const VOCI: { key: NavKey; href: string; label: string }[] = [
   { key: 'asta', href: '/asta', label: 'Asta' },
   { key: 'schedine', href: '/schedine', label: 'Schedine' },
   { key: 'listone', href: '/listone', label: 'Svincolati' },
+  { key: 'registro', href: '/registro', label: 'Registro' },
   { key: 'regolamento', href: '/regolamento', label: 'Regole' },
 ];
 

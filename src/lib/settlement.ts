@@ -8,6 +8,7 @@ import {
 } from './rules';
 import { testoDellaCoda, type VoceDellaCoda } from './coda';
 import { notifyAdmin, tgLotSettled } from './telegram';
+import { annota } from './registroServer';
 import { queueSessionMessage } from './messageBuilder';
 
 /**
@@ -25,7 +26,11 @@ export interface SettleResult {
 }
 
 /** Apre la sala: assegna i lotti senza contendenti e manda la sessione in live. */
-export async function openRoom(sessionId: string): Promise<SettleResult> {
+export async function openRoom(
+  sessionId: string,
+  /** chi l'ha aperta: il registro vuole la persona, non «il sistema» */
+  attore?: { userId?: string | null; teamId?: string | null; nome?: string | null },
+): Promise<SettleResult> {
   const db = supabaseAdmin();
   const { data: session } = await db.from('auction_sessions').select('*').eq('id', sessionId).single();
   if (!session) return { ok: false, message: 'Sessione inesistente.' };
@@ -100,6 +105,11 @@ export async function openRoom(sessionId: string): Promise<SettleResult> {
       + `<pre>${testoDellaCoda(coda)}</pre>`,
     );
   }
+
+  await annota({
+    leagueId: session.league_id as string, azione: 'sala_aperta', attore,
+    sessionId, dati: { asta: session.number, assegnatiSenzaAsta: assigned },
+  });
 
   // il messaggio di svelamento si scrive da solo: adesso svincolandi e budget
   // sono pubblici, quindi il testo per il gruppo è finalmente componibile
@@ -532,10 +542,11 @@ export async function closeLot(lotId: string, force = false): Promise<SettleResu
  */
 export async function assegnaAMano(
   lotId: string, teamId: string, prezzo: number,
+  attore?: { userId?: string | null; teamId?: string | null; nome?: string | null },
 ): Promise<SettleResult> {
   const db = supabaseAdmin();
   const { data: lot } = await db.from('lots')
-    .select('id, status, session_id, players(name)').eq('id', lotId).single();
+    .select('id, status, session_id, player_id, players(name)').eq('id', lotId).single();
   if (!lot) return { ok: false, message: 'Lotto inesistente.' };
 
   const { data: session } = await db.from('auction_sessions')
@@ -574,6 +585,13 @@ export async function assegnaAMano(
 
   const nome = (lot as unknown as { players: { name: string } | null }).players?.name ?? 'il giocatore';
   const chi = inCorsa.find((x) => x.teamId === teamId)?.squadra ?? 'la squadra';
+
+  await annota({
+    leagueId: session.league_id as string, azione: 'lotto_assegnato_a_mano', attore,
+    playerId: lot.player_id as string | null, sessionId: lot.session_id as string, lotId,
+    dati: { squadra: chi, prezzo },
+  });
+
   return {
     ok: true, lotId,
     message: `${nome} assegnato a ${chi} per ${prezzo}.`
@@ -602,7 +620,10 @@ export async function assegnaAMano(
  * questa si ferma e dice cosa lo blocca. Il primo aggiornamento è quello
  * condizionato sul lotto, così due click non annullano due volte.
  */
-export async function annullaAssegnazione(lotId: string): Promise<SettleResult> {
+export async function annullaAssegnazione(
+  lotId: string,
+  attore?: { userId?: string | null; teamId?: string | null; nome?: string | null },
+): Promise<SettleResult> {
   const db = supabaseAdmin();
 
   const { data: lot } = await db.from('lots')
@@ -738,6 +759,12 @@ export async function annullaAssegnazione(lotId: string): Promise<SettleResult> 
     + ' Se l\'avevi già riportato su Leghe Fantacalcio, va disfatto anche là.';
   await notifyAdmin(`<b>Aggiudicazione annullata</b>\n${riga}`);
 
+  await annota({
+    leagueId, azione: 'lotto_annullato', attore,
+    playerId: lot.player_id as string | null, sessionId: lot.session_id as string, lotId,
+    dati: { squadra, prezzo },
+  });
+
   return { ok: true, lotId, message: riga };
 }
 
@@ -846,6 +873,22 @@ async function applyMovements(
       lot_id: lotId, team: team?.name, in: target?.name, out: released.name,
       price, refund: refund.value, credits_before: creditsBefore, credits_after: after,
       uncontested,
+    },
+  });
+
+  /*
+   * L'acquisto nel registro è della squadra, non di una persona: a chiudere
+   * il lotto è l'admin col martello, ma il giocatore se lo prende il club, e
+   * in un registro pubblico è quello il fatto che interessa. Qui lo
+   * svincolando si scrive: dall'aggiudicazione in poi è pubblico.
+   */
+  await annota({
+    leagueId, azione: 'acquisto_asta',
+    attore: { teamId: winnerTeamId, nome: team?.name ?? null },
+    playerId: lot!.player_id as string, sessionId: lot!.session_id as string, lotId,
+    dati: {
+      prezzo: price, uscito: released.name, rimborso: refund.value,
+      ...(uncontested ? { senzaContendenti: true } : {}),
     },
   });
 }

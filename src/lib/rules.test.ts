@@ -4,7 +4,7 @@ import {
   changesSummary, auctionBudget, callsCloseAt, joinsCloseAt, expectedStatus,
   validateCall, validateJoin, validateBid, resolveProxyBid, freeReleaseEligibility, freeReleaseScenarios,
   salaApribile, stessoGiornoItaliano, validateAssegnazione,
-  faseDelLotto, siPuoRilanciare, presenzeMancanti, tuttiPresenti,
+  faseDelLotto, siPuoRilanciare, presenzeMancanti, tuttiPresenti, sessioneAttiva,
   type RosterPlayer, type ReleaseRecord, type SessionInfo, type Role,
 } from './rules';
 
@@ -693,5 +693,50 @@ describe('presenze in sala', () => {
     // non deve succedere (i lotti non contesi si chiudono all'apertura della
     // sala), ma se succede il timer non si accende su un lotto vuoto
     expect(tuttiPresenti([], [])).toBe(false);
+  });
+});
+
+// ------------------------------------------------------- l'asta attiva
+
+describe('quale asta è quella attiva', () => {
+  const s = (number: number, status: SessionInfo['status'], giorno: string): SessionInfo => ({
+    id: `s${number}`, number, auctionAt: `2026-${giorno}T19:30:00Z`,
+    status, excludesNewSignings: false,
+  });
+
+  it('è la prima non chiusa, per numero', () => {
+    const elenco = [
+      s(1, 'closed', '10-01'),
+      s(2, 'calls_open', '10-22'),
+      s(3, 'calls_open', '10-29'),
+    ];
+    expect(sessioneAttiva(elenco)?.number).toBe(2);
+  });
+
+  it('non aspetta l\'orologio: chiusa stamattina, la successiva è attiva subito', () => {
+    /*
+     * È il caso del 1º ottobre: l'asta 1 era in calendario per le 21:30 e
+     * l'abbiamo chiusa in mattinata. Guardando la data — «la prima la cui
+     * data non è passata» — restava attiva lei per tutto il giorno, con
+     * scritto «Chiusa» e niente da fare. Chiudere un'asta deve far avanzare
+     * l'app, non l'orologio.
+     */
+    const elenco = [s(1, 'closed', '12-31'), s(2, 'calls_open', '12-31')];
+    expect(sessioneAttiva(elenco)?.number).toBe(2);
+  });
+
+  it('un\'asta in corso resta quella attiva anche a data passata', () => {
+    const elenco = [s(1, 'live', '01-01'), s(2, 'calls_open', '10-22')];
+    expect(sessioneAttiva(elenco)?.number).toBe(1);
+  });
+
+  it('non si fa ingannare dall\'ordine in cui arrivano', () => {
+    const elenco = [s(3, 'calls_open', '10-29'), s(1, 'closed', '10-01'), s(2, 'calls_open', '10-22')];
+    expect(sessioneAttiva(elenco)?.number).toBe(2);
+  });
+
+  it('a stagione finita non c\'è niente di attivo', () => {
+    expect(sessioneAttiva([s(1, 'closed', '10-01'), s(2, 'closed', '10-22')])).toBeNull();
+    expect(sessioneAttiva([])).toBeNull();
   });
 });

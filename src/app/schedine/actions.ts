@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { annota, dimentica } from '@/lib/registroServer';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { giornataCorrente, sfideDiGiornata } from '@/lib/tipsterServer';
 import type { Mercato } from '@/lib/tipster';
@@ -16,7 +17,7 @@ async function me() {
   const j = m as unknown as {
     is_admin: boolean; teams: { id: string; name: string; league_id: string } | null;
   } | null;
-  return j?.teams ? { ...j.teams, is_admin: j.is_admin } : null;
+  return j?.teams ? { ...j.teams, is_admin: j.is_admin, userId: auth.user.id } : null;
 }
 
 interface GiocataInviata { fixtureId: string; market: Mercato; selection: string }
@@ -90,8 +91,29 @@ export async function salvaSchedina(_prev: ActionState, form: FormData): Promise
     if (eI) return { ok: false, message: eI.message };
   }
 
-  revalidatePath('/schedine');
+  /*
+   * Nel registro una schedina è una riga sola per giornata, non una per
+   * salvataggio: si può cambiare fino alla chiusura, e dieci ripensamenti
+   * sarebbero dieci righe che dicono la stessa cosa. L'impronta tiene ferma
+   * la riga, e `aggiorna` la riscrive coi numeri di adesso.
+   *
+   * Svuotata, la riga se ne va: una schedina senza pronostici non è una
+   * schedina giocata, e lasciarla lì vorrebbe dire raccontare una cosa che
+   * non c'è più.
+   */
   const quante = righe.length;
+  const impronta = `schedina:${slip.id}`;
+  if (quante > 0) {
+    await annota({
+      leagueId: team.league_id, azione: 'schedina', impronta, aggiorna: true,
+      attore: { userId: team.userId, teamId: team.id, nome: team.name },
+      dati: { giornata: giornata.fanta ?? giornata.serieA, giocate: quante },
+    });
+  } else {
+    await dimentica(impronta);
+  }
+
+  revalidatePath('/schedine');
   return {
     ok: true,
     message: quante === 0

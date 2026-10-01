@@ -456,8 +456,37 @@ ol.rules li::before{
 .dock .tab[aria-current="page"]{color:var(--accent);background:var(--pill)}
 .dock .tab:active{transform:scale(.94)}
 
-@media (max-width:400px){
-  .dock .tab{min-width:52px;padding:8px 6px 7px}
+/* Con il registro le voci sono sei, sette per l'admin: su un telefono stretto
+   la capsula taglierebbe l'ultima, e `overflow:hidden` la farebbe sparire
+   senza dire niente. Si stringono le voci, non si toglie una voce. */
+@media (max-width:440px){
+  .dock .tab{min-width:48px;padding:8px 5px 7px;font-size:.58rem}
+  .dock .tab svg{width:20px;height:20px}
+}
+@media (max-width:360px){
+  .dock .tab{min-width:42px;padding:7px 3px 6px;letter-spacing:0}
+  .dock .tab svg{width:19px;height:19px}
+}
+
+/* =====================================================================
+   Il registro della lega: una riga per azione, in ordine di tempo.
+   Non una tabella — sono frasi, e una frase dentro una cella si spezza
+   male sul telefono. L'ora sta sopra la riga quando lo spazio è poco,
+   accanto quando c'è.
+   ===================================================================== */
+.reg{list-style:none;margin:0;padding:0}
+.reg li{
+  display:grid;grid-template-columns:1fr;gap:2px;
+  padding:12px 16px;border-bottom:1px solid var(--border);
+}
+.reg li:last-child{border-bottom:none}
+.reg-quando{
+  font-family:"JetBrains Mono",monospace;font-size:.72rem;color:var(--muted);
+  white-space:nowrap;
+}
+.reg-riga{font-size:.92rem;line-height:1.45}
+@media (min-width:620px){
+  .reg li{grid-template-columns:150px 1fr;gap:14px;align-items:baseline}
 }
 
 /* =====================================================================

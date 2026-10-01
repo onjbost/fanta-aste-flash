@@ -19,6 +19,7 @@ import {
   ricontrollaScambio, type SceltaScambio,
 } from '@/lib/mercato/scambioServer';
 import { annullaScambio, applicaScambio, salvaScambio } from '@/lib/mercato/applicaScambio';
+import { annota, chiAgisce } from '@/lib/registroServer';
 
 export type MsgState = {
   ok: boolean; message: string; body?: string;
@@ -31,7 +32,7 @@ async function requireAdmin() {
   if (!auth.user) return null;
   const { data: m } = await db.from('team_members')
     .select('is_admin, team_id, league_id').eq('user_id', auth.user.id).maybeSingle();
-  return m?.is_admin ? { id: m.team_id, league_id: m.league_id } : null;
+  return m?.is_admin ? { id: m.team_id, league_id: m.league_id, userId: auth.user.id } : null;
 }
 
 /**
@@ -154,6 +155,57 @@ export async function scriviScambio(_prev: MsgState, form: FormData): Promise<Ms
 }
 
 /** Il secondo tempo: qui le rose si muovono per davvero. */
+/**
+ * La riga di registro di uno scambio.
+ *
+ * Il fatto è delle due squadre, non di chi ha premuto il bottone: nel
+ * registro si leggerà «Scambio fra Pirati e Qarabaggio: …», e l'admin resta
+ * scritto come attore perché è lui che l'ha registrato.
+ *
+ * I nomi dei giocatori si leggono dopo, da `trade_items`: sono la verità di
+ * cosa si è mosso, mentre la selezione del form può essere di ore prima.
+ */
+async function annotaScambio(
+  tradeId: string, azione: 'scambio' | 'scambio_disfatto', userId: string,
+): Promise<void> {
+  const db = supabaseAdmin();
+  const { data: t } = await db.from('trades')
+    .select(`id, league_id, from_team_id, to_team_id, settlement, settlement_payer, note,
+             casa:from_team_id(name), ospite:to_team_id(name)`)
+    .eq('id', tradeId).maybeSingle();
+  if (!t) return;
+
+  const riga = t as unknown as {
+    league_id: string; from_team_id: string; to_team_id: string;
+    settlement: number; settlement_payer: string | null; note: string | null;
+    casa: { name: string } | null; ospite: { name: string } | null;
+  };
+
+  const { data: items } = await db.from('trade_items')
+    .select('player_id, from_team_id, players(name)').eq('trade_id', tradeId);
+  type Item = { player_id: string; from_team_id: string; players: { name: string } | null };
+  const pezzi = (items ?? []) as unknown as Item[];
+  const nomi = (teamId: string) => pezzi
+    .filter((i) => i.from_team_id === teamId)
+    .map((i) => i.players?.name)
+    .filter((x): x is string => Boolean(x));
+
+  const paga = riga.settlement_payer === 'from' ? riga.casa?.name
+    : riga.settlement_payer === 'to' ? riga.ospite?.name : null;
+
+  await annota({
+    leagueId: riga.league_id, azione, attore: await chiAgisce(userId),
+    dati: {
+      squadraA: riga.casa?.name ?? null,
+      squadraB: riga.ospite?.name ?? null,
+      da: nomi(riga.from_team_id),
+      a: nomi(riga.to_team_id),
+      ...(riga.settlement ? { conguaglio: riga.settlement, paga } : {}),
+      ...(riga.note ? { nota: riga.note } : {}),
+    },
+  });
+}
+
 export async function confermaScambio(_prev: MsgState, form: FormData): Promise<MsgState> {
   const team = await requireAdmin();
   if (!team) return { ok: false, message: 'Serve essere admin.' };
@@ -175,6 +227,7 @@ export async function confermaScambio(_prev: MsgState, form: FormData): Promise<
   }
 
   const esito = await applicaScambio(tradeId);
+  if (esito.ok) await annotaScambio(tradeId, 'scambio', team.userId);
   revalidatePath('/admin/messaggi');
   revalidatePath('/admin/rose');
   return esito.ok
@@ -191,6 +244,7 @@ export async function disfaScambio(_prev: MsgState, form: FormData): Promise<Msg
   if (!tradeId) return { ok: false, message: 'Questo scambio non esiste, o non è della tua lega.' };
 
   const esito = await annullaScambio(tradeId);
+  if (esito.ok) await annotaScambio(tradeId, 'scambio_disfatto', team.userId);
   revalidatePath('/admin/messaggi');
   revalidatePath('/admin/rose');
   return esito.ok

@@ -1,5 +1,86 @@
 # Aste Flash · Fanta Mansarda
 
+## v4.0 — 1 ottobre 2026
+
+La prima asta vera, e tutto quello che ha insegnato. Più il registro della
+lega: una riga per ogni cosa che succede, leggibile da tutti.
+
+### In sala, quello che è cambiato
+- **Un lotto aperto aspetta le presenze.** Appena lo apri, sugli schermi delle
+  squadre in corsa compare una finestra con «Conferma presenza»: il countdown
+  parte quando ha confermato l'ultima di loro, 15 secondi per tutti nello
+  stesso istante. Prima partiva all'apertura, e chi arrivava con dieci secondi
+  di ritardo aveva già perso il lotto.
+- **Qualche secondo di grazia** oltre lo scadere: un rilancio lì dentro vale
+  ancora e rimette il countdown a pieno. Fra il dito e il server c'è una rete.
+- **Il lotto si chiude quando lo chiudi tu**, con un bottone che dice nome e
+  cifra. Nessun browser chiude più niente da sé, e se un rilancio arriva
+  nell'istante del martello il server rifiuta invece di aggiudicare al prezzo
+  vecchio.
+- **Si può annullare un'aggiudicazione**: il giocatore torna da dove è venuto,
+  i crediti tornano come prima, il cambio di ruolo si libera e il lotto torna
+  in programma, pronto da ribattere. Si ferma da sé se intanto il giocatore è
+  stato scambiato o ri-svincolato.
+- **Si può assegnare un lotto a mano**, scegliendo fra le squadre in corsa, per
+  le aste che si decidono a voce.
+- **La coda operativa** dei lotti senza contendenti arriva su Telegram appena
+  apri la sala: è la metà del lavoro che va riportata a mano su Leghe
+  Fantacalcio, e prima non stava scritta da nessuna parte.
+- La sala si apre **tutto il giorno dell'asta**, non solo alle 21:30.
+
+### I crediti
+- **Il budget su un lotto è il saldo di adesso più il rimborso dello
+  svincolando.** Era «saldo meno i lotti già chiusi stasera», e quei prezzi
+  erano già dentro il saldo: alla prima asta una squadra con tre lotti vinti si
+  è trovata un budget negativo e l'ultimo lotto impossibile da assegnare.
+- La sala mostra il budget vero e non lo snapshot dell'adesione: quello che
+  leggi è quello che il server accetta.
+
+### Il calendario
+- **Chiudere una serata apre la successiva.** L'asta attiva è la prima non
+  chiusa, non la prima con la data nel futuro: chiudendo in mattinata un'asta
+  in calendario per la sera, le chiamate della prossima si aprono subito.
+
+### Il registro della lega
+- Una pagina nuova, **visibile a tutti**: una riga per ogni azione, in ordine
+  di tempo, scritta in italiano. Chiamate, adesioni, giocatori presi all'asta,
+  scambi, schedine, svincoli gratuiti chiesti e decisi; e le azioni di regia —
+  apertura della sala, assegnazioni a mano, annullamenti, modifiche alle rose e
+  ai crediti, import.
+- **Ognuno scrive come si chiama**: un nome scelto da te al posto dell'email,
+  che si cambia quando vuoi e cambia in tutto il registro.
+- Si filtra per azione, allenatore, giocatore e periodo.
+- **C'è dentro anche il passato**: tutta la storia della lega da settembre,
+  ricostruita dai dati che c'erano già. Per quelle righe il database sa quale
+  squadra ha agito, non quale dei due allenatori: da adesso c'è il nome.
+- **Lo svincolando non compare** nelle chiamate e nelle adesioni: fino
+  all'apertura della sala è segreto, e il registro lo leggono tutti.
+
+### L'archivio delle aste
+- Accanto al registro, il tabellone di ogni serata chiusa: lotto per lotto chi
+  ha chiamato, chi se lo contendeva, chi l'ha preso e a quanto, chi è uscito e
+  con quale rimborso.
+
+### Questa pagina
+- Il changelog che stai leggendo: arriva dal file del progetto, quindi dice
+  sempre quello che c'è davvero in produzione.
+
+### Sotto il cofano
+- La fase di un lotto non è una colonna del database: si deduce da stato e
+  timer. Uno stato «congelato» scritto da qualche parte avrebbe bisogno di
+  qualcuno che lo scriva nell'istante in cui il tempo finisce, e quel qualcuno
+  è proprio quello che non c'è.
+- Presenze e rilanci passano da due funzioni Postgres che bloccano la riga del
+  lotto: due allenatori che premono nello stesso istante non possono accendere
+  due timer, né rilanciare due volte lo stesso prezzo.
+- Le frasi del registro si compongono in lettura da funzioni pure con i test:
+  correggere una formulazione sistema tutto il registro, comprese le righe di
+  mesi prima, senza toccare il database.
+- L'orologio del telefono non decide più niente: la fase del lotto si calcola
+  sull'ora del server, corretta dallo scarto misurato al caricamento.
+- Regia e sala leggono lo stesso canale realtime. Prima la regia riceveva una
+  fotografia, e l'admin non vedeva mai partire il countdown.
+
 ## v3.0 — 2 settembre 2026
 
 La Redazione. A giornata conclusa il tabellino entra nell'app, i risultati e le

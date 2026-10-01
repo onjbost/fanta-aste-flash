@@ -6,7 +6,10 @@ import {
   loadMarketState, participationsByRole, committedReleaseIds, budgetForLot,
   sessionInfo, runProxyBids, advanceSessions,
 } from '@/lib/market';
-import { openRoom, openLot, closeLot, closeSession, assegnaAMano } from '@/lib/settlement';
+import {
+  openRoom, openLot, closeLot, closeSession, assegnaAMano,
+  confermaPresenza, partiComunque, riapriTimer, rimettiInProgramma, annullaAssegnazione,
+} from '@/lib/settlement';
 import { notifyAdmin, tgSessionClosed, archiveMessage, tgParticipationCancelled } from '@/lib/telegram';
 import {
   validateCall, validateJoin, expectedStatus, callsCloseAt, joinsCloseAt,
@@ -23,7 +26,9 @@ async function me() {
   const { data: m } = await db.from('team_members')
     .select('is_admin, teams(id, name, league_id)').eq('user_id', auth.user.id).maybeSingle();
   const j = m as unknown as { is_admin: boolean; teams: { id: string; name: string; league_id: string } | null } | null;
-  return j?.teams ? { ...j.teams, is_admin: j.is_admin } : null;
+  // userId e non solo la squadra: la presenza in sala la conferma una
+  // persona, e resta scritto quale dei due allenatori c'era
+  return j?.teams ? { ...j.teams, is_admin: j.is_admin, userId: auth.user.id } : null;
 }
 
 /**
@@ -528,11 +533,18 @@ export async function placeBid(lotId: string, amount: number): Promise<ActionSta
   return { ok: true, message: `Offerta di ${amount} accettata.` };
 }
 
-/** Chiusura del lotto a timer scaduto: la può chiamare chiunque stia guardando. */
-export async function settleExpiredLot(lotId: string): Promise<ActionState> {
+/**
+ * «Conferma presenza»: la premono gli allenatori in corsa sul lotto appena
+ * aperto, e l'ultima di loro accende il countdown.
+ *
+ * Qui non c'è più la chiusura a timer scaduto che chiamava il browser
+ * (`settleExpiredLot`): nessun client chiude più un lotto. Il martello lo
+ * batte l'admin, ed è il senso di tutta questa parte.
+ */
+export async function confermaPresenzaLotto(lotId: string): Promise<ActionState> {
   const team = await me();
-  if (!team) return { ok: false, message: 'Sessione scaduta.' };
-  const r = await closeLot(lotId);
+  if (!team) return { ok: false, message: 'Sessione scaduta, rientra.' };
+  const r = await confermaPresenza(lotId, team.id, team.userId);
   revalidatePath('/asta/sala');
   return { ok: r.ok, message: r.message };
 }
@@ -565,10 +577,63 @@ export async function adminOpenLot(_prev: ActionState, form: FormData): Promise<
   return r;
 }
 
+/**
+ * Il martello: aggiudica il lotto, ma **solo** se il tempo è davvero finito.
+ *
+ * Non forza: se un rilancio è arrivato negli ultimi millisecondi e la pagina
+ * dell'admin non l'ha ancora visto, il server rifiuta invece di assegnare al
+ * prezzo vecchio. È il motivo per cui questa e `adminCloseLot` sono due
+ * azioni diverse e non un parametro.
+ */
+export async function adminSettleLot(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+  const r = await closeLot(String(form.get('lotId') ?? ''), false);
+  revalidatePath('/asta/sala');
+  revalidatePath('/asta');
+  return r;
+}
+
+/** «Chiudi subito»: taglia il countdown quando è chiaro che nessuno rilancia più. */
 export async function adminCloseLot(_prev: ActionState, form: FormData): Promise<ActionState> {
   if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
   const r = await closeLot(String(form.get('lotId') ?? ''), true);
   revalidatePath('/asta/sala');
+  revalidatePath('/asta');
+  return r;
+}
+
+export async function adminStartTimer(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+  const r = await partiComunque(String(form.get('lotId') ?? ''));
+  revalidatePath('/asta/sala');
+  return r;
+}
+
+export async function adminReopenTimer(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+  const r = await riapriTimer(String(form.get('lotId') ?? ''));
+  revalidatePath('/asta/sala');
+  return r;
+}
+
+export async function adminUnopenLot(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+  const r = await rimettiInProgramma(String(form.get('lotId') ?? ''));
+  revalidatePath('/asta/sala');
+  return r;
+}
+
+/**
+ * Annulla un'aggiudicazione. Chiede una conferma scritta nell'interfaccia,
+ * perché disfa contratti e crediti: il controllo vero però sta nel server,
+ * che si rifiuta di annullare a metà.
+ */
+export async function adminCancelAssignment(_prev: ActionState, form: FormData): Promise<ActionState> {
+  if (!(await requireAdmin())) return { ok: false, message: 'Serve essere admin.' };
+  const r = await annullaAssegnazione(String(form.get('lotId') ?? ''));
+  revalidatePath('/asta/sala');
+  revalidatePath('/asta');
+  revalidatePath('/');
   return r;
 }
 

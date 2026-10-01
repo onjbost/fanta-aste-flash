@@ -4,6 +4,7 @@ import {
   changesSummary, auctionBudget, callsCloseAt, joinsCloseAt, expectedStatus,
   validateCall, validateJoin, validateBid, resolveProxyBid, freeReleaseEligibility, freeReleaseScenarios,
   salaApribile, stessoGiornoItaliano, validateAssegnazione,
+  faseDelLotto, siPuoRilanciare, presenzeMancanti, tuttiPresenti,
   type RosterPlayer, type ReleaseRecord, type SessionInfo, type Role,
 } from './rules';
 
@@ -597,5 +598,100 @@ describe('validateAssegnazione — assegnare un lotto a mano', () => {
 
   it('un lotto col timer acceso si può comunque assegnare a mano', () => {
     expect(ctx({ statoLotto: 'live' }).ok).toBe(true);
+  });
+});
+
+// ------------------------------------------------------- fase del lotto
+
+describe('fase del lotto in sala', () => {
+  const t0 = new Date('2026-10-01T20:30:00Z');
+  const fra = (secondi: number) => new Date(t0.getTime() + secondi * 1000).toISOString();
+  const fase = (status: string, timerEndsAt: string | null, now = t0, cfg = DEFAULT_CONFIG) =>
+    faseDelLotto({ status, timerEndsAt }, now, cfg);
+
+  it('un lotto in programma non è ancora niente', () => {
+    expect(fase('called', null)).toBe('in_programma');
+    expect(fase('uncontested', null)).toBe('in_programma');
+  });
+
+  it('aperto senza timer vuol dire che si aspettano le presenze', () => {
+    expect(fase('live', null)).toBe('attesa_presenze');
+  });
+
+  it('col timer nel futuro si rilancia', () => {
+    expect(fase('live', fra(15))).toBe('rilanci');
+  });
+
+  it('scaduto da poco è la grazia, scaduto da un po\' è congelato', () => {
+    expect(fase('live', fra(-2))).toBe('grazia');
+    expect(fase('live', fra(-4))).toBe('congelato');
+  });
+
+  it('i bordi: allo scadere esatto si rilancia ancora, alla fine della grazia si congela', () => {
+    expect(fase('live', t0.toISOString())).toBe('rilanci');
+    expect(fase('live', fra(-3))).toBe('grazia');            // esattamente a fine grazia
+    expect(fase('live', new Date(t0.getTime() - 3001).toISOString())).toBe('congelato');
+  });
+
+  it('senza grazia configurata lo scadere congela subito', () => {
+    const cfg = { ...DEFAULT_CONFIG, graceSeconds: 0 };
+    expect(fase('live', t0.toISOString(), t0, cfg)).toBe('rilanci');
+    expect(fase('live', new Date(t0.getTime() - 1).toISOString(), t0, cfg)).toBe('congelato');
+  });
+
+  it('assegnato e annullato sono fasi loro, timer o non timer', () => {
+    expect(fase('assigned', fra(15))).toBe('assegnato');
+    expect(fase('cancelled', null)).toBe('annullato');
+  });
+
+  it('si rilancia solo nei rilanci e nella grazia', () => {
+    expect(siPuoRilanciare('rilanci')).toBe(true);
+    expect(siPuoRilanciare('grazia')).toBe(true);
+    // il buco vero: prima della conferma delle presenze il timer non c'è, e
+    // un rilancio non deve passare
+    expect(siPuoRilanciare('attesa_presenze')).toBe(false);
+    expect(siPuoRilanciare('congelato')).toBe(false);
+    expect(siPuoRilanciare('in_programma')).toBe(false);
+    expect(siPuoRilanciare('assegnato')).toBe(false);
+    expect(siPuoRilanciare('annullato')).toBe(false);
+  });
+});
+
+describe('presenze in sala', () => {
+  const contendenti = [
+    { teamId: 'joga', squadra: 'FC Joga Benito' },
+    { teamId: 'borussia', squadra: 'Borussia Alecchiomund' },
+  ];
+
+  it('dice chi manca, nell\'ordine in cui stanno nel lotto', () => {
+    expect(presenzeMancanti(contendenti, [])).toEqual(['FC Joga Benito', 'Borussia Alecchiomund']);
+    expect(presenzeMancanti(contendenti, [{ teamId: 'joga' }])).toEqual(['Borussia Alecchiomund']);
+    expect(presenzeMancanti(contendenti, [{ teamId: 'borussia' }])).toEqual(['FC Joga Benito']);
+  });
+
+  it('una squadra basta che confermi un allenatore, e non la nomina due volte', () => {
+    // due allenatori per squadra: due righe di presenza, una squadra sola
+    const doppi = [
+      { teamId: 'joga', squadra: 'FC Joga Benito' },
+      { teamId: 'joga', squadra: 'FC Joga Benito' },
+      { teamId: 'borussia', squadra: 'Borussia Alecchiomund' },
+    ];
+    expect(presenzeMancanti(doppi, [])).toEqual(['FC Joga Benito', 'Borussia Alecchiomund']);
+    expect(presenzeMancanti(doppi, [{ teamId: 'joga' }, { teamId: 'joga' }]))
+      .toEqual(['Borussia Alecchiomund']);
+  });
+
+  it('il timer parte solo quando c\'è una conferma per ogni squadra in corsa', () => {
+    expect(tuttiPresenti(contendenti, [])).toBe(false);
+    expect(tuttiPresenti(contendenti, [{ teamId: 'joga' }])).toBe(false);
+    expect(tuttiPresenti(contendenti, [{ teamId: 'joga' }, { teamId: 'borussia' }])).toBe(true);
+    // conferme di chi non è in corsa non contano
+    expect(tuttiPresenti(contendenti, [{ teamId: 'joga' }, { teamId: 'pirati' }])).toBe(false);
+  });
+
+  it('un lotto senza contendenti non parte mai da sé', () => {
+    // non deve succedere (i lotti non contesi si chiudono all'apertura della
+    // sala), ma se succede il timer non si accende su un lotto vuoto
+    expect(tuttiPresenti([], [])).toBe(false);
   });
 });

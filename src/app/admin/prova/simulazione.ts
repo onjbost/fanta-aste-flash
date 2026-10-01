@@ -1,5 +1,5 @@
 import {
-  DEFAULT_CONFIG, refundValue, validateBid, resolveProxyBid,
+  DEFAULT_CONFIG, refundValue, validateBid, resolveProxyBid, tuttiPresenti,
   type LeagueConfig, type Role, type RosterPlayer,
 } from '@/lib/rules';
 
@@ -50,8 +50,14 @@ export interface LottoProva {
   stato: StatoLotto;
   prezzo: number | null;
   leader: string | null;
-  /** millisecondi epoch, non una stringa: qui il tempo è aritmetica */
+  /**
+   * Millisecondi epoch, non una stringa: qui il tempo è aritmetica.
+   * `null` vuol dire che il countdown non è ancora partito — come nella sala
+   * vera, dove ad accenderlo è la conferma dell'ultima squadra in corsa.
+   */
   scadenza: number | null;
+  /** chi ha confermato di essere in sala per questo lotto */
+  presenze: string[];
   vincitore: string | null;
   prezzoFinale: number | null;
   partecipanti: PartecipanteProva[];
@@ -120,7 +126,7 @@ export function statoIniziale(cfg: LeagueConfig = DEFAULT_CONFIG, timerSecondi =
     {
       id: 'l1', indice: 1,
       giocatore: g('Corsini', 'C', 'Fantacittà', 0),
-      stato: 'called', prezzo: null, leader: null, scadenza: null,
+      stato: 'called', prezzo: null, leader: null, scadenza: null, presenze: [],
       vincitore: null, prezzoFinale: null,
       partecipanti: [
         { squadraId: IO, svincola: g('Bardelli', 'C', 'Realvalle', 28), chiamante: true, tetto: null },
@@ -131,7 +137,7 @@ export function statoIniziale(cfg: LeagueConfig = DEFAULT_CONFIG, timerSecondi =
     {
       id: 'l2', indice: 2,
       giocatore: g('Villa', 'A', 'Pratoalto', 0),
-      stato: 'called', prezzo: null, leader: null, scadenza: null,
+      stato: 'called', prezzo: null, leader: null, scadenza: null, presenze: [],
       vincitore: null, prezzoFinale: null,
       partecipanti: [
         { squadraId: 'bot1', svincola: g('Iaccarino', 'A', 'Realvalle', 36), chiamante: true, tetto: 70 },
@@ -141,7 +147,7 @@ export function statoIniziale(cfg: LeagueConfig = DEFAULT_CONFIG, timerSecondi =
     {
       id: 'l3', indice: 3,
       giocatore: g('Zambelli', 'D', 'Marecalmo', 0),
-      stato: 'called', prezzo: null, leader: null, scadenza: null,
+      stato: 'called', prezzo: null, leader: null, scadenza: null, presenze: [],
       vincitore: null, prezzoFinale: null,
       partecipanti: [
         { squadraId: IO, svincola: g('Peretti', 'D', 'Pratoalto', 16), chiamante: true, tetto: null },
@@ -177,7 +183,7 @@ function assegna(s: StatoProva, lotto: LottoProva, vincitore: string, prezzo: nu
       sq.id === vincitore ? { ...sq, crediti: sq.crediti + reso - prezzo } : sq),
     lotti: s.lotti.map((l) => (l.id === lotto.id ? {
       ...l, stato: 'assigned' as StatoLotto, vincitore, prezzoFinale: prezzo,
-      prezzo, leader: vincitore, scadenza: null,
+      prezzo, leader: vincitore, scadenza: null, presenze: [],
     } : l)),
   };
 
@@ -212,7 +218,14 @@ export function apriSala(s: StatoProva): StatoProva {
   return annota(dopo, 'Sala aperta.');
 }
 
-/** Manda un lotto all'asta: parte il timer. Uno alla volta, come nella realtà. */
+/**
+ * Manda un lotto in sala. Il countdown **non** parte qui: aspetta le
+ * conferme di presenza, come nella sala vera.
+ *
+ * `ora` resta nella firma anche se non serve più a calcolare una scadenza:
+ * la tiene allineata a quella della sala, e il giorno che serve un
+ * `aperto_alle` non cambia niente intorno.
+ */
 export function apriLotto(s: StatoProva, lotId: string, ora: number): { stato: StatoProva; errore: string | null } {
   const l = s.lotti.find((x) => x.id === lotId);
   if (!l) return { stato: s, errore: 'Lotto inesistente.' };
@@ -223,9 +236,44 @@ export function apriLotto(s: StatoProva, lotId: string, ora: number): { stato: S
   }
 
   const dopo = conLotto(s, lotId, (x) => ({
-    ...x, stato: 'live', scadenza: ora + s.timerSecondi * 1000,
+    ...x, stato: 'live', scadenza: null, presenze: [],
   }));
-  return { stato: annota(dopo, `Lotto ${l.indice} · ${l.giocatore.nome} all'asta.`), errore: null };
+  return {
+    stato: annota(dopo, `Lotto ${l.indice} · ${l.giocatore.nome} aperto: si aspettano le presenze.`),
+    errore: null,
+  };
+}
+
+/**
+ * Una squadra conferma di essere in sala. Quando ci sono tutte, parte il
+ * countdown — ed è l'unico modo in cui parte, qui come nella sala vera.
+ */
+export function confermaPresenza(
+  s: StatoProva, lotId: string, squadraId: string, ora: number,
+): { stato: StatoProva; errore: string | null; partito: boolean } {
+  const l = s.lotti.find((x) => x.id === lotId);
+  if (!l) return { stato: s, errore: 'Lotto inesistente.', partito: false };
+  if (l.stato !== 'live') return { stato: s, errore: 'Il lotto non è aperto in sala.', partito: false };
+  if (!l.partecipanti.some((p) => p.squadraId === squadraId)) {
+    return { stato: s, errore: 'Non sei in corsa su questo lotto.', partito: false };
+  }
+
+  const presenze = l.presenze.includes(squadraId) ? l.presenze : [...l.presenze, squadraId];
+  const contendenti = l.partecipanti.map((p) => ({ teamId: p.squadraId, squadra: p.squadraId }));
+  const tutti = tuttiPresenti(contendenti, presenze.map((id) => ({ teamId: id })));
+
+  // il countdown già partito non si rimette in moto da una conferma tardiva
+  const parte = tutti && l.scadenza == null;
+  const dopo = conLotto(s, lotId, (x) => ({
+    ...x, presenze, scadenza: parte ? ora + s.timerSecondi * 1000 : x.scadenza,
+  }));
+
+  return {
+    stato: parte
+      ? annota(dopo, `Ci sono tutti su ${l.giocatore.nome}: ${s.timerSecondi} secondi.`)
+      : annota(dopo, `${squadra(s, squadraId).nome} è in sala.`),
+    errore: null, partito: parte,
+  };
 }
 
 /**
@@ -240,7 +288,12 @@ export function rilancia(
   if (!l.partecipanti.some((p) => p.squadraId === squadraId)) {
     return { stato: s, errore: 'Non partecipi a questo lotto.' };
   }
-  if (l.stato === 'live' && l.scadenza != null && ora > l.scadenza) {
+  if (l.stato === 'live' && l.scadenza == null) {
+    return { stato: s, errore: 'Il lotto non è ancora partito: si aspettano le presenze.' };
+  }
+  // la grazia: scaduto da pochi secondi il rilancio vale ancora, e rimette
+  // il countdown a pieno. È la stessa regola che sta in fn_place_bid.
+  if (l.stato === 'live' && l.scadenza != null && ora > l.scadenza + s.cfg.graceSeconds * 1000) {
     return { stato: s, errore: 'Tempo scaduto.' };
   }
 
@@ -318,6 +371,42 @@ export function chiudiLotto(s: StatoProva, lotId: string): { stato: StatoProva; 
   }
   return {
     stato: assegna(s, l, chiamante.squadraId, rimborso(chiamante.svincola, s.cfg)),
+    errore: null,
+  };
+}
+
+/**
+ * Annulla un'aggiudicazione: il lotto torna in programma e i crediti tornano
+ * come prima. È il contrario esatto di `assegna`, come nella sala vera
+ * `annullaAssegnazione` è il contrario di `applyMovements`.
+ */
+export function annullaAggiudicazione(
+  s: StatoProva, lotId: string,
+): { stato: StatoProva; errore: string | null } {
+  const l = s.lotti.find((x) => x.id === lotId);
+  if (!l) return { stato: s, errore: 'Lotto inesistente.' };
+  if (l.stato !== 'assigned' || l.vincitore == null || l.prezzoFinale == null) {
+    return { stato: s, errore: 'Questo lotto non è assegnato.' };
+  }
+
+  const p = l.partecipanti.find((x) => x.squadraId === l.vincitore)!;
+  const reso = rimborso(p.svincola, s.cfg);
+  const nome = squadra(s, l.vincitore).nome;
+
+  const dopo: StatoProva = {
+    ...s,
+    squadre: s.squadre.map((sq) =>
+      sq.id === l.vincitore ? { ...sq, crediti: sq.crediti - reso + l.prezzoFinale! } : sq),
+    lotti: s.lotti.map((x) => (x.id === lotId ? {
+      ...x, stato: 'called' as StatoLotto, vincitore: null, prezzoFinale: null,
+      prezzo: null, leader: null, scadenza: null, presenze: [],
+    } : x)),
+  };
+
+  return {
+    stato: annota(dopo, `Annullata l'aggiudicazione di ${l.giocatore.nome} a ${nome}:`
+      + ` ${l.giocatore.nome} torna in programma, crediti ${squadra(s, l.vincitore).crediti} → `
+      + `${squadra(dopo, l.vincitore).crediti}.`),
     errore: null,
   };
 }

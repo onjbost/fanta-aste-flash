@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { DEFAULT_CONFIG } from '@/lib/rules';
 import {
-  IO, apriSala, apriLotto, budget, chiudiLotto, chiudiSerata, lottoLive,
+  IO, annullaAggiudicazione, apriSala, apriLotto, budget, chiudiLotto, chiudiSerata,
+  confermaPresenza, lottoLive,
   mossaAvversari, prossimoLotto, rilancia, rimborso, squadra, statoIniziale,
   type StatoProva,
 } from './simulazione';
@@ -15,8 +16,34 @@ const T0 = 1_800_000_000_000;
 
 const iniziale = () => statoIniziale(DEFAULT_CONFIG, 10);
 
-/** Apre la sala e manda all'asta il primo lotto contendibile. */
+/** Tutte le squadre in corsa confermano la presenza: il countdown parte. */
+function conPresenze(s: StatoProva, lotId: string, ora = T0): StatoProva {
+  const l = s.lotti.find((x) => x.id === lotId)!;
+  let dopo = s;
+  for (const p of l.partecipanti) {
+    const r = confermaPresenza(dopo, lotId, p.squadraId, ora);
+    expect(r.errore).toBeNull();
+    dopo = r.stato;
+  }
+  return dopo;
+}
+
+/** Apre un lotto e lo porta fino al countdown acceso. */
+function apriEParti(s: StatoProva, lotId: string, ora = T0): StatoProva {
+  const r = apriLotto(s, lotId, ora);
+  expect(r.errore).toBeNull();
+  return conPresenze(r.stato, lotId, ora);
+}
+
+/** Apre la sala e manda all'asta il primo lotto contendibile, timer acceso. */
 function alPrimoLotto(): StatoProva {
+  const aperta = apriSala(iniziale());
+  const l = prossimoLotto(aperta)!;
+  return apriEParti(aperta, l.id);
+}
+
+/** Come `alPrimoLotto`, ma fermo all'attesa delle presenze. */
+function alPrimoLottoSenzaPresenze(): StatoProva {
   const aperta = apriSala(iniziale());
   const l = prossimoLotto(aperta)!;
   const r = apriLotto(aperta, l.id, T0);
@@ -58,9 +85,37 @@ describe('apertura di un lotto', () => {
     expect(r.errore).toMatch(/già un lotto/);
   });
 
-  it('il timer parte dal momento dell\'apertura', () => {
-    const s = alPrimoLotto();
-    expect(lottoLive(s)!.scadenza).toBe(T0 + 10_000);
+  it('il countdown non parte all\'apertura: si aspettano le presenze', () => {
+    const s = alPrimoLottoSenzaPresenze();
+    expect(lottoLive(s)!.scadenza).toBeNull();
+    expect(lottoLive(s)!.presenze).toEqual([]);
+  });
+
+  it('parte quando ha confermato l\'ultima squadra in corsa, non prima', () => {
+    const s = alPrimoLottoSenzaPresenze();
+    const uno = confermaPresenza(s, 'l1', IO, T0).stato;
+    expect(lottoLive(uno)!.scadenza).toBeNull();
+    const due = confermaPresenza(uno, 'l1', 'bot1', T0).stato;
+    expect(lottoLive(due)!.scadenza).toBeNull();
+    const tre = confermaPresenza(due, 'l1', 'bot2', T0 + 2_000);
+    expect(tre.partito).toBe(true);
+    // i secondi si contano dalla conferma, non dall'apertura
+    expect(lottoLive(tre.stato)!.scadenza).toBe(T0 + 12_000);
+  });
+
+  it('chi non è in corsa non conferma, e la conferma ripetuta non conta', () => {
+    const s = alPrimoLottoSenzaPresenze();
+    expect(confermaPresenza(s, 'l1', 'bot3', T0).errore).toMatch(/Non sei in corsa/);
+    const uno = confermaPresenza(s, 'l1', IO, T0).stato;
+    const bis = confermaPresenza(uno, 'l1', IO, T0).stato;
+    expect(lottoLive(bis)!.presenze).toEqual([IO]);
+  });
+
+  it('una conferma tardiva non riaccende il countdown', () => {
+    const s = conPresenze(alPrimoLottoSenzaPresenze(), 'l1', T0);
+    const dopo = confermaPresenza(s, 'l1', IO, T0 + 5_000);
+    expect(dopo.partito).toBe(false);
+    expect(lottoLive(dopo.stato)!.scadenza).toBe(T0 + 10_000);
   });
 });
 
@@ -91,9 +146,22 @@ describe('rilanci', () => {
     expect(rilancia(s, 'l1', IO, 55, T0).errore).toBeNull();
   });
 
-  it('a timer scaduto non si offre più', () => {
+  it('prima delle presenze non si rilancia', () => {
+    const s = alPrimoLottoSenzaPresenze();
+    expect(rilancia(s, 'l1', IO, 5, T0).errore).toMatch(/non è ancora partito/);
+  });
+
+  it('nella grazia il rilancio vale ancora, e rimette il timer a pieno', () => {
     const s = alPrimoLotto();
-    expect(rilancia(s, 'l1', IO, 5, T0 + 11_000).errore).toBe('Tempo scaduto.');
+    // timer a T0+10s, grazia di 3: a T0+12s si è ancora dentro
+    const r = rilancia(s, 'l1', IO, 5, T0 + 12_000);
+    expect(r.errore).toBeNull();
+    expect(lottoLive(r.stato)!.scadenza).toBe(T0 + 22_000);
+  });
+
+  it('passata la grazia non si offre più', () => {
+    const s = alPrimoLotto();
+    expect(rilancia(s, 'l1', IO, 5, T0 + 13_001).errore).toBe('Tempo scaduto.');
   });
 
   it('chi non partecipa al lotto non può offrire', () => {
@@ -142,16 +210,14 @@ describe('avversari automatici', () => {
   });
 
   it('fra due bot si sfidano da soli, senza di te', () => {
-    let s = apriSala(iniziale());
-    s = apriLotto(s, 'l2', T0).stato;
+    const s = apriEParti(apriSala(iniziale()), 'l2');
     const { mossa } = mossaAvversari(s, 'l2', T0);
     // Sparring Club (70) batte Manichini (58) pagando 59
     expect(mossa).toEqual({ squadraId: 'bot1', importo: 59 });
   });
 
   it('si fermano quando il prezzo supera ogni tetto rimasto', () => {
-    let s = apriSala(iniziale());
-    s = apriLotto(s, 'l2', T0).stato;
+    let s = apriEParti(apriSala(iniziale()), 'l2');
     s = mossaAvversari(s, 'l2', T0).stato;      // Sparring Club a 59
     // Manichini arriva a 58: per stare davanti servirebbe 60, quindi si arrende
     expect(mossaAvversari(s, 'l2', T0).mossa).toBeNull();
@@ -191,6 +257,79 @@ describe('chiusura del lotto', () => {
     const uno = chiudiLotto(s, 'l1').stato;
     const due = chiudiLotto(uno, 'l1').stato;
     expect(squadra(due, IO).crediti).toBe(squadra(uno, IO).crediti);
+  });
+});
+
+describe('il ciclo intero di un lotto, e il passo indietro', () => {
+  /*
+   * Dall'apertura all'annullo, passando per tutti i momenti che la sala
+   * adesso distingue. È il test che tiene insieme la modifica: se uno dei
+   * passaggi cambia di significato, qui salta il conto dei crediti.
+   */
+  it('apertura → presenze → rilancio nella grazia → martello → annullo', () => {
+    const aperta = apriSala(iniziale());
+    const creditiPrima = aperta.squadre.map((sq) => sq.crediti);
+
+    // 1. aperto: nessun countdown
+    let s = apriLotto(aperta, 'l1', T0).stato;
+    expect(lottoLive(s)!.scadenza).toBeNull();
+    expect(rilancia(s, 'l1', IO, 1, T0).errore).toMatch(/non è ancora partito/);
+
+    // 2. le presenze accendono il timer
+    s = conPresenze(s, 'l1', T0);
+    expect(lottoLive(s)!.scadenza).toBe(T0 + 10_000);
+
+    // 3. un rilancio dentro il tempo, e uno nella grazia
+    s = rilancia(s, 'l1', IO, 20, T0 + 3_000).stato;
+    expect(lottoLive(s)!.scadenza).toBe(T0 + 13_000);
+    s = mossaAvversari(s, 'l1', T0 + 4_000).stato;          // risponde un bot
+    const dopoBot = lottoLive(s)!;
+    s = rilancia(s, 'l1', IO, dopoBot.prezzo! + 1, dopoBot.scadenza! + 2_000).stato;
+    expect(lottoLive(s)!.leader).toBe(IO);
+
+    // 4. passata la grazia non si offre più, ma il lotto resta aperto:
+    //    nessuno lo chiude da sé
+    const scaduto = lottoLive(s)!.scadenza! + 3_001;
+    expect(rilancia(s, 'l1', 'bot1', 99, scaduto).errore).toBe('Tempo scaduto.');
+    expect(lottoLive(s)!.stato).toBe('live');
+
+    // 5. il martello
+    const prezzo = lottoLive(s)!.prezzo!;
+    s = chiudiLotto(s, 'l1').stato;
+    const chiuso = s.lotti.find((l) => l.id === 'l1')!;
+    expect(chiuso.stato).toBe('assigned');
+    expect(chiuso.vincitore).toBe(IO);
+    expect(chiuso.prezzoFinale).toBe(prezzo);
+    expect(squadra(s, IO).crediti).not.toBe(creditiPrima[0]);
+
+    // 6. l'annullo riporta tutto dov'era: crediti identici, lotto in programma
+    const r = annullaAggiudicazione(s, 'l1');
+    expect(r.errore).toBeNull();
+    expect(r.stato.squadre.map((sq) => sq.crediti)).toEqual(creditiPrima);
+    const tornato = r.stato.lotti.find((l) => l.id === 'l1')!;
+    expect(tornato.stato).toBe('called');
+    expect(tornato.vincitore).toBeNull();
+    expect(tornato.prezzo).toBeNull();
+    expect(tornato.presenze).toEqual([]);
+
+    // 7. e si può ribattere da zero, presenze comprese
+    const ancora = apriLotto(r.stato, 'l1', T0 + 60_000);
+    expect(ancora.errore).toBeNull();
+    expect(lottoLive(ancora.stato)!.scadenza).toBeNull();
+  });
+
+  it('un lotto non assegnato non si annulla', () => {
+    expect(annullaAggiudicazione(alPrimoLotto(), 'l1').errore).toMatch(/non è assegnato/);
+  });
+
+  it('annullare il lotto senza contendenti lo rimette in programma a saldo neutro', () => {
+    // l3 si chiude all'apertura della sala: prezzo = rimborso, saldo neutro
+    const s = apriSala(iniziale());
+    const prima = squadra(s, IO).crediti;
+    const r = annullaAggiudicazione(s, 'l3');
+    expect(r.errore).toBeNull();
+    expect(squadra(r.stato, IO).crediti).toBe(prima);
+    expect(r.stato.lotti.find((l) => l.id === 'l3')!.stato).toBe('called');
   });
 });
 

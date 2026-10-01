@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { LeagueConfig } from '@/lib/rules';
+import { faseDelLotto, type FaseLotto, type LeagueConfig } from '@/lib/rules';
 import { LiveLot, ProgrammaSerata, type LotView } from '@/app/asta/sala/PezziSala';
 import {
-  IO, apriLotto, apriSala, budget, chiudiLotto, chiudiSerata, lottoLive,
+  IO, apriLotto, apriSala, budget, chiudiLotto, chiudiSerata, confermaPresenza, lottoLive,
   mossaAvversari, prossimoLotto, rilancia, rimborso, squadra, statoIniziale,
   type LottoProva, type StatoProva,
 } from './simulazione';
@@ -49,8 +49,13 @@ function vista(s: StatoProva, l: LottoProva): LotView {
     })),
     myBudget: io ? budget(s, l, IO) : null,
     iParticipate: !!io,
+    presenze: l.presenze.map((id) => ({ teamId: id, quando: new Date().toISOString() })),
   };
 }
+
+/** Quanto ci mette un avversario a dire «ci sono». */
+const PRESENZA_MIN = 900;
+const PRESENZA_MAX = 2400;
 
 export function SalaDiProva({ cfg, timerSecondi }: { cfg: LeagueConfig; timerSecondi: number }) {
   const [stato, setStato] = useState<StatoProva>(() => statoIniziale(cfg, timerSecondi));
@@ -59,6 +64,42 @@ export function SalaDiProva({ cfg, timerSecondi }: { cfg: LeagueConfig; timerSec
 
   const live = lottoLive(stato);
   const prossimo = prossimoLotto(stato);
+
+  // l'orologio della prova: la fase passa da sé da rilanci a grazia a
+  // congelato, e i pulsanti della regia cambiano con lei
+  const [ora, setOra] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setOra(Date.now()), 250);
+    return () => clearInterval(id);
+  }, []);
+
+  const fase: FaseLotto | null = live
+    ? faseDelLotto(
+      { status: live.stato, timerEndsAt: live.scadenza != null ? new Date(live.scadenza).toISOString() : null },
+      new Date(ora), cfg,
+    )
+    : null;
+
+  /*
+   * Gli avversari entrano in sala uno alla volta, con qualche secondo di
+   * ritardo: è la cosa che in sala vera fa aspettare, e vederla qui serve
+   * più di qualunque spiegazione. L'ultimo che conferma accende il timer —
+   * e se sei tu a non aver ancora confermato, il countdown non parte e
+   * nessuno ti sta rubando secondi.
+   */
+  const inAttesa = live && live.scadenza == null
+    ? live.partecipanti.filter((p) => p.squadraId !== IO && !live.presenze.includes(p.squadraId))
+    : [];
+  const primoAssente = inAttesa.length ? inAttesa[0].squadraId : null;
+
+  useEffect(() => {
+    if (!live || !primoAssente) return;
+    const lotId = live.id;
+    const t = setTimeout(() => {
+      setStato((prima) => confermaPresenza(prima, lotId, primoAssente, Date.now()).stato);
+    }, PRESENZA_MIN + Math.random() * (PRESENZA_MAX - PRESENZA_MIN));
+    return () => clearTimeout(t);
+  }, [live, primoAssente]);
 
   /**
    * La situazione del lotto aperto, ridotta a una stringa.
@@ -89,12 +130,13 @@ export function SalaDiProva({ cfg, timerSecondi }: { cfg: LeagueConfig; timerSec
     });
   }, []);
 
-  /** Timer a zero: il lotto si chiude. Chiamarla due volte non fa danni. */
-  const scaduto = useCallback((lotId: string) => {
+  /** «Conferma presenza»: la premi tu, come in sala. */
+  const conferma = useCallback((lotId: string) => {
+    setAvviso(null);
     setStato((prima) => {
-      const l = prima.lotti.find((x) => x.id === lotId);
-      if (!l || l.stato !== 'live') return prima;
-      return chiudiLotto(prima, lotId).stato;
+      const r = confermaPresenza(prima, lotId, IO, Date.now());
+      if (r.errore) queueMicrotask(() => setAvviso(r.errore));
+      return r.stato;
     });
   }, []);
 
@@ -114,7 +156,9 @@ export function SalaDiProva({ cfg, timerSecondi }: { cfg: LeagueConfig; timerSec
         inventati: niente di quello che succede qui tocca le rose vere, i
         crediti veri o i messaggi su Telegram. Le regole invece sono le stesse —
         rilancio minimo, tetto del budget, timer che riparte a ogni offerta,
-        rimborso al {Math.round(cfg.refundPct * 100)}% di chi esce.
+        rimborso al {Math.round(cfg.refundPct * 100)}% di chi esce, conferma di
+        presenza prima di partire, e il lotto che si chiude solo quando
+        l&apos;admin batte il martello.
       </div>
 
       <div className="panel" style={{ padding: 16, marginBottom: 20, background: 'var(--surface-2)' }}>
@@ -136,7 +180,21 @@ export function SalaDiProva({ cfg, timerSecondi }: { cfg: LeagueConfig; timerSec
             </button>
           )}
 
-          {stato.salaAperta && live && (
+          {/*
+            * Il martello, anche qui: il lotto non si chiude da sé allo
+            * scadere del timer. A countdown finito il pulsante dice nome e
+            * cifra, perché è così che lo vede l'admin in sala vera.
+            */}
+          {stato.salaAperta && live && fase === 'congelato' && (
+            <button className="primary"
+              onClick={() => setStato(chiudiLotto(stato, live.id).stato)}>
+              {live.leader
+                ? `Aggiudica ${live.giocatore.nome} a ${squadra(stato, live.leader).nome} per ${live.prezzo}`
+                : `Aggiudica ${live.giocatore.nome} al chiamante`}
+            </button>
+          )}
+
+          {stato.salaAperta && live && fase !== 'congelato' && (
             <button style={{ color: 'var(--crit)', borderColor: 'var(--crit)' }}
               onClick={() => setStato(chiudiLotto(stato, live.id).stato)}>
               Chiudi subito il lotto
@@ -163,7 +221,10 @@ export function SalaDiProva({ cfg, timerSecondi }: { cfg: LeagueConfig; timerSec
           </div>
         </div>
       ) : lottoAperto ? (
-        <LiveLot lot={lottoAperto} myTeamId={IO} onBid={offri} onExpire={scaduto} />
+        <LiveLot
+          lot={lottoAperto} myTeamId={IO} onBid={offri} onConferma={conferma}
+          tempi={{ timerSeconds: timerSecondi, graceSeconds: cfg.graceSeconds }}
+        />
       ) : (
         <div className="panel"><div className="empty">Nessun lotto aperto in questo momento.</div></div>
       )}

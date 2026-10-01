@@ -1,49 +1,27 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
-import { createBrowserClient } from '@supabase/ssr';
-import { placeBid, settleExpiredLot } from '../actions';
-import { LiveLot, ProgrammaSerata, type LotView } from './PezziSala';
+import { useCallback, useMemo, useState, useTransition } from 'react';
+import { placeBid, confermaPresenzaLotto } from '../actions';
+import { LiveLot, ProgrammaSerata, type LotView, type TempiSala } from './PezziSala';
 
 export type { LotView };
 
-export function AuctionRoom({ myTeamId, lots }: { myTeamId: string; lots: LotView[] }) {
-  const [rows, setRows] = useState(lots);
+/**
+ * La sala vista da un allenatore: il lotto aperto e il programma della serata.
+ *
+ * I lotti arrivano già aggiornati in tempo reale da `Sala`, che tiene il
+ * canale per tutti: qui non c'è nessuna sottoscrizione, così la regia
+ * dell'admin e questa vista non possono mostrare due stati diversi dello
+ * stesso lotto.
+ */
+export function AuctionRoom({ myTeamId, lots, tempi, scarto }: {
+  myTeamId: string; lots: LotView[]; tempi: TempiSala; scarto: number;
+}) {
   const [notice, setNotice] = useState<string | null>(null);
+  const [confermando, setConfermando] = useState(false);
   const [, startTransition] = useTransition();
-  const settling = useRef<Set<string>>(new Set());
 
-  useEffect(() => setRows(lots), [lots]);
-
-  // Realtime: seguo i lotti della sessione. Ogni rilancio cambia una riga di
-  // `lots`, quindi basta ascoltare quella tabella per avere prezzo, leader e
-  // nuovo timer senza ricaricare la pagina.
-  useEffect(() => {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) return;
-    const db = createBrowserClient(url, key);
-
-    const channel = db.channel('sala')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'lots' }, (payload) => {
-        const n = payload.new as Record<string, unknown>;
-        setRows((prev) => prev.map((l) => l.id === n.id ? {
-          ...l,
-          status: String(n.status),
-          currentPrice: (n.current_price as number) ?? null,
-          currentLeaderId: (n.current_leader as string) ?? null,
-          currentLeader: l.participants.find((p) => p.teamId === n.current_leader)?.teamName ?? l.currentLeader,
-          timerEndsAt: (n.timer_ends_at as string) ?? null,
-          winnerTeam: l.participants.find((p) => p.teamId === n.winner_team_id)?.teamName ?? l.winnerTeam,
-          finalPrice: (n.final_price as number) ?? l.finalPrice,
-        } : l));
-      })
-      .subscribe();
-
-    return () => { db.removeChannel(channel); };
-  }, []);
-
-  const live = useMemo(() => rows.find((l) => l.status === 'live'), [rows]);
+  const live = useMemo(() => lots.find((l) => l.status === 'live'), [lots]);
 
   const bid = useCallback((lotId: string, amount: number) => {
     startTransition(async () => {
@@ -52,25 +30,43 @@ export function AuctionRoom({ myTeamId, lots }: { myTeamId: string; lots: LotVie
     });
   }, []);
 
-  /** Il timer è scaduto: chiedo al server di chiudere. È idempotente. */
-  const onExpire = useCallback((lotId: string) => {
-    if (settling.current.has(lotId)) return;
-    settling.current.add(lotId);
+  /**
+   * «Conferma presenza». Nessun client chiude più un lotto: a timer scaduto
+   * si aspetta il martello dell'admin, e questa è l'unica cosa che un
+   * allenatore fa prima che il countdown esista.
+   */
+  const conferma = useCallback((lotId: string) => {
+    setConfermando(true);
+    setNotice(null);
     startTransition(async () => {
-      await settleExpiredLot(lotId);
-      settling.current.delete(lotId);
+      const r = await confermaPresenzaLotto(lotId);
+      setNotice(r?.ok ? null : r?.message ?? null);
+      setConfermando(false);
     });
   }, []);
 
   return (
     <>
-      {live ? <LiveLot lot={live} myTeamId={myTeamId} onBid={bid} onExpire={onExpire} /> : (
+      {live ? (
+        <LiveLot
+          lot={live} myTeamId={myTeamId} tempi={tempi} scarto={scarto}
+          onBid={bid} onConferma={conferma} confermando={confermando}
+          errore={notice}
+        />
+      ) : (
         <div className="panel"><div className="empty">Nessun lotto aperto in questo momento.</div></div>
       )}
 
+      {/*
+        * Il messaggio del server si vede sempre, anche a lotto aperto: un
+        * rilancio rifiutato («tempo scaduto», «budget») è la cosa che chi
+        * gioca deve leggere subito. Quando è aperta la finestra delle
+        * presenze il resto della pagina è inerte, e per quel caso lo stesso
+        * testo entra dentro la finestra.
+        */}
       {notice && <div className="callout" role="status">{notice}</div>}
 
-      <ProgrammaSerata rows={rows} />
+      <ProgrammaSerata rows={lots} />
     </>
   );
 }

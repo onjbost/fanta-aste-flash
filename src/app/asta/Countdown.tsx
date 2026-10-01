@@ -10,17 +10,27 @@ import { useEffect, useState } from 'react';
  * l'asta, e un allarme che suona sempre non è un allarme. Rosso sono gli
  * ultimi tre secondi, ambra i dieci prima.
  */
-export function Countdown({ to, onExpire }: { to: string; onExpire?: () => void }) {
-  const [left, setLeft] = useState(() => Math.max(0, new Date(to).getTime() - Date.now()));
+export function Countdown({ to, onExpire, scarto = 0 }: {
+  to: string;
+  onExpire?: () => void;
+  /**
+   * Differenza fra l'orologio del server e quello locale, in millisecondi.
+   * Sulle scadenze lontane non cambia niente; sul timer di un lotto sì, perché
+   * `to` lo scrive Postgres e un telefono con l'ora sbagliata mostrerebbe zero
+   * dal primo istante.
+   */
+  scarto?: number;
+}) {
+  const [left, setLeft] = useState(() => Math.max(0, new Date(to).getTime() - (Date.now() + scarto)));
 
   useEffect(() => {
     const id = setInterval(() => {
-      const ms = Math.max(0, new Date(to).getTime() - Date.now());
+      const ms = Math.max(0, new Date(to).getTime() - (Date.now() + scarto));
       setLeft(ms);
       if (ms === 0) onExpire?.();
     }, 250);
     return () => clearInterval(id);
-  }, [to, onExpire]);
+  }, [to, onExpire, scarto]);
 
   if (left === 0) return <span className="conto">—</span>;
 

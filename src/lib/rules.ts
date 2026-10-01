@@ -48,6 +48,13 @@ export interface LeagueConfig {
   minIncrement: number;           // 1
   callDeadlineDays: number;       // 5
   joinDeadlineDays: number;       // 1
+  timerSeconds: number;           // 15 — durata del countdown, riparte a ogni rilancio
+  /**
+   * La grazia: secondi oltre lo scadere in cui un rilancio è ancora valido
+   * e riporta il timer a `timerSeconds` pieni. Serve perché il countdown non
+   * è un cronometro sportivo — fra il dito e il server c'è una rete.
+   */
+  graceSeconds: number;           // 3
 }
 
 export const DEFAULT_CONFIG: LeagueConfig = {
@@ -61,6 +68,8 @@ export const DEFAULT_CONFIG: LeagueConfig = {
   minIncrement: 1,
   callDeadlineDays: 5,
   joinDeadlineDays: 1,
+  timerSeconds: 15,
+  graceSeconds: 3,
 };
 
 export interface RosterPlayer {
@@ -274,6 +283,88 @@ export function auctionBudget(
   cfg: LeagueConfig = DEFAULT_CONFIG,
 ): number {
   return credits + refundValue(release, cfg).value;
+}
+
+// --------------------------------------------------------- fase del lotto
+
+/**
+ * In che punto della sua vita sta un lotto, adesso.
+ *
+ * Non è una colonna del database, ed è una scelta: lo stato `congelato` —
+ * timer scaduto, martello non ancora battuto — dovrebbe essere scritto da
+ * qualcuno nell'istante in cui il tempo finisce, e quel qualcuno non
+ * esiste. Nessuno è obbligato a stare davanti allo schermo allo scadere dei
+ * 15 secondi: prima lo scriveva il primo browser che vedeva lo zero, ed era
+ * quello il motivo per cui un lotto si chiudeva da solo. Dedotta
+ * dall'orologio, la fase è giusta anche con la sala vuota.
+ */
+export type FaseLotto =
+  | 'in_programma'      // chiamato, non ancora aperto in sala
+  | 'attesa_presenze'   // aperto, si aspetta una conferma per ogni squadra in corsa
+  | 'rilanci'           // il countdown corre
+  | 'grazia'            // scaduto da pochi secondi: un rilancio vale ancora
+  | 'congelato'         // scaduto: si aspetta il martello dell'admin
+  | 'assegnato'
+  | 'annullato';
+
+export interface StatoDelLotto {
+  status: string;
+  /** null finché le presenze non sono complete: è questo che tiene fermo il countdown */
+  timerEndsAt: string | null;
+}
+
+export function faseDelLotto(
+  l: StatoDelLotto, now: Date, cfg: Pick<LeagueConfig, 'graceSeconds'> = DEFAULT_CONFIG,
+): FaseLotto {
+  if (l.status === 'assigned') return 'assegnato';
+  if (l.status === 'cancelled') return 'annullato';
+  if (l.status !== 'live') return 'in_programma';
+  if (!l.timerEndsAt) return 'attesa_presenze';
+
+  const fine = new Date(l.timerEndsAt).getTime();
+  if (now.getTime() <= fine) return 'rilanci';
+  if (now.getTime() <= fine + cfg.graceSeconds * 1000) return 'grazia';
+  return 'congelato';
+}
+
+/** Si rilancia solo mentre il tempo corre e nei secondi di grazia. */
+export function siPuoRilanciare(fase: FaseLotto): boolean {
+  return fase === 'rilanci' || fase === 'grazia';
+}
+
+/**
+ * Le squadre in corsa che non hanno ancora confermato la presenza.
+ *
+ * Una squadra ha due allenatori e quindi può comparire due volte fra i
+ * contendenti e confermare due volte: conta la squadra, non la persona, e
+ * il nome non si ripete.
+ */
+export function presenzeMancanti(
+  contendenti: { teamId: string; squadra: string }[],
+  presenze: { teamId: string }[],
+): string[] {
+  const dentro = new Set(presenze.map((p) => p.teamId));
+  const visti = new Set<string>();
+  const mancano: string[] = [];
+  for (const c of contendenti) {
+    if (visti.has(c.teamId)) continue;
+    visti.add(c.teamId);
+    if (!dentro.has(c.teamId)) mancano.push(c.squadra);
+  }
+  return mancano;
+}
+
+/**
+ * Se il countdown può partire. Su un lotto senza contendenti non parte mai:
+ * non deve capitare — i lotti non contesi si chiudono all'apertura della
+ * sala — ma un timer su un lotto vuoto sarebbe un timer che non finisce in
+ * un'aggiudicazione.
+ */
+export function tuttiPresenti(
+  contendenti: { teamId: string; squadra: string }[],
+  presenze: { teamId: string }[],
+): boolean {
+  return contendenti.length > 0 && presenzeMancanti(contendenti, presenze).length === 0;
 }
 
 // ------------------------------------------------------------ calendario

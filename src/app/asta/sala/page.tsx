@@ -6,8 +6,7 @@ import { sessionInfo } from '@/lib/market';
 import { codaOperativa, contendentiDellaSessione } from '@/lib/settlement';
 import { CodaOperativa } from './CodaOperativa';
 import { TopBar } from '../../TopBar';
-import { AuctionRoom } from './AuctionRoom';
-import { RoomControls } from './RoomControls';
+import { Sala } from './Sala';
 
 export const dynamic = 'force-dynamic';
 
@@ -71,6 +70,19 @@ export default async function SalaPage() {
   };
   const parts = (partRows ?? []) as unknown as PartRow[];
 
+  /*
+   * Le presenze dei lotti di questa sessione.
+   *
+   * Si leggono per id di lotto e non per sessione perché `lot_presences` non
+   * ha la colonna della sessione: il legame passa dal lotto, e i lotti li
+   * abbiamo già qui sopra.
+   */
+  const { data: presRows } = lots.length
+    ? await db.from('lot_presences').select('lot_id, team_id, confirmed_at')
+      .in('lot_id', lots.map((l) => l.id))
+    : { data: [] };
+  const presenze = (presRows ?? []) as { lot_id: string; team_id: string; confirmed_at: string }[];
+
   const { data: teams } = await db.from('teams').select('id, name').eq('league_id', ctx.team.leagueId);
   const teamNames = new Map((teams ?? []).map((t) => [t.id, t.name]));
 
@@ -120,7 +132,15 @@ export default async function SalaPage() {
     })),
     myBudget: myBudgets.get(l.id) ?? null,
     iParticipate: parts.some((p) => p.lot_id === l.id && p.team_id === ctx.team.id),
+    presenze: presenze.filter((p) => p.lot_id === l.id)
+      // un allenatore per squadra basta, e due conferme della stessa squadra
+      // non devono comparire due volte nell'attesa
+      .filter((p, i, tutte) => tutte.findIndex((x) => x.team_id === p.team_id) === i)
+      .map((p) => ({ teamId: p.team_id, quando: p.confirmed_at })),
   }));
+
+  // i secondi che contano, dalla lega: il countdown e la grazia
+  const tempi = { timerSeconds: ctx.cfg.timerSeconds, graceSeconds: ctx.cfg.graceSeconds };
 
   return (
     <div className="shell">
@@ -134,28 +154,26 @@ export default async function SalaPage() {
           : 'Svincolandi e budget compaiono nel momento in cui l\'admin apre la sala.'}
       </p>
 
-      {ctx.team.isAdmin && (
-        <>
-          <RoomControls sessionId={sessionRow.id} isLive={isLive} lots={view} />
-          {/*
-            * La coda operativa sta sopra tutto il resto perché è l'unica
-            * cosa in questa pagina che si fa fuori dall'app: i lotti non
-            * contesi li assegna il codice, ma su Leghe Fantacalcio li deve
-            * riportare una persona, e le serve sapere chi esce.
-            */}
-          <CodaOperativa voci={coda} aperta={isLive} />
-        </>
-      )}
-
-      {isLive
-        ? <AuctionRoom myTeamId={ctx.team.id} lots={view} />
-        : (
-          <div className="panel">
-            <div className="empty">
-              {view.length} lotti pronti. Si comincia quando l'admin apre la sala.
-            </div>
-          </div>
-        )}
+      {/*
+        * Regia e sala stanno dentro un componente solo perché devono vedere
+        * lo stesso lotto: il canale realtime è lì, e i lotti arrivano a
+        * entrambe da quello. Prima la regia leggeva una fotografia del
+        * server, e l'admin non vedeva mai partire il countdown — cioè non
+        * vedeva mai comparire il bottone per aggiudicare.
+        */}
+      <Sala
+        myTeamId={ctx.team.id} isAdmin={ctx.team.isAdmin}
+        sessionId={sessionRow.id} isLive={isLive}
+        lots={view} tempi={tempi} adesso={new Date().toISOString()}
+      >
+        {/*
+          * La coda operativa sta sopra la sala perché è l'unica cosa in
+          * questa pagina che si fa fuori dall'app: i lotti non contesi li
+          * assegna il codice, ma su Leghe Fantacalcio li deve riportare una
+          * persona, e le serve sapere chi esce.
+          */}
+        <CodaOperativa voci={coda} aperta={isLive} />
+      </Sala>
     </div>
   );
 }

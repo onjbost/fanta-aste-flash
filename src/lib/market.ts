@@ -45,6 +45,8 @@ export function cfgFromLeague(l: Record<string, unknown>): LeagueConfig {
     minIncrement: Number(l.min_increment ?? 1),
     callDeadlineDays: Number(l.call_deadline_days ?? 5),
     joinDeadlineDays: Number(l.join_deadline_days ?? 1),
+    timerSeconds: Number(l.timer_seconds ?? 15),
+    graceSeconds: Number(l.grace_seconds ?? 3),
   };
 }
 

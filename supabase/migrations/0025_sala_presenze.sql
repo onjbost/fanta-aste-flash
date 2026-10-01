@@ -35,10 +35,17 @@ update leagues set timer_seconds = 15 where timer_seconds = 10;
 -- ------------------------------------------------------------- presenze
 -- Una riga per allenatore, non per squadra: se confermano entrambi resta
 -- scritto chi c'era. Per far partire il timer basta una riga per squadra.
+--
+-- `user_id` non ha la chiave esterna verso `auth.users`, e non è una
+-- dimenticanza: crearla su Supabase vuol dire chiedere un lock su
+-- `auth.users`, dove il servizio di autenticazione tiene connessioni aperte
+-- da settimane, e la migrazione resta appesa. Il vincolo serve a poco qui —
+-- chi può confermare lo decide `fn_confirm_presence` guardando
+-- `lot_participants`, e le righe se ne vanno in cascata col lotto.
 create table if not exists lot_presences (
   lot_id       uuid not null references lots(id) on delete cascade,
   team_id      uuid not null references teams(id) on delete cascade,
-  user_id      uuid not null references auth.users(id) on delete cascade,
+  user_id      uuid not null,
   confirmed_at timestamptz not null default now(),
   primary key (lot_id, user_id)
 );

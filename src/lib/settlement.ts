@@ -2,7 +2,8 @@ import 'server-only';
 import { supabaseAdmin } from './supabase';
 import { loadMarketState, budgetForLot, cfgFromLeague, sessionInfo } from './market';
 import {
-  refundValue, changesLeft, salaApribile, validateAssegnazione, ROLE_LABEL, type Role,
+  refundValue, changesLeft, salaApribile, validateAssegnazione, auctionBudget, ROLE_LABEL,
+  type Role, type PlayerStatus, type RosterPlayer,
 } from './rules';
 import { testoDellaCoda, type VoceDellaCoda } from './coda';
 import { notifyAdmin, tgLotSettled } from './telegram';
@@ -159,6 +160,94 @@ export async function codaOperativa(sessionId: string): Promise<VoceDellaCoda[]>
   return voci;
 }
 
+/** Un contendente su un lotto, con il budget che ha davvero in questo momento. */
+export interface ContendenteConBudget {
+  lottoId: string;
+  teamId: string;
+  squadra: string;
+  svincolandoId: string;
+  /** crediti di adesso + rimborso dello svincolando dichiarato per questo lotto */
+  budget: number;
+  ritirato: boolean;
+}
+
+/**
+ * Il budget vero di tutti i contendenti della sessione, lotto per lotto.
+ *
+ * Esiste perché il numero che la sala mostra e il numero che
+ * `assegnaAMano` accetta devono essere lo stesso: finché erano due conti
+ * diversi, la sala mostrava lo snapshot salvato all'adesione — fermo per
+ * sempre — e il server ragionava sui crediti di adesso. Dopo la prima
+ * aggiudicazione i due numeri divergevano e l'admin assegnava alla cieca.
+ *
+ * Fa gli stessi conti di `budgetForLot`, ma per tutta la sessione in una
+ * manciata di letture invece di una `loadMarketState` per squadra: in sala
+ * questa pagina si ricarica a ogni rilancio.
+ *
+ * Lo svincolando di un lotto già vinto non è più in rosa, e lì il rimborso
+ * vale zero: è giusto così, perché quel rimborso è già dentro il saldo.
+ */
+export async function contendentiDellaSessione(sessionId: string): Promise<ContendenteConBudget[]> {
+  const db = supabaseAdmin();
+
+  const { data: session } = await db.from('auction_sessions')
+    .select('league_id').eq('id', sessionId).single();
+  if (!session) return [];
+
+  const { data: parts } = await db.from('lot_participants')
+    .select('lot_id, team_id, release_player_id, withdrawn, teams(name)')
+    .eq('session_id', sessionId).eq('status', 'confirmed');
+  type PartRow = {
+    lot_id: string; team_id: string; release_player_id: string; withdrawn: boolean;
+    teams: { name: string } | null;
+  };
+  const suoi = (parts ?? []) as unknown as PartRow[];
+  if (suoi.length === 0) return [];
+
+  const svincolandi = [...new Set(suoi.map((p) => p.release_player_id))];
+  const squadre = [...new Set(suoi.map((p) => p.team_id))];
+
+  const [{ data: lega }, { data: credits }, { data: contratti }, { data: gratuiti }] = await Promise.all([
+    db.from('leagues').select('*').eq('id', session.league_id as string).single(),
+    db.from('v_team_credits').select('team_id, credits').in('team_id', squadre),
+    db.from('contracts').select('team_id, price, players(id, name, role, club, status)')
+      .in('team_id', squadre).in('player_id', svincolandi).is('released_at', null),
+    db.from('free_release_requests').select('team_id, player_id')
+      .in('team_id', squadre).in('player_id', svincolandi).eq('status', 'approved'),
+  ]);
+
+  const cfg = cfgFromLeague(lega ?? {});
+  const saldi = new Map((credits ?? []).map((c) => [c.team_id as string, c.credits as number]));
+  const approvati = new Set((gratuiti ?? []).map((g) => `${g.team_id}:${g.player_id}`));
+
+  type ContrattoRow = {
+    team_id: string; price: number;
+    players: { id: string; name: string; role: Role; club: string; status: PlayerStatus } | null;
+  };
+  const inRosa = new Map<string, RosterPlayer>();
+  for (const c of (contratti ?? []) as unknown as ContrattoRow[]) {
+    if (!c.players) continue;
+    inRosa.set(`${c.team_id}:${c.players.id}`, {
+      playerId: c.players.id, name: c.players.name, role: c.players.role,
+      club: c.players.club, status: c.players.status, price: c.price,
+      freeReleaseApproved: approvati.has(`${c.team_id}:${c.players.id}`),
+    });
+  }
+
+  return suoi.map((p) => {
+    const saldo = saldi.get(p.team_id) ?? 0;
+    const rel = inRosa.get(`${p.team_id}:${p.release_player_id}`);
+    return {
+      lottoId: p.lot_id,
+      teamId: p.team_id,
+      squadra: p.teams?.name ?? '?',
+      svincolandoId: p.release_player_id,
+      budget: rel ? auctionBudget(saldo, rel, cfg) : saldo,
+      ritirato: p.withdrawn,
+    };
+  });
+}
+
 /** Manda un lotto all'asta: parte il timer, si può rilanciare. */
 export async function openLot(lotId: string): Promise<SettleResult> {
   const db = supabaseAdmin();
@@ -259,23 +348,12 @@ export async function assegnaAMano(
     return { ok: false, message: 'La sala non è aperta: aprila prima, così i lotti senza contendenti si sistemano da soli.' };
   }
 
-  const { data: parts } = await db.from('lot_participants')
-    .select('team_id, release_player_id, teams(name)')
-    .eq('lot_id', lotId).eq('status', 'confirmed').eq('withdrawn', false);
-  type PartRow = { team_id: string; release_player_id: string; teams: { name: string } | null };
-  const suoi = (parts ?? []) as unknown as PartRow[];
-
   // il budget vero di ciascuno su questo lotto: crediti di adesso più il
-  // rimborso del suo svincolando, lo stesso conto che fa la sala
-  const inCorsa = [];
-  for (const p of suoi) {
-    const state = await loadMarketState(p.team_id, lot.session_id);
-    inCorsa.push({
-      teamId: p.team_id,
-      squadra: p.teams?.name ?? '?',
-      budget: budgetForLot(state, p.release_player_id),
-    });
-  }
+  // rimborso del suo svincolando. È lo stesso conto — la stessa funzione —
+  // che riempie i numeri mostrati in sala: se l'admin legge 17, 17 passa.
+  const inCorsa = (await contendentiDellaSessione(lot.session_id))
+    .filter((c) => c.lottoId === lotId && !c.ritirato)
+    .map((c) => ({ teamId: c.teamId, squadra: c.squadra, budget: c.budget }));
 
   const { data: lega } = await db.from('leagues')
     .select('*').eq('id', session.league_id as string).single();

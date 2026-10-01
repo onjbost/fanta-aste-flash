@@ -3,7 +3,7 @@ import { supabaseServer } from '@/lib/supabase';
 import { requireTeamContext } from '@/lib/queries';
 import { refundValue, salaApribile, type Role, type PlayerStatus } from '@/lib/rules';
 import { sessionInfo } from '@/lib/market';
-import { codaOperativa } from '@/lib/settlement';
+import { codaOperativa, contendentiDellaSessione } from '@/lib/settlement';
 import { CodaOperativa } from './CodaOperativa';
 import { TopBar } from '../../TopBar';
 import { AuctionRoom } from './AuctionRoom';
@@ -83,6 +83,18 @@ export default async function SalaPage() {
     myBudgets.set(p.lot_id, (ctx.credits) + (rel ? refundValue(rel, ctx.cfg).value : 0));
   }
 
+  /*
+   * Il budget vero di ogni contendente, lotto per lotto.
+   *
+   * Nella colonna c'era `lot_participants.budget`: lo snapshot scritto al
+   * momento dell'adesione, che non si muove più. Dopo la prima
+   * aggiudicazione quel numero era già falso — e l'admin ci assegnava i
+   * lotti sopra. Adesso la sala mostra quello che il server accetterà
+   * davvero, perché lo chiede alla stessa funzione.
+   */
+  const contendenti = await contendentiDellaSessione(sessionRow.id);
+  const budgetVivi = new Map(contendenti.map((c) => [`${c.lottoId}:${c.teamId}`, c.budget]));
+
   // solo all'admin, e solo quando serve davvero: è una lettura in più
   const coda = ctx.team.isAdmin ? await codaOperativa(sessionRow.id) : [];
 
@@ -103,7 +115,7 @@ export default async function SalaPage() {
       teamName: p.teams?.name ?? '?',
       isCaller: p.is_caller,
       releaseName: p.players?.name ?? '?',
-      budget: p.budget,
+      budget: budgetVivi.get(`${l.id}:${p.team_id}`) ?? p.budget,
       liveCredits: creditsMap.get(p.team_id) ?? 0,
     })),
     myBudget: myBudgets.get(l.id) ?? null,

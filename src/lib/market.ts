@@ -1,10 +1,10 @@
 import 'server-only';
 import { supabaseAdmin } from './supabase';
 import {
-  DEFAULT_CONFIG, refundValue, changesLeft, creditsAfter, resolveProxyBid,
+  DEFAULT_CONFIG, changesLeft, auctionBudget, resolveProxyBid,
   callsCloseAt, joinsCloseAt, expectedStatus,
   type LeagueConfig, type ReleaseRecord, type Role, type RosterPlayer,
-  type PlayerStatus, type SessionInfo, type SettledLot,
+  type PlayerStatus, type SessionInfo,
 } from './rules';
 
 /**
@@ -15,12 +15,16 @@ import {
  */
 export interface MarketState {
   cfg: LeagueConfig;
+  /**
+   * Il saldo di adesso, letto da `v_team_credits`: la somma di tutti i
+   * movimenti, compresi quelli dei lotti chiusi mezz'ora fa. Non è una base
+   * da correggere — è il numero.
+   */
   credits: number;
   roster: RosterPlayer[];
   releases: ReleaseRecord[];
   /** svincolandi già impegnati in questa sessione, per lotto */
   commitments: { lotId: string; releasePlayerId: string; role: Role; status: string }[];
-  settled: SettledLot[];
 }
 
 export function cfgFromLeague(l: Record<string, unknown>): LeagueConfig {
@@ -67,7 +71,7 @@ export async function loadMarketState(teamId: string, sessionId: string): Promis
         .eq('team_id', teamId),
       db.from('free_release_requests').select('player_id, status').eq('team_id', teamId),
       db.from('lot_participants')
-        .select('lot_id, release_player_id, status, lots(status, winner_team_id, final_price, players(role))')
+        .select('lot_id, release_player_id, status, lots(players(role))')
         .eq('team_id', teamId).eq('session_id', sessionId),
       db.from('v_team_credits').select('credits').eq('team_id', teamId).single(),
     ]);
@@ -97,7 +101,7 @@ export async function loadMarketState(teamId: string, sessionId: string): Promis
 
   type PartRow = {
     lot_id: string; release_player_id: string; status: string;
-    lots: { status: string; winner_team_id: string | null; final_price: number | null; players: { role: Role } | null } | null;
+    lots: { players: { role: Role } | null } | null;
   };
   const participations = (parts ?? []) as unknown as PartRow[];
 
@@ -108,21 +112,7 @@ export async function loadMarketState(teamId: string, sessionId: string): Promis
       role: p.lots?.players?.role ?? 'D', status: p.status,
     }));
 
-  // lotti già chiusi stasera: servono a ricalcolare i crediti lotto dopo lotto
-  const byPlayer = new Map(roster.map((r) => [r.playerId, r]));
-  const settled: SettledLot[] = participations
-    .filter((p) => p.lots?.status === 'assigned')
-    .map((p) => {
-      const won = p.lots!.winner_team_id === teamId;
-      const rel = byPlayer.get(p.release_player_id);
-      return {
-        lotId: p.lot_id, won,
-        price: won ? p.lots!.final_price ?? 0 : undefined,
-        refund: won && rel ? refundValue(rel, cfg).value : undefined,
-      };
-    });
-
-  return { cfg, credits: credits?.credits ?? 0, roster, releases, commitments, settled };
+  return { cfg, credits: credits?.credits ?? 0, roster, releases, commitments };
 }
 
 /** Quanti lotti sto già giocando in un ruolo (le annullate non contano). */
@@ -139,14 +129,19 @@ export function committedReleaseIds(state: MarketState, exceptLotId?: string): s
 }
 
 /**
- * Il budget vero su un lotto, al momento in cui serve: crediti aggiornati
- * dai lotti già chiusi stasera più il rimborso dello svincolando dichiarato.
- * È questo che fa da tetto ai rilanci — mai un numero salvato ieri.
+ * Il budget vero su un lotto, al momento in cui serve: il saldo di adesso più
+ * il rimborso dello svincolando dichiarato. È questo che fa da tetto ai
+ * rilanci e all'assegnazione a mano — mai lo snapshot salvato all'adesione.
+ *
+ * I lotti già chiusi stasera non si contano a parte: i loro movimenti sono
+ * già in `state.credits`. Lo svincolando di un lotto vinto, poi, è uscito
+ * dalla rosa — se si cercasse di «riaggiungerne» il rimborso non si
+ * troverebbe nemmeno, e resterebbe solo il prezzo, sottratto due volte.
  */
 export function budgetForLot(state: MarketState, releasePlayerId: string): number {
   const rel = state.roster.find((r) => r.playerId === releasePlayerId);
   if (!rel) return 0;
-  return creditsAfter(state.credits, state.settled) + refundValue(rel, state.cfg).value;
+  return auctionBudget(state.credits, rel, state.cfg);
 }
 
 export function changesLeftFor(state: MarketState, role: Role, at = new Date()): number {

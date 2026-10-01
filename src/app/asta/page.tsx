@@ -117,6 +117,19 @@ export default async function AstaPage() {
   );
   rosterOptions.forEach((r) => { r.committed = committedIds.has(r.id); });
 
+  /*
+   * Il budget vivo su una mia partecipazione: crediti di adesso più il
+   * rimborso dello svincolando che ho dichiarato.
+   *
+   * La colonna `budget` di `lot_participants` è lo snapshot del momento in
+   * cui ho aderito e non si muove più: dopo un'aggiudicazione mostrava una
+   * cifra che non esisteva. Lo svincolando di un lotto già vinto non è più
+   * in rosa, e lì il rimborso è zero — giusto, perché quel rimborso è già
+   * dentro i crediti.
+   */
+  const budgetVivo = (releaseId: string) =>
+    ctx.credits + (rosterOptions.find((r) => r.id === releaseId)?.refund ?? 0);
+
   return (
     <div className="shell">
       <TopBar teamName={ctx.team.name} isAdmin={ctx.team.isAdmin} active="asta" />
@@ -216,7 +229,7 @@ export default async function AstaPage() {
                   lotId={l.id}
                   isCaller={my.is_caller}
                   status={my.status}
-                  budget={my.budget}
+                  budget={budgetVivo(my.release_player_id)}
                   credits={ctx.credits}
                   currentReleaseId={my.release_player_id}
                   roster={rosterOptions.filter((r) =>

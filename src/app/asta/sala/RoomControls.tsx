@@ -41,15 +41,15 @@ function AssegnaAMano({ lot }: { lot: LotView }) {
           ))}
         </select>
         <input
-          type="number" name="prezzo" min={1} step={1} placeholder="crediti"
-          className="assegna-prezzo" aria-label="Prezzo"
+          type="number" name="prezzo" min={1} step={1} max={scelta?.budget}
+          placeholder="crediti" className="assegna-prezzo" aria-label="Prezzo"
         />
         <button disabled={inCorso || !teamId}>{inCorso ? 'Assegno…' : 'Assegna'}</button>
       </div>
       {scelta && (
         <p className="assegna-nota">
-          {scelta.teamName} metteva sul piatto {scelta.releaseName} e dichiarava {scelta.budget} crediti
-          su questo lotto.
+          {scelta.teamName} mette sul piatto {scelta.releaseName} e su questo lotto arriva a{' '}
+          {scelta.budget} crediti — rimborso compreso, aggiudicazioni di stasera già contate.
         </p>
       )}
       {stato && (

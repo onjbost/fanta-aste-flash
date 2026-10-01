@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEFAULT_CONFIG, refundValue, changesAllowance, changesUsed, changesLeft,
-  changesSummary, auctionBudget, creditsAfter, liveBudget, callsCloseAt, joinsCloseAt, expectedStatus,
+  changesSummary, auctionBudget, callsCloseAt, joinsCloseAt, expectedStatus,
   validateCall, validateJoin, validateBid, resolveProxyBid, freeReleaseEligibility, freeReleaseScenarios,
   salaApribile, stessoGiornoItaliano, validateAssegnazione,
   type RosterPlayer, type ReleaseRecord, type SessionInfo, type Role,
@@ -130,39 +130,41 @@ describe('budget d\'asta', () => {
 });
 
 describe('budget nella stessa serata, lotto dopo lotto', () => {
+  /*
+   * Il saldo lo tiene il database: ogni aggiudicazione scrive +rimborso e
+   * −prezzo in `credit_movements`, e `v_team_credits` li somma. Qui si imita
+   * con una riga, perché è esattamente quello che il server rilegge prima
+   * del lotto successivo — e il budget è sempre saldo + rimborso, senza
+   * nessuna rettifica «per i lotti di stasera».
+   */
+  const saldoDopo = (saldo: number, rimborso: number, prezzo: number) => saldo + rimborso - prezzo;
+
   it('lo scenario di Orsolini: 50 residui + 10 di rimborso, vinco a 30, resto con 30', () => {
-    const base = 50;
-    const budgetPrimoLotto = auctionBudget(base, P({ price: 14 })); // 14 → 10 di rimborso
+    const budgetPrimoLotto = auctionBudget(50, P({ price: 14 })); // 14 → 10 di rimborso
     expect(budgetPrimoLotto).toBe(60);
 
-    const dopo = creditsAfter(base, [{ lotId: 'l1', won: true, price: 30, refund: 10 }]);
-    expect(dopo).toBe(30);
+    const saldo = saldoDopo(50, 10, 30);
+    expect(saldo).toBe(30);
 
     // sul lotto successivo si riparte da 30 più il rimborso del nuovo svincolando
-    const secondo = liveBudget(base, [{ lotId: 'l1', won: true, price: 30, refund: 10 }], P({ price: 40 }));
-    expect(secondo).toBe(60);   // 30 + 30
+    expect(auctionBudget(saldo, P({ price: 40 }))).toBe(60);   // 30 + 30
   });
 
   it('chi perde un lotto non muove né crediti né rosa', () => {
-    const base = 50;
-    const dopo = creditsAfter(base, [{ lotId: 'l1', won: false }]);
-    expect(dopo).toBe(50);
-    // e sul lotto successivo il budget è ancora quello di partenza
-    expect(liveBudget(base, [{ lotId: 'l1', won: false }], P({ price: 32 }))).toBe(74);
+    // nessun movimento: il saldo è quello di prima, e il giocatore che aveva
+    // messo sul piatto è ancora suo, al prezzo d'acquisto
+    expect(auctionBudget(50, P({ price: 32 }))).toBe(74);
   });
 
   it('somma correttamente più aggiudicazioni nella stessa serata', () => {
-    const dopo = creditsAfter(80, [
-      { lotId: 'l1', won: true, price: 30, refund: 10 },
-      { lotId: 'l2', won: false },
-      { lotId: 'l3', won: true, price: 25, refund: 18 },
-    ]);
-    expect(dopo).toBe(53);      // 80 +10 -30 +18 -25
+    const primo = saldoDopo(80, 10, 30);
+    const secondo = saldoDopo(primo, 18, 25);
+    expect(secondo).toBe(53);      // 80 +10 −30 +18 −25
   });
 
   it('un\'aggiudicazione a saldo neutro lascia i crediti invariati', () => {
     // lotto senza contendenti: prezzo = rimborso del proprio svincolando
-    expect(creditsAfter(37, [{ lotId: 'l1', won: true, price: 24, refund: 24 }])).toBe(37);
+    expect(saldoDopo(37, 24, 24)).toBe(37);
   });
 });
 

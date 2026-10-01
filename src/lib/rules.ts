@@ -254,9 +254,19 @@ export function changesSummary(
 // ----------------------------------------------------------------- budget
 
 /**
- * Quanto posso offrire su un lotto: crediti residui più il rimborso del
- * giocatore che ho dichiarato di svincolare. Il rimborso non è ancora
- * incassato, ma è vincolato a questa operazione, quindi fa parte del budget.
+ * Quanto posso offrire su un lotto: i crediti che ho **adesso** più il
+ * rimborso del giocatore che ho dichiarato di svincolare. Il rimborso non è
+ * ancora incassato, ma è vincolato a questa operazione, quindi fa parte del
+ * budget.
+ *
+ * `credits` è il saldo corrente, non quello di ieri: nel database è la somma
+ * di tutti i movimenti, e un lotto assegnato i suoi movimenti li scrive
+ * subito. Quindi qui non si sottrae niente «per i lotti già chiusi stasera»
+ * — sarebbe sottrarli due volte. C'erano una `creditsAfter` e una
+ * `liveBudget` che lo facevano, e il 1º ottobre, alla prima asta vera, hanno
+ * portato FC Joga Benito a un budget negativo dopo tre lotti vinti: i tre
+ * prezzi erano già dentro il saldo e venivano tolti di nuovo. Non ci sono
+ * più, e non vanno riscritte: il saldo è l'unica fonte di verità.
  */
 export function auctionBudget(
   credits: number,
@@ -264,46 +274,6 @@ export function auctionBudget(
   cfg: LeagueConfig = DEFAULT_CONFIG,
 ): number {
   return credits + refundValue(release, cfg).value;
-}
-
-/** Un lotto già chiuso nella stessa sessione, dal punto di vista di una squadra. */
-export interface SettledLot {
-  lotId: string;
-  won: boolean;
-  /** prezzo pagato, solo se vinto */
-  price?: number;
-  /** rimborso incassato per lo svincolando dichiarato, solo se vinto */
-  refund?: number;
-}
-
-/**
- * Crediti residui aggiornati dopo i lotti già chiusi della serata.
- *
- * Chi vince incassa il rimborso e paga il prezzo: 50 residui + 10 di rimborso
- * meno 30 di aggiudicazione fanno 30 crediti con cui affrontare il lotto
- * successivo. Chi perde non muove nulla: il suo giocatore resta in rosa al
- * prezzo d'acquisto originario e nessun rimborso viene accreditato.
- */
-export function creditsAfter(baseCredits: number, settled: SettledLot[]): number {
-  return settled.reduce((c, s) => {
-    if (!s.won) return c;
-    return c + (s.refund ?? 0) - (s.price ?? 0);
-  }, baseCredits);
-}
-
-/**
- * Il budget vero su un lotto al momento in cui si apre: crediti residui
- * aggiornati più il rimborso dello svincolando dichiarato per QUESTO lotto.
- * È questo il valore che fa da tetto ai rilanci, non lo snapshot salvato
- * all'adesione — nel frattempo la serata può aver cambiato le carte.
- */
-export function liveBudget(
-  baseCredits: number,
-  settled: SettledLot[],
-  release: RosterPlayer,
-  cfg: LeagueConfig = DEFAULT_CONFIG,
-): number {
-  return creditsAfter(baseCredits, settled) + refundValue(release, cfg).value;
 }
 
 // ------------------------------------------------------------ calendario

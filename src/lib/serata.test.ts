@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  DEFAULT_CONFIG, refundValue, changesLeft, creditsAfter, resolveProxyBid,
-  type ReleaseRecord, type RosterPlayer, type Role, type SettledLot,
+  DEFAULT_CONFIG, refundValue, changesLeft, auctionBudget, resolveProxyBid,
+  type ReleaseRecord, type RosterPlayer, type Role,
 } from './rules';
 
 /**
@@ -10,6 +10,11 @@ import {
  *
  * È il test che tiene insieme tutte le regole: se una cambia e rompe
  * l'aritmetica della serata, qui salta fuori subito.
+ *
+ * I crediti si muovono come nel database: `settle` aggiorna il saldo nello
+ * stesso istante in cui assegna il lotto, perché è lì che `applyMovements`
+ * scrive rimborso e acquisto in `credit_movements`. Il budget sul lotto
+ * successivo è sempre `saldo + rimborso` — e niente altro.
  */
 
 interface Team {
@@ -17,7 +22,6 @@ interface Team {
   credits: number;
   roster: RosterPlayer[];
   releases: ReleaseRecord[];
-  settled: SettledLot[];
 }
 
 const player = (id: string, role: Role, price: number, over: Partial<RosterPlayer> = {}): RosterPlayer => ({
@@ -25,29 +29,30 @@ const player = (id: string, role: Role, price: number, over: Partial<RosterPlaye
 });
 
 function team(id: string, credits: number, roster: RosterPlayer[], releases: ReleaseRecord[] = []): Team {
-  return { id, credits, roster, releases, settled: [] };
+  return { id, credits, roster, releases };
 }
 
 const cfg = DEFAULT_CONFIG;
 
-/** Budget su un lotto: crediti aggiornati dalla serata + rimborso dello svincolando. */
+/** Budget su un lotto: saldo di adesso + rimborso dello svincolando. */
 function budget(t: Team, releaseId: string): number {
   const rel = t.roster.find((r) => r.playerId === releaseId)!;
-  return creditsAfter(t.credits, t.settled) + refundValue(rel, cfg).value;
+  return auctionBudget(t.credits, rel, cfg);
 }
 
 /** Aggiudicazione: svincolo, incasso, pagamento, contatore del ruolo. */
 function settle(t: Team, lotId: string, releaseId: string, price: number, wonRole: Role) {
   const rel = t.roster.find((r) => r.playerId === releaseId)!;
   const refund = refundValue(rel, cfg);
-  t.settled.push({ lotId, won: true, price, refund: refund.value });
+  t.credits = t.credits + refund.value - price;
   t.roster = t.roster.filter((r) => r.playerId !== releaseId);
   t.releases.push({ role: rel.role, type: refund.type, at: '2026-10-29' });
   t.roster.push(player(`nuovo-${lotId}`, wonRole, price));
 }
 
-function lose(t: Team, lotId: string) {
-  t.settled.push({ lotId, won: false });
+/** Chi perde non muove nulla: nessun movimento, nessuno svincolo. */
+function lose(t: Team) {
+  return t.credits;
 }
 
 describe('una serata d\'asta completa', () => {
@@ -80,12 +85,11 @@ describe('una serata d\'asta completa', () => {
     expect(price).toBeLessThanOrEqual(budget(monte, 'scalvini'));
 
     settle(monte, 'l1', 'scalvini', price, 'D');
-    lose(real, 'l1');
 
     // Monte: 50 + 24 − 59 = 15
-    expect(creditsAfter(monte.credits, monte.settled)).toBe(15);
+    expect(monte.credits).toBe(15);
     // Real non muove nulla e tiene Biraghi al prezzo pagato
-    expect(creditsAfter(real.credits, real.settled)).toBe(40);
+    expect(lose(real)).toBe(40);
     expect(real.roster.find((r) => r.playerId === 'biraghi')!.price).toBe(24);
   });
 
@@ -96,10 +100,9 @@ describe('una serata d\'asta completa', () => {
     expect(budget(real, 'frattesi')).toBe(62);
 
     settle(real, 'l2', 'frattesi', 26, 'C');
-    lose(monte, 'l2');
 
-    expect(creditsAfter(real.credits, real.settled)).toBe(36);   // 40 +22 −26
-    expect(creditsAfter(monte.credits, monte.settled)).toBe(15);
+    expect(real.credits).toBe(36);   // 40 +22 −26
+    expect(lose(monte)).toBe(15);
   });
 
   it('lotto 3 · il cambio gratuito porta il 100% e non consuma il contatore', () => {
@@ -112,7 +115,7 @@ describe('una serata d\'asta completa', () => {
 
     expect(before).toBe(3);
     expect(after).toBe(3);                                   // il contatore non scende
-    expect(creditsAfter(atletico.credits, atletico.settled)).toBe(18);  // 22 +26 −30
+    expect(atletico.credits).toBe(18);                       // 22 +26 −30
   });
 
   it('le offerte massime automatiche rispettano il budget vero, non quello dichiarato', () => {
@@ -133,8 +136,7 @@ describe('una serata d\'asta completa', () => {
   });
 
   it('a fine serata i conti della lega tornano', () => {
-    const totals = [monte, real, atletico, deportivo]
-      .map((t) => creditsAfter(t.credits, t.settled));
+    const totals = [monte, real, atletico, deportivo].map((t) => t.credits);
     expect(totals).toEqual([15, 36, 18, 8]);
 
     // ogni squadra che ha vinto ha esattamente un cambio in meno nel ruolo,
@@ -158,7 +160,7 @@ describe('lotto senza contendenti', () => {
     const t = team('solo', 37, [player('bastoni', 'D', 32)]);
     const prezzo = refundValue(t.roster[0], cfg).value;   // 24
     settle(t, 'l1', 'bastoni', prezzo, 'D');
-    expect(creditsAfter(t.credits, t.settled)).toBe(37);
+    expect(t.credits).toBe(37);
     expect(changesLeft(t.releases, 'D', new Date('2026-10-29'), cfg)).toBe(2);
   });
 });

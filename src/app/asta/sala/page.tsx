@@ -1,7 +1,10 @@
 import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase';
 import { requireTeamContext } from '@/lib/queries';
-import { refundValue, type Role, type PlayerStatus } from '@/lib/rules';
+import { refundValue, salaApribile, type Role, type PlayerStatus } from '@/lib/rules';
+import { sessionInfo } from '@/lib/market';
+import { codaOperativa } from '@/lib/settlement';
+import { CodaOperativa } from './CodaOperativa';
 import { TopBar } from '../../TopBar';
 import { AuctionRoom } from './AuctionRoom';
 import { RoomControls } from './RoomControls';
@@ -12,11 +15,24 @@ export default async function SalaPage() {
   const ctx = await requireTeamContext();
 
   const db = await supabaseServer();
+  /*
+   * La sessione si cerca per numero e non per stato salvato.
+   *
+   * Lo stato nel database lo muove il cron, una volta al giorno: cercare
+   * «live o joins_closed» voleva dire che il giorno dell'asta, finché il
+   * cron non era passato, la sala rispondeva «nessuna asta pronta» e non si
+   * poteva aprire. La fase vera si ricalcola dall'orologio, come in tutto
+   * il resto dell'app.
+   */
   const { data: sessionRow } = await db.from('auction_sessions')
     .select('*').eq('league_id', ctx.team.leagueId)
-    .in('status', ['live', 'joins_closed']).order('number').limit(1).maybeSingle();
+    .neq('status', 'closed').order('number').limit(1).maybeSingle();
 
-  if (!sessionRow) {
+  const apribile = sessionRow
+    ? salaApribile(sessionInfo(sessionRow), new Date(), ctx.cfg)
+    : false;
+
+  if (!sessionRow || !apribile) {
     return (
       <div className="shell">
         <TopBar teamName={ctx.team.name} isAdmin={ctx.team.isAdmin} active="asta" />
@@ -67,6 +83,9 @@ export default async function SalaPage() {
     myBudgets.set(p.lot_id, (ctx.credits) + (rel ? refundValue(rel, ctx.cfg).value : 0));
   }
 
+  // solo all'admin, e solo quando serve davvero: è una lettura in più
+  const coda = ctx.team.isAdmin ? await codaOperativa(sessionRow.id) : [];
+
   const view = lots.map((l) => ({
     id: l.id,
     index: l.order_index,
@@ -104,7 +123,16 @@ export default async function SalaPage() {
       </p>
 
       {ctx.team.isAdmin && (
-        <RoomControls sessionId={sessionRow.id} isLive={isLive} lots={view} />
+        <>
+          <RoomControls sessionId={sessionRow.id} isLive={isLive} lots={view} />
+          {/*
+            * La coda operativa sta sopra tutto il resto perché è l'unica
+            * cosa in questa pagina che si fa fuori dall'app: i lotti non
+            * contesi li assegna il codice, ma su Leghe Fantacalcio li deve
+            * riportare una persona, e le serve sapere chi esce.
+            */}
+          <CodaOperativa voci={coda} aperta={isLive} />
+        </>
       )}
 
       {isLive

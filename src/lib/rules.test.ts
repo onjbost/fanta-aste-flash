@@ -3,6 +3,7 @@ import {
   DEFAULT_CONFIG, refundValue, changesAllowance, changesUsed, changesLeft,
   changesSummary, auctionBudget, creditsAfter, liveBudget, callsCloseAt, joinsCloseAt, expectedStatus,
   validateCall, validateJoin, validateBid, resolveProxyBid, freeReleaseEligibility, freeReleaseScenarios,
+  salaApribile, stessoGiornoItaliano,
   type RosterPlayer, type ReleaseRecord, type SessionInfo, type Role,
 } from './rules';
 
@@ -480,5 +481,59 @@ describe('effetti dell\'esito', () => {
     expect(esito.loser).toBe('teamB');
     // e il rimborso del 75% non viene mai accreditato
     expect(refundValue(P({ price: 32 })).value).toBe(24);
+  });
+});
+
+
+describe('salaApribile — la sala si apre tutto il giorno dell\'asta', () => {
+  // l'asta vera della sessione 1: nel database 19:30 UTC, in Italia le 21.30
+  const sessione = (over: Partial<SessionInfo> = {}): SessionInfo => ({
+    id: 's1', number: 1, auctionAt: '2026-10-01T19:30:00+00:00',
+    status: 'joins_closed', excludesNewSignings: false, ...over,
+  });
+
+  it('il pomeriggio dell\'asta si può aprire, non solo alle 21.30', () => {
+    // le 14 italiane del giorno dell'asta: l'admin ha tempo adesso, non
+    // mentre sette persone aspettano
+    expect(salaApribile(sessione(), new Date('2026-10-01T12:00:00Z'))).toBe(true);
+  });
+
+  it('e anche all\'una di notte, che in UTC è ancora il giorno prima', () => {
+    // 30 settembre 23:00 UTC = 1 ottobre 01:00 in Italia: guardare
+    // l'orologio sbagliato qui vorrebbe dire tenere la sala chiusa
+    expect(salaApribile(sessione(), new Date('2026-09-30T23:00:00Z'))).toBe(true);
+  });
+
+  it('il giorno prima no: aprirla assegna davvero i lotti non contesi', () => {
+    expect(salaApribile(sessione(), new Date('2026-09-30T12:00:00Z'))).toBe(false);
+    expect(salaApribile(sessione(), new Date('2026-09-28T19:00:00Z'))).toBe(false);
+  });
+
+  it('dopo l\'orario dell\'asta resta aperta, anche a notte fonda', () => {
+    expect(salaApribile(sessione(), new Date('2026-10-01T22:30:00Z'))).toBe(true);
+    expect(salaApribile(sessione(), new Date('2026-10-02T06:00:00Z'))).toBe(true);
+  });
+
+  it('una sessione già aperta è sempre apribile, una chiusa mai', () => {
+    expect(salaApribile(sessione({ status: 'live' }), new Date('2026-09-01T10:00:00Z'))).toBe(true);
+    expect(salaApribile(sessione({ status: 'closed' }), new Date('2026-10-01T12:00:00Z'))).toBe(false);
+  });
+
+  it('in inverno il fuso è un\'ora, non due', () => {
+    // la sessione 5 vera: 2 dicembre, 20:30 UTC = 21.30 italiane
+    const dicembre = sessione({ auctionAt: '2026-12-02T20:30:00+00:00' });
+    expect(salaApribile(dicembre, new Date('2026-12-01T23:30:00Z'))).toBe(true);   // 2 dic, 00.30
+    expect(salaApribile(dicembre, new Date('2026-12-01T22:30:00Z'))).toBe(false);  // 1 dic, 23.30
+  });
+});
+
+describe('stessoGiornoItaliano', () => {
+  it('guarda il calendario italiano, non quello di Greenwich', () => {
+    expect(stessoGiornoItaliano(
+      new Date('2026-09-30T23:00:00Z'), new Date('2026-10-01T19:30:00Z'),
+    )).toBe(true);
+    expect(stessoGiornoItaliano(
+      new Date('2026-10-01T22:30:00Z'), new Date('2026-10-01T19:30:00Z'),
+    )).toBe(false);
   });
 });

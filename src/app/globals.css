@@ -839,6 +839,19 @@ th.ordinabile .livello{
   margin-left:auto;padding:2px 7px;font-size:.7rem;text-transform:none;letter-spacing:0;
 }
 
+/* La coda operativa: righe da spuntare mentre si lavora su un altro sito,
+   quindi grandi abbastanza da cliccarle senza mirare e con la riga fatta
+   che si spegne invece di sparire — serve poterla rileggere. */
+.coda{background:var(--surface-2);border:1px solid var(--border)}
+.coda-righe{list-style:none;margin:0 0 12px;padding:0;display:flex;flex-direction:column;gap:2px}
+.coda-righe li label{
+  display:flex;gap:9px;align-items:flex-start;padding:7px 8px;border-radius:7px;
+  cursor:pointer;font-size:.9rem;line-height:1.35;
+}
+.coda-righe li label:hover{background:var(--surface)}
+.coda-righe li input{margin-top:3px}
+.coda-righe li.fatta span{opacity:.45;text-decoration:line-through}
+
 .gaz-stato{font-size:.82rem;color:var(--muted);margin:14px 0 6px}
 
 /* Due colonne su schermo largo, l'anteprima appiccicata in alto mentre si

@@ -331,6 +331,44 @@ export function joinsCloseAt(s: SessionInfo, cfg: LeagueConfig = DEFAULT_CONFIG)
   return d;
 }
 
+/**
+ * Due istanti cadono nello stesso giorno italiano?
+ *
+ * Il confronto si fa sulla data scritta in italiano e non sui millisecondi:
+ * un'asta alle 21.30 è salvata come 19:30 UTC, e un pomeriggio d'ottobre
+ * alle 23.30 italiane è già il giorno dopo in UTC. Guardare l'orologio
+ * sbagliato vorrebbe dire aprire la sala il giorno prima, o non poterla
+ * aprire l'ultima ora.
+ */
+export function stessoGiornoItaliano(a: Date, b: Date): boolean {
+  const f = new Intl.DateTimeFormat('it-IT', {
+    timeZone: 'Europe/Rome', year: 'numeric', month: '2-digit', day: '2-digit',
+  });
+  return f.format(a) === f.format(b);
+}
+
+/**
+ * Si può aprire la sala adesso?
+ *
+ * **Tutto il giorno dell'asta, non solo dalle 21.30.** L'ora dell'asta è
+ * quando la gente si trova, non un orario di apertura: i lotti senza
+ * contendenti si assegnano da soli e l'admin deve poterli sbrigare nel
+ * pomeriggio, quando ha tempo, invece che mentre sette persone aspettano.
+ *
+ * Prima di quel giorno no: aprire la sala assegna davvero i lotti non
+ * contesi e muove contratti e crediti. Farlo con tre giorni di anticipo non
+ * è un errore che si corregge ricaricando la pagina.
+ */
+export function salaApribile(
+  s: SessionInfo, now: Date, cfg: LeagueConfig = DEFAULT_CONFIG,
+): boolean {
+  if (s.status === 'closed') return false;
+  if (s.status === 'live') return true;
+  const asta = new Date(s.auctionAt);
+  if (now >= asta) return true;
+  return stessoGiornoItaliano(now, asta) && now >= joinsCloseAt(s, cfg);
+}
+
 /** Lo stato che la sessione dovrebbe avere adesso, in base al calendario. */
 export function expectedStatus(
   s: SessionInfo,

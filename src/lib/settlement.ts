@@ -1,7 +1,8 @@
 import 'server-only';
 import { supabaseAdmin } from './supabase';
-import { loadMarketState, budgetForLot, cfgFromLeague } from './market';
-import { refundValue, changesLeft, ROLE_LABEL, type Role } from './rules';
+import { loadMarketState, budgetForLot, cfgFromLeague, sessionInfo } from './market';
+import { refundValue, changesLeft, salaApribile, ROLE_LABEL, type Role } from './rules';
+import { testoDellaCoda, type VoceDellaCoda } from './coda';
 import { notifyAdmin, tgLotSettled } from './telegram';
 import { queueSessionMessage } from './messageBuilder';
 
@@ -26,6 +27,15 @@ export async function openRoom(sessionId: string): Promise<SettleResult> {
   if (!session) return { ok: false, message: 'Sessione inesistente.' };
   if (session.status === 'live') return { ok: false, message: 'La sala è già aperta.' };
   if (session.status === 'closed') return { ok: false, message: 'Questa asta è chiusa.' };
+
+  // la sala si apre tutto il giorno dell'asta, ma non prima: aprirla
+  // assegna i lotti non contesi e muove contratti e crediti davvero
+  const { data: lega } = await db.from('leagues')
+    .select('*').eq('id', session.league_id as string).single();
+  const cfg = cfgFromLeague(lega ?? {});
+  if (!salaApribile(sessionInfo(session), new Date(), cfg)) {
+    return { ok: false, message: 'La sala si apre il giorno dell\'asta.' };
+  }
 
   const { data: pending } = await db.from('lot_participants')
     .select('team_id, teams(name)').eq('session_id', sessionId).eq('status', 'pending_approval');
@@ -70,6 +80,23 @@ export async function openRoom(sessionId: string): Promise<SettleResult> {
   await db.from('auction_sessions')
     .update({ status: 'live', room_opened_at: new Date().toISOString() }).eq('id', sessionId);
 
+  /*
+   * La coda operativa all'admin, appena la sala apre.
+   *
+   * Il messaggio per il gruppo elenca solo i lotti contesi — quelli che
+   * andranno davvero all'asta — e va bene così. Ma chi deve riportare i
+   * movimenti su Leghe Fantacalcio ha bisogno esattamente dell'altra metà,
+   * e fino a qui non ce l'aveva da nessuna parte.
+   */
+  const coda = await codaOperativa(sessionId);
+  if (coda.length) {
+    await notifyAdmin(
+      `<b>Coda operativa — asta ${session.number}</b>\n`
+      + `${coda.length} ${coda.length === 1 ? 'lotto assegnato' : 'lotti assegnati'} senza asta.\n\n`
+      + `<pre>${testoDellaCoda(coda)}</pre>`,
+    );
+  }
+
   // il messaggio di svelamento si scrive da solo: adesso svincolandi e budget
   // sono pubblici, quindi il testo per il gruppo è finalmente componibile
   await queueSessionMessage(sessionId, 'room_open');
@@ -80,6 +107,54 @@ export async function openRoom(sessionId: string): Promise<SettleResult> {
       ? `Sala aperta. ${assigned} ${assigned === 1 ? 'lotto assegnato' : 'lotti assegnati'} senza contendenti.`
       : 'Sala aperta.',
   };
+}
+
+/**
+ * I lotti che si assegnano senza asta, con chi entra e chi esce.
+ *
+ * Funziona prima e dopo l'apertura: prima legge il prezzo dallo
+ * svincolando (è lo stesso conto che farà `openRoom`), dopo lo legge dal
+ * lotto già assegnato. Così l'admin può prepararsi il lavoro nel
+ * pomeriggio e ritrovare lo stesso elenco la sera.
+ */
+export async function codaOperativa(sessionId: string): Promise<VoceDellaCoda[]> {
+  const db = supabaseAdmin();
+  const { data: lots } = await db.from('lots')
+    .select('id, player_id, status, final_price, order_index, players(name, role, club)')
+    .eq('session_id', sessionId).neq('status', 'cancelled').order('order_index');
+
+  type LotRow = {
+    id: string; player_id: string; status: string; final_price: number | null;
+    players: { name: string; role: Role; club: string } | null;
+  };
+  const righe = (lots ?? []) as unknown as LotRow[];
+  const voci: VoceDellaCoda[] = [];
+
+  for (const lot of righe) {
+    const { data: parts } = await db.from('lot_participants')
+      .select('team_id, release_player_id, teams(name)')
+      .eq('lot_id', lot.id).eq('status', 'confirmed').eq('withdrawn', false);
+
+    type PartRow = { team_id: string; release_player_id: string; teams: { name: string } | null };
+    const suoi = (parts ?? []) as unknown as PartRow[];
+    // un partecipante solo: nessuno se lo contende, va assegnato d'ufficio
+    if (suoi.length !== 1 || !lot.players) continue;
+
+    const p = suoi[0];
+    const state = await loadMarketState(p.team_id, sessionId);
+    const rel = state.roster.find((r) => r.playerId === p.release_player_id);
+    const prezzo = lot.final_price ?? (rel ? refundValue(rel, state.cfg).value : 0);
+
+    voci.push({
+      lottoId: lot.id,
+      squadra: p.teams?.name ?? '?',
+      prende: { nome: lot.players.name, ruolo: lot.players.role, club: lot.players.club },
+      svincola: rel ? { nome: rel.name, ruolo: rel.role } : null,
+      prezzo,
+    });
+  }
+
+  return voci;
 }
 
 /** Manda un lotto all'asta: parte il timer, si può rilanciare. */

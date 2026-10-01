@@ -2,6 +2,8 @@ import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { freeReleaseScenarios, type Role, type PlayerStatus } from '@/lib/rules';
+import { leggiLaCoda } from '@/lib/codaLettura';
+import { Coda } from './Coda';
 import { TopBar } from '../TopBar';
 import { DecideForm } from './DecideForm';
 import { TelegramCheck } from './TelegramCheck';
@@ -33,15 +35,20 @@ export default async function AdminPage() {
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = await supabaseServer();
-  const [{ data: reqs }, { data: tasks }] = await Promise.all([
+  const [{ data: reqs }, coda] = await Promise.all([
     db.from('free_release_requests')
       .select(`id, created_at, lot_participant_id,
                teams(name),
                players(id, name, role, club, status),
                lot_participants(is_caller, lots(session_id, players(name)))`)
       .eq('status', 'pending').order('created_at'),
-    db.from('admin_tasks').select('id, body, done, created_at')
-      .eq('done', false).order('created_at', { ascending: false }).limit(20),
+    /*
+     * Tutta la coda, fatte comprese: le due viste si cambiano nel browser e
+     * sono poche righe — una stagione intera ne fa qualche decina. Prima si
+     * leggevano solo le venti da fare più recenti, e con una coda che non si
+     * svuotava mai erano proprio le più vecchie a sparire dal fondo.
+     */
+    leggiLaCoda(ctx.team.leagueId),
   ]);
 
   const requests = (reqs ?? []) as unknown as RequestRow[];
@@ -114,27 +121,7 @@ export default async function AdminPage() {
         );
       })}
 
-      <h2>Coda operativa</h2>
-      <div className="panel">
-        <div className="tablewrap">
-          <table>
-            <thead><tr><th>Da fare su Leghe Fantacalcio.it</th><th className="num">Quando</th></tr></thead>
-            <tbody>
-              {(tasks ?? []).map((t) => (
-                <tr key={t.id}>
-                  <td>{t.body}</td>
-                  <td className="num" style={{ color: 'var(--muted)' }}>
-                    {new Date(t.created_at).toLocaleDateString('it-IT')}
-                  </td>
-                </tr>
-              ))}
-              {(tasks ?? []).length === 0 && (
-                <tr><td colSpan={2}><div className="empty">Niente in coda.</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <Coda voci={coda.voci} avviso={coda.avviso} />
     </div>
   );
 }

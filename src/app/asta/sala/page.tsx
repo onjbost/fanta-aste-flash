@@ -4,7 +4,9 @@ import { requireTeamContext } from '@/lib/queries';
 import { refundValue, salaApribile, type Role, type PlayerStatus } from '@/lib/rules';
 import { sessionInfo } from '@/lib/market';
 import { codaOperativa, contendentiDellaSessione } from '@/lib/settlement';
+import { leggiLaCoda, VUOTA } from '@/lib/codaLettura';
 import { CodaOperativa } from './CodaOperativa';
+import { Coda } from '../../admin/Coda';
 import { TopBar } from '../../TopBar';
 import { Sala } from './Sala';
 
@@ -107,8 +109,16 @@ export default async function SalaPage() {
   const contendenti = await contendentiDellaSessione(sessionRow.id);
   const budgetVivi = new Map(contendenti.map((c) => [`${c.lottoId}:${c.teamId}`, c.budget]));
 
-  // solo all'admin, e solo quando serve davvero: è una lettura in più
+  // solo all'admin, e solo quando serve davvero: sono due letture in più
   const coda = ctx.team.isAdmin ? await codaOperativa(sessionRow.id) : [];
+  /*
+   * La coda vera della serata, quella che sta nel database. Sta qui e non
+   * solo su /admin perché è qui che si lavora: finita l'asta si riportano i
+   * movimenti su Leghe Fantacalcio senza cambiare pagina.
+   */
+  const daRiportare = ctx.team.isAdmin
+    ? await leggiLaCoda(ctx.team.leagueId, sessionRow.id)
+    : VUOTA;
 
   const view = lots.map((l) => ({
     id: l.id,
@@ -173,6 +183,11 @@ export default async function SalaPage() {
           * persona, e le serve sapere chi esce.
           */}
         <CodaOperativa voci={coda} aperta={isLive} />
+        {ctx.team.isAdmin && (daRiportare.voci.length > 0 || daRiportare.avviso) && (
+          <div className="coda-in-sala">
+            <Coda voci={daRiportare.voci} avviso={daRiportare.avviso} />
+          </div>
+        )}
       </Sala>
     </div>
   );

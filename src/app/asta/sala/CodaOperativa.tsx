@@ -4,27 +4,23 @@ import { useState } from 'react';
 import { rigaDellaCoda, testoDellaCoda, totaleDellaCoda, type VoceDellaCoda } from '@/lib/coda';
 
 /**
- * Quello che l'admin deve fare a mano su Leghe Fantacalcio.
+ * I lotti che si assegnano senza asta: l'anteprima, non la coda.
  *
  * I lotti senza contendenti non vanno all'asta: si assegnano da soli al 75%
- * dello svincolando. Nell'app il movimento è registrato, fuori no — e fuori
- * il lavoro è manuale, una rosa per volta. Fino a ieri questo elenco non
- * esisteva da nessuna parte: il messaggio di apertura mostra solo i lotti
- * contesi, e lo svincolando resta coperto fino all'apertura della sala.
+ * dello svincolando nel momento in cui la sala apre. Il messaggio di
+ * apertura elenca solo i lotti contesi, e lo svincolando resta coperto fino
+ * a quell'istante: senza questo pannello l'admin sa chi entra ma non chi
+ * esce. È successo davvero alla prima asta.
  *
- * Le righe si spuntano: con otto squadre e quattro movimenti, perdere il
- * segno è questione di un attimo. La spunta vive in questa pagina e basta —
- * è un promemoria per i dieci minuti che ci vogliono, non uno stato da
- * conservare.
+ * Qui non si spunta più niente. Le spunte c'erano e vivevano nella pagina:
+ * ricaricando ripartivano da zero. Le righe da spuntare sono quelle della
+ * coda operativa qui sotto, che stanno nel database e si segnano una volta
+ * per tutte; questo pannello dice soltanto cosa sta per succedere.
  */
 export function CodaOperativa({ voci, aperta }: { voci: VoceDellaCoda[]; aperta: boolean }) {
-  const [fatte, setFatte] = useState<string[]>([]);
   const [copiato, setCopiato] = useState(false);
 
   if (!voci.length) return null;
-
-  const spunta = (id: string) => setFatte((v) =>
-    (v.includes(id) ? v.filter((x) => x !== id) : [...v, id]));
 
   async function copia() {
     try {
@@ -38,26 +34,18 @@ export function CodaOperativa({ voci, aperta }: { voci: VoceDellaCoda[]; aperta:
 
   return (
     <div className="panel coda" style={{ padding: 16, marginBottom: 20 }}>
-      <p className="eyebrow" style={{ margin: '0 0 4px' }}>Coda operativa · solo admin</p>
+      <p className="eyebrow" style={{ margin: '0 0 4px' }}>Si assegnano senza asta · solo admin</p>
       <p className="sub" style={{ margin: '0 0 10px' }}>
         {voci.length} {voci.length === 1 ? 'lotto si assegna' : 'lotti si assegnano'} senza asta,
         per {totaleDellaCoda(voci)} crediti in tutto.
         {aperta
-          ? ' Nell’app è già fatto: questi movimenti vanno riportati su Leghe Fantacalcio.'
+          ? ' Nell’app è già fatto: li ritrovi nella coda operativa, da spuntare mentre li riporti.'
           : ' Si assegnano nel momento in cui apri la sala.'}
       </p>
 
-      <ul className="coda-righe">
+      <ul className="coda-righe coda-anteprima">
         {voci.map((v) => (
-          <li key={v.lottoId} className={fatte.includes(v.lottoId) ? 'fatta' : undefined}>
-            <label>
-              <input
-                type="checkbox" checked={fatte.includes(v.lottoId)}
-                onChange={() => spunta(v.lottoId)}
-              />
-              <span>{rigaDellaCoda(v)}</span>
-            </label>
-          </li>
+          <li key={v.lottoId}><span>{rigaDellaCoda(v)}</span></li>
         ))}
       </ul>
 

@@ -145,25 +145,47 @@ export async function codaOperativa(sessionId: string): Promise<VoceDellaCoda[]>
   const voci: VoceDellaCoda[] = [];
 
   for (const lot of righe) {
+    /*
+     * Lo svincolando si legge dalla partecipazione, non dalla rosa.
+     *
+     * Prima si cercava in rosa, e dopo l'apertura della sala non c'era più:
+     * l'assegnazione lo ha appena svincolato. Risultato, l'anteprima diceva
+     * «svincolando mancante» su tutte le righe proprio quando serviva —
+     * cioè mentre si fa il travaso — perdendo l'unica informazione per cui
+     * esiste. La partecipazione invece resta scritta com'era.
+     */
     const { data: parts } = await db.from('lot_participants')
-      .select('team_id, release_player_id, teams(name)')
+      .select('team_id, release_player_id, teams(name), players(name, role)')
       .eq('lot_id', lot.id).eq('status', 'confirmed').eq('withdrawn', false);
 
-    type PartRow = { team_id: string; release_player_id: string; teams: { name: string } | null };
+    type PartRow = {
+      team_id: string; release_player_id: string;
+      teams: { name: string } | null;
+      players: { name: string; role: Role } | null;
+    };
     const suoi = (parts ?? []) as unknown as PartRow[];
     // un partecipante solo: nessuno se lo contende, va assegnato d'ufficio
     if (suoi.length !== 1 || !lot.players) continue;
 
     const p = suoi[0];
-    const state = await loadMarketState(p.team_id, sessionId);
-    const rel = state.roster.find((r) => r.playerId === p.release_player_id);
-    const prezzo = lot.final_price ?? (rel ? refundValue(rel, state.cfg).value : 0);
+    /*
+     * La rosa serve solo per il prezzo di un lotto non ancora assegnato: è
+     * il rimborso dello svincolando, e si calcola da lì. Una volta che il
+     * lotto è chiuso il prezzo è scritto, e questa lettura — che è una
+     * query per lotto — si salta.
+     */
+    let prezzo = lot.final_price ?? 0;
+    if (lot.final_price === null) {
+      const state = await loadMarketState(p.team_id, sessionId);
+      const rel = state.roster.find((r) => r.playerId === p.release_player_id);
+      prezzo = rel ? refundValue(rel, state.cfg).value : 0;
+    }
 
     voci.push({
       lottoId: lot.id,
       squadra: p.teams?.name ?? '?',
       prende: { nome: lot.players.name, ruolo: lot.players.role, club: lot.players.club },
-      svincola: rel ? { nome: rel.name, ruolo: rel.role } : null,
+      svincola: p.players ? { nome: p.players.name, ruolo: p.players.role } : null,
       prezzo,
     });
   }
@@ -805,7 +827,8 @@ async function applyMovements(
       + ` per ${price} cr, ma il suo svincolando non è più in rosa:`
       + ' nessun movimento scritto. Va sistemato a mano.';
     await db.from('admin_tasks').insert({
-      league_id: leagueId, session_id: lot!.session_id, lot_id: lotId, body: guaio,
+      league_id: leagueId, session_id: lot!.session_id, lot_id: lotId,
+      team_id: winnerTeamId, body: guaio,
     });
     await db.from('audit_log').insert({
       league_id: leagueId, action: 'lot_settled_senza_movimenti',
@@ -862,8 +885,19 @@ async function applyMovements(
       + ` Crediti: ${creditsBefore} → ${after}. Cambi ${ROLE_LABEL[role].slice(0, 3).toUpperCase()}: ${left}`
       + `${uncontested ? ' · lotto senza contendenti' : ''}`;
 
+  /*
+   * La squadra sulla riga, non solo dentro la frase.
+   *
+   * La coda si legge raggruppata per rosa — il travaso si fa una squadra
+   * per volta — e il raggruppamento ha bisogno dell'id. La 0028 ha
+   * agganciato le righe già scritte leggendo il nome nella frase, ma quello
+   * era un travaso una volta sola: se le righe nuove nascessero senza
+   * squadra finirebbero tutte in fondo, sotto «Senza squadra», e il
+   * raggruppamento sarebbe nato morto.
+   */
   await db.from('admin_tasks').insert({
-    league_id: leagueId, session_id: lot!.session_id, lot_id: lotId, body: taskBody,
+    league_id: leagueId, session_id: lot!.session_id, lot_id: lotId,
+    team_id: winnerTeamId, body: taskBody,
   });
   await notifyAdmin(tgLotSettled(taskBody));
 

@@ -891,10 +891,79 @@ th.ordinabile .livello{
 .coda-righe li label{
   display:flex;gap:9px;align-items:flex-start;padding:7px 8px;border-radius:7px;
   cursor:pointer;font-size:.9rem;line-height:1.35;
+  /* la regola globale dei `label` serve alle etichette dei campi: maiuscoletto
+     spaziato, grigio, in grassetto. Qui dentro il label non etichetta un
+     campo, è la frase da leggere — e in maiuscolo era illeggibile. */
+  text-transform:none;letter-spacing:0;font-weight:400;color:var(--ink);margin-bottom:0;
 }
 .coda-righe li label:hover{background:var(--surface)}
 .coda-righe li input{margin-top:3px}
 .coda-righe li.fatta span{opacity:.45;text-decoration:line-through}
+
+/* Le due viste della coda su /admin. La riga è alta e il bottone grande
+   perché si spunta col pollice mentre l'altra mano è su Leghe Fantacalcio:
+   il bersaglio sta sopra i 44 px anche sul telefono. */
+.coda-pannello{padding:14px 14px 4px}
+.coda-testa{
+  display:flex;gap:12px;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;margin-bottom:10px;
+}
+.coda-testa button{flex:0 0 auto}
+.coda-avviso{
+  padding:12px 14px;margin-bottom:12px;font-size:.88rem;line-height:1.45;
+  border-color:var(--warn);color:var(--ink);background:var(--surface-2);
+}
+.coda-esito{font-size:.86rem;margin:0 0 10px}
+.coda-esito.ok{color:var(--accent)}
+.coda-esito.no{color:var(--crit)}
+
+/* L'anteprima in sala non si spunta: niente casella, niente riga barrata,
+   e il testo allineato come le altre righe della coda. */
+.coda-righe.coda-anteprima li{display:block}
+.coda-righe.coda-anteprima li span{
+  display:block;padding:6px 8px;font-size:.9rem;line-height:1.35;
+}
+
+/* La coda vera dentro la sala: il titolo pesa meno che su /admin, dove è
+   la sezione principale della pagina. */
+.coda-in-sala{margin-bottom:20px}
+.coda-in-sala h2{font-size:1.05rem;margin:0 0 2px}
+
+.coda-gruppo{border-top:1px solid var(--border);padding:10px 0 6px}
+.coda-gruppo:first-of-type{border-top:none}
+.coda-gruppo header{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
+.coda-gruppo h3{
+  font-size:.74rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
+  color:var(--muted);margin:0;
+}
+.coda-quante{
+  display:inline-block;margin-left:5px;padding:1px 6px;border-radius:99px;
+  background:var(--surface-2);color:var(--muted);font-size:.7rem;letter-spacing:0;
+}
+.coda-tutte{
+  margin-left:auto;background:none;border:none;padding:4px 6px;cursor:pointer;
+  color:var(--accent);font-size:.78rem;text-decoration:underline;
+}
+.coda-righe li{display:flex;align-items:flex-start;gap:8px}
+.coda-righe li label{flex:1 1 auto;min-width:0}
+.coda-righe li label span{overflow-wrap:anywhere;flex:1 1 auto}
+.coda-segna{
+  flex:0 0 auto;margin-top:3px;padding:7px 11px;font-size:.8rem;
+  background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
+  color:var(--ink);cursor:pointer;
+}
+.coda-segna:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+.coda-segna:disabled{opacity:.5;cursor:default}
+
+@media (max-width:440px){
+  .coda-pannello{padding:12px 10px 2px}
+  .coda-testa{gap:8px}
+  .coda-testa .sub{font-size:.84rem}
+  /* il bottone resta in riga: andando a capo ogni voce prendeva due righe in
+     più e la coda di una serata diventava uno scorrimento infinito. Il testo
+     ha comunque i suoi 60 caratteri abbondanti anche a 320 px. */
+  .coda-segna{padding:7px 9px;font-size:.78rem}
+}
 
 .gaz-stato{font-size:.82rem;color:var(--muted);margin:14px 0 6px}
 

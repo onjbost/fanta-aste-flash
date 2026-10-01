@@ -1,5 +1,41 @@
 # Aste Flash · Fanta Mansarda
 
+## v4.1 — 1 ottobre 2026
+
+La coda operativa smette di essere un elenco che si guarda e basta.
+
+### La coda, in due viste
+- **«Da fare» e «Fatte»**, con i conti in cima. Si passa dall'una all'altra
+  con un tocco, e una riga si sposta da una parte all'altra col suo bottone
+  — «Fatto», o «Da fare» per rimetterla indietro.
+- **A righe multiple**: si spuntano quelle che servono e si segnano tutte
+  insieme col bottone in alto a destra. Ogni squadra ha il suo «tutte».
+- **Raggruppate per squadra**, perché il travaso si fa una rosa per volta:
+  si apre la rosa di una squadra e si fanno i suoi movimenti. Saltare avanti
+  e indietro fra due squadre è il modo di svincolare il giocatore sbagliato.
+- La spunta **resta**: sta nel database, non nel browser. Si può cominciare
+  dal computer e finire dal telefono.
+- Niente più tetto di venti righe: con una coda che non si svuotava mai,
+  erano proprio le righe più vecchie a sparire dal fondo. Il 1º ottobre in
+  cima c'erano ancora quattro richieste di svincolo del 1º settembre, decise
+  da un mese: la colonna «fatto» esisteva dal primo giorno, ma non c'era
+  niente, in tutta l'app, che la scrivesse.
+- La coda compare **anche in sala**, con le sole righe della serata: finita
+  l'asta si riportano i movimenti senza cambiare pagina.
+
+### Sistemato
+- **In sala, l'anteprima dei lotti che si assegnano senza asta diceva
+  «svincolando mancante» su ogni riga** appena aperta la sala: cercava chi
+  esce nella rosa, e l'assegnazione lo aveva appena tolto da lì. Perdeva
+  l'unica informazione per cui esiste, e proprio nel momento in cui serve.
+  Lo stesso errore finiva nel messaggio Telegram di apertura.
+- Le righe dell'anteprima **non si spuntano più**: quelle spunte vivevano
+  nella pagina e ricaricando sparivano. Le righe da spuntare sono quelle
+  della coda, che restano.
+- Le righe della coda erano scritte in **maiuscoletto grigio**, perché
+  prendevano lo stile delle etichette dei campi: a schermo erano quasi
+  illeggibili.
+
 ## v4.0 — 1 ottobre 2026
 
 La prima asta vera, e tutto quello che ha insegnato. Più il registro della

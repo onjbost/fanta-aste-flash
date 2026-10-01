@@ -117,6 +117,8 @@ export async function requestFreeRelease(_prev: ActionState, form: FormData): Pr
   const target = (participation as unknown as { lots?: { players?: { name: string } } } | null)?.lots?.players?.name;
   await admin.from('admin_tasks').insert({
     league_id: team.league_id,
+    // la squadra serve al raggruppamento della coda: vedi la 0028
+    team_id: team.id,
     body: `Svincolo gratuito da decidere · ${team.name}: ${player?.name ?? 'giocatore'} (${player?.role ?? '?'})`
       + (target ? ` — congela la ${participation!.is_caller ? 'chiamata' : 'adesione'} su ${target}` : ''),
   });
@@ -299,4 +301,63 @@ export async function testTelegram(): Promise<ActionState> {
   return r.sent
     ? { ok: true, message: 'Mandato. Se non lo vedi, controlla di aver scritto almeno una volta al bot.' }
     : { ok: false, message: `Non è partito: ${r.reason}` };
+}
+
+// --------------------------------------------------------- coda operativa
+
+/**
+ * Segnare righe della coda come fatte, o rimetterle da fare.
+ *
+ * `admin_tasks` aveva `done` e `done_at` dal primo giorno, ma niente
+ * nell'app li scriveva: la coda non si svuotava, e il 1º ottobre teneva
+ * ancora quattro richieste di svincolo del 1º settembre, decise da un mese.
+ * Questa è la funzione che mancava.
+ *
+ * Il filtro per lega sta nella `update` e non nella lettura degli id: gli id
+ * arrivano dal browser, e un id di un'altra lega non deve poter essere
+ * segnato nemmeno per sbaglio. È la lega di chi chiama a decidere cosa si
+ * può toccare, non l'elenco che manda.
+ */
+export async function segnaCoda(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const fatto = String(form.get('fatto') ?? '') === 'si';
+  const ids = String(form.get('ids') ?? '')
+    .split(',').map((s) => s.trim()).filter(Boolean);
+
+  if (!ids.length) return { ok: false, message: 'Non hai scelto nessuna riga.' };
+  // un tetto: la coda di una stagione sta sotto il centinaio di righe, e una
+  // richiesta con diecimila id non viene da un bottone di questa pagina
+  if (ids.length > 200) return { ok: false, message: 'Troppe righe in una volta.' };
+
+  const db = await supabaseServer();
+  const { data: auth } = await db.auth.getUser();
+  if (!auth.user) return { ok: false, message: 'Sessione scaduta, rientra.' };
+
+  const { data: me } = await db.from('team_members')
+    .select('is_admin, league_id').eq('user_id', auth.user.id).maybeSingle();
+  if (!me?.is_admin) return { ok: false, message: 'Serve essere admin.' };
+
+  const admin = supabaseAdmin();
+  const { data: toccate, error } = await admin.from('admin_tasks')
+    .update({ done: fatto, done_at: fatto ? new Date().toISOString() : null })
+    .in('id', ids).eq('league_id', me.league_id)
+    .select('id');
+  if (error) return { ok: false, message: `Non è andata: ${error.message}` };
+
+  const n = (toccate ?? []).length;
+  revalidatePath('/admin');
+  revalidatePath('/asta/sala');
+
+  if (!n) return { ok: false, message: 'Non ho trovato quelle righe: ricarica la pagina.' };
+
+  /*
+   * Le quattro frasi scritte per intero, e non composte a pezzi: mettendo
+   * insieme i suffissi usciva «2 righe segnate come fattae», ed è il genere
+   * di storpiatura che si vede solo leggendola.
+   */
+  return {
+    ok: true,
+    message: n === 1
+      ? (fatto ? '1 riga segnata come fatta.' : '1 riga rimessa fra quelle da fare.')
+      : (fatto ? `${n} righe segnate come fatte.` : `${n} righe rimesse fra quelle da fare.`),
+  };
 }

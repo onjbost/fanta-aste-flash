@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { annota, chiAgisce, dimentica } from '@/lib/registroServer';
+import { chiudiRigaDelloSvincolo } from '@/lib/codaSvincolo';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
@@ -165,7 +166,7 @@ export async function withdrawFreeRelease(_prev: ActionState, form: FormData): P
   if (!auth.user) return { ok: false, message: 'Sessione scaduta, rientra.' };
 
   const { data: team } = await db.from('team_members')
-    .select('team_id').eq('user_id', auth.user.id).maybeSingle();
+    .select('team_id, league_id').eq('user_id', auth.user.id).maybeSingle();
   if (!team) return { ok: false, message: 'Nessuna squadra collegata.' };
 
   const admin = supabaseAdmin();
@@ -182,6 +183,21 @@ export async function withdrawFreeRelease(_prev: ActionState, form: FormData): P
   // una richiesta ritirata non è una richiesta fatta: la riga del registro
   // se ne va con lei
   await dimentica(`svincolo_chiesto:${req.id}`);
+
+  /*
+   * La riga della coda invece resta, ma chiusa: all'admin era arrivata la
+   * richiesta, e sapere che è stata ritirata gli serve più che vedersela
+   * sparire. Lì dentro non c'è niente da decidere, quindi non è più da fare.
+   */
+  const [{ data: ritirato }, { data: miaSquadra }] = await Promise.all([
+    admin.from('players').select('name').eq('id', playerId).maybeSingle(),
+    admin.from('teams').select('name').eq('id', team.team_id).maybeSingle(),
+  ]);
+  if (ritirato?.name && miaSquadra?.name) {
+    await chiudiRigaDelloSvincolo(team.league_id, miaSquadra.name, ritirato.name, 'ritirato');
+  }
+
+  revalidatePath('/admin');
   revalidatePath('/');
   return { ok: true, message: 'Richiesta ritirata: torna uno svincolo ordinario al 75%.' };
 }
@@ -272,6 +288,33 @@ export async function decideFreeRelease(_prev: ActionState, form: FormData): Pro
     });
   }
 
+  /*
+   * E la riga della coda si chiude da sé, con scritto com'è finita.
+   *
+   * «Svincolo gratuito da decidere» è un lavoro da fare, e deciderlo è
+   * farlo: da adesso quella riga non chiede più niente. Resta scritta, fra
+   * le fatte, col verbo cambiato — «Svincolo gratuito approvato · …».
+   *
+   * Vale anche per `cancelled`, che nel registro non finisce perché non
+   * decide niente sullo svincolo: qui conta che non ci sia più niente da
+   * decidere, ed è vero in tutti e tre i casi.
+   */
+  const [{ data: deciso }, { data: suaSquadra }] = await Promise.all([
+    admin.from('players').select('name').eq('id', req.player_id).maybeSingle(),
+    admin.from('teams').select('name').eq('id', req.team_id).maybeSingle(),
+  ]);
+  let codaNonChiusa = false;
+  if (deciso?.name && suaSquadra?.name) {
+    const esito = decision === 'approved' ? 'approvato'
+      : decision === 'rejected' ? 'respinto' : 'annullato';
+    const esitoCoda = await chiudiRigaDelloSvincolo(
+      req.league_id, suaSquadra.name, deciso.name, esito,
+    );
+    codaNonChiusa = esitoCoda.errore || esitoCoda.chiuse === 0;
+  } else {
+    codaNonChiusa = true;
+  }
+
   revalidatePath('/admin');
   revalidatePath('/');
 
@@ -280,7 +323,16 @@ export async function decideFreeRelease(_prev: ActionState, form: FormData): Pro
     rejected: 'Respinta: svincolo ordinario al 75% con il cambio consumato. L\'operazione resta valida.',
     cancelled: 'Annullata: l\'operazione è stata cancellata, l\'allenatore può rifarla con un altro giocatore.',
   };
-  return { ok: true, message: messages[decision] };
+  /*
+   * Se la riga della coda non si è chiusa lo si dice, in coda al messaggio.
+   * La decisione è presa e valida comunque — la coda è il promemoria del
+   * travaso, non il fatto — ma l'admin deve sapere che quella riga gli
+   * resterà da spuntare, altrimenti scopre il disallineamento fra un mese.
+   */
+  const avvisoCoda = codaNonChiusa
+    ? ' La riga nella coda operativa non si è chiusa da sé: spuntala a mano.'
+    : '';
+  return { ok: true, message: messages[decision] + avvisoCoda };
 }
 
 // ------------------------------------------------------------- Telegram

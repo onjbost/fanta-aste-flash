@@ -142,3 +142,59 @@ export function soloSelezionate(selezionate: string[], voci: VoceCoda[]): string
   const ci = new Set(voci.map((v) => v.id));
   return selezionate.filter((id) => ci.has(id));
 }
+
+// ------------------------------------------- la richiesta di svincolo
+
+/**
+ * Com'è finita una richiesta di svincolo gratuito.
+ *
+ * `annullato` è l'admin che annulla l'operazione invece di deciderla;
+ * `ritirato` è l'allenatore che ritira la richiesta prima della decisione.
+ * In nessuno dei due casi lo svincolo è stato deciso, ma in entrambi non
+ * c'è più niente da decidere — e una riga che chiede una decisione già
+ * avvenuta è il modo in cui la coda si riempie di roba morta.
+ */
+export type EsitoSvincolo = 'approvato' | 'respinto' | 'annullato' | 'ritirato';
+
+const DA_DECIDERE = 'Svincolo gratuito da decidere';
+
+/**
+ * È la riga della richiesta di quella squadra su quel giocatore?
+ *
+ * Il corpo lo scrive `requestFreeRelease` così:
+ *
+ *   «Svincolo gratuito da decidere · FC CANEPARDO: NERES (A)»
+ *
+ * Si pretende la frase intera dall'inizio fino alla parentesi del ruolo:
+ * l'esordio, la squadra, il giocatore. Ogni pezzo serve.
+ *
+ * - Senza l'esordio si prenderebbero anche le aggiudicazioni, che il nome
+ *   del giocatore ce l'hanno dentro («acquistare NERES per 3 cr»).
+ * - Senza la squadra, la decisione di una squadra chiuderebbe la riga
+ *   aperta di un'altra che ha chiesto un omonimo — e `players` è unica su
+ *   `(lega, ext_id)`, non sul nome, quindi gli omonimi in una lega esistono.
+ *   Nel ritiro è peggio: a premere è un allenatore qualunque.
+ * - Senza la parentesi del ruolo, «MENDY» aggancerebbe «MENDY P.».
+ *
+ * Si confronta col nome di adesso una frase scritta allora: se la squadra o
+ * il giocatore sono stati rinominati nel frattempo la riga non si chiude, e
+ * resta da spuntare a mano. È il verso giusto in cui sbagliare — chiudere
+ * la riga sbagliata racconta una decisione che non è stata presa.
+ */
+export function rigaDaDecidere(corpo: string, squadra: string, giocatore: string): boolean {
+  return corpo.startsWith(`${DA_DECIDERE} · ${squadra}: ${giocatore} (`);
+}
+
+/**
+ * La stessa riga, con scritto com'è andata.
+ *
+ * Si cambia il verbo e basta: squadra, giocatore, ruolo e l'eventuale coda
+ * («— congela la chiamata su …») restano come erano state scritte. Riscrivere
+ * la frase da capo vorrebbe dire ricostruirla da dati che nel frattempo
+ * possono essere cambiati, e la riga della coda è il racconto di quel
+ * momento.
+ */
+export function corpoDeciso(corpo: string, esito: EsitoSvincolo): string {
+  if (!corpo.startsWith(DA_DECIDERE)) return corpo;
+  return `Svincolo gratuito ${esito}${corpo.slice(DA_DECIDERE.length)}`;
+}

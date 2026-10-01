@@ -104,11 +104,17 @@ export function Coda({ voci, avviso }: { voci: VoceCoda[]; avviso: string | null
               ? 'Quello che resta da riportare su Leghe Fantacalcio.'
               : 'Quello che hai già riportato. Da qui si può rimettere indietro.'}
           </p>
-          <button type="button" className="ghost" disabled={!scelte.length || inCorso}
+          {/*
+            * Primario solo quando c'è qualcosa da segnare: un bottone pieno
+            * e spento allo stesso tempo è un invito contraddittorio, e questo
+            * sta acceso per la maggior parte del tempo in cui non si può
+            * premere.
+            */}
+          <button type="button" className={scelte.length ? 'primary' : ''}
+                  disabled={!scelte.length || inCorso}
                   onClick={() => segna(scelte, fatto)}>
-            {inCorso
-              ? 'Un attimo…'
-              : `${fatto ? 'Segna come fatte' : 'Segna come da fare'}${scelte.length ? ` · ${scelte.length}` : ''}`}
+            {inCorso ? 'Un attimo…' : (fatto ? 'Segna come fatte' : 'Segna come da fare')}
+            {!inCorso && scelte.length > 0 && <span className="pallino">{scelte.length}</span>}
           </button>
         </div>
 
@@ -137,16 +143,25 @@ export function Coda({ voci, avviso }: { voci: VoceCoda[]; avviso: string | null
             <section key={g.squadraId ?? 'senza'} className="coda-gruppo">
               <header>
                 <h3>{g.etichetta} <span className="coda-quante">{g.voci.length}</span></h3>
-                <button type="button" className="coda-tutte" onClick={() => spuntaGruppo(ids, tutte)}>
-                  {tutte ? 'nessuna' : 'tutte'}
+                <button type="button" className={`coda-tutte${tutte ? ' on' : ''}`}
+                        aria-pressed={tutte} onClick={() => spuntaGruppo(ids, tutte)}>
+                  {tutte ? 'Nessuna' : 'Tutte'}
                 </button>
               </header>
               <ul className="coda-righe">
                 {g.voci.map((v) => (
-                  <li key={v.id}>
+                  <li key={v.id} className={scelte.includes(v.id) ? 'scelta' : undefined}>
+                    {/*
+                      * La casella è un quadrato disegnato accanto a una
+                      * casella vera nascosta: quella di sistema non si può
+                      * ingrandire né colorare, e in mezzo a una riga di testo
+                      * restava un puntino grigio da centrare col dito.
+                      */}
                     <label>
-                      <input type="checkbox" checked={scelte.includes(v.id)}
+                      <input type="checkbox" className="coda-spunta"
+                             checked={scelte.includes(v.id)}
                              onChange={() => spunta(v.id)} />
+                      <span className="coda-casella" aria-hidden="true" />
                       <span>{frasePulita(v)}</span>
                     </label>
                     <button type="button" className="coda-segna" disabled={inCorso}

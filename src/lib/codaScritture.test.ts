@@ -47,3 +47,25 @@ describe('chi scrive nella coda operativa', () => {
     }
   });
 });
+
+/*
+ * L'altra metà della stessa faccenda: la riga della richiesta di svincolo si
+ * chiude da sé quando la richiesta viene decisa, e per riconoscerla
+ * `rigaDaDecidere` si fida di come comincia la frase. Sono due punti del
+ * codice che devono dire la stessa cosa, lontani l'uno dall'altro: se
+ * qualcuno riscrive la frase dell'insert, la chiusura automatica smette di
+ * funzionare in silenzio e la coda ricomincia a riempirsi.
+ */
+describe('la frase della richiesta di svincolo', () => {
+  it('comincia come la chiusura automatica si aspetta', () => {
+    const codice = readFileSync('src/app/actions.ts', 'utf8');
+    const blocchi = insertDellaCoda('src/app/actions.ts');
+    const quella = blocchi.find((b) => b.includes('Svincolo gratuito'));
+    expect(quella, 'nessuna insert scrive più una richiesta di svincolo').toBeDefined();
+    expect(quella).toContain('`Svincolo gratuito da decidere · ');
+    // e il modulo puro usa esattamente quell'inizio
+    expect(readFileSync('src/lib/codaAdmin.ts', 'utf8'))
+      .toContain("const DA_DECIDERE = 'Svincolo gratuito da decidere'");
+    expect(codice).toContain('chiudiRigaDelloSvincolo');
+  });
+});

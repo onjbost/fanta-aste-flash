@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  conteggi, frasePulita, gruppiDellaCoda, ordinaPerVista, soloSelezionate, type VoceCoda,
+  conteggi, corpoDeciso, frasePulita, gruppiDellaCoda, ordinaPerVista, rigaDaDecidere,
+  soloSelezionate, type VoceCoda,
 } from './codaAdmin';
 
 /*
@@ -190,5 +191,84 @@ describe('soloSelezionate', () => {
 
   it('senza niente di selezionato non manda niente', () => {
     expect(soloSelezionate([], vere)).toEqual([]);
+  });
+});
+
+describe('la riga dello svincolo che si chiude da sé', () => {
+  const corpo = 'Svincolo gratuito da decidere · FC CANEPARDO: NERES (A)';
+  const conCoda = 'Svincolo gratuito da decidere · Montester United: YILDIZ (A)'
+    + ' — congela la chiamata su ZHEGROVA';
+
+  it('riconosce la riga di quella squadra su quel giocatore', () => {
+    expect(rigaDaDecidere(corpo, 'FC CANEPARDO', 'NERES')).toBe(true);
+    expect(rigaDaDecidere(conCoda, 'Montester United', 'YILDIZ')).toBe(true);
+  });
+
+  it('non riconosce quella di un altro giocatore', () => {
+    expect(rigaDaDecidere(corpo, 'FC CANEPARDO', 'NOSLIN')).toBe(false);
+  });
+
+  /*
+   * Il caso per cui serve la squadra. `players` è unica su (lega, ext_id) e
+   * non sul nome: due giocatori omonimi nella stessa lega esistono. Senza
+   * questo controllo la decisione di una squadra chiuderebbe — e
+   * riscriverebbe col verbo sbagliato — la riga ancora aperta di un'altra.
+   * Nel ritiro è peggio: a premere il bottone è un allenatore qualunque.
+   */
+  it('non riconosce la riga di un\'altra squadra sullo stesso nome', () => {
+    expect(rigaDaDecidere(corpo, 'Qarabaggio', 'NERES')).toBe(false);
+  });
+
+  /*
+   * Il nome del giocatore compare anche in altre righe della coda, e
+   * chiuderle vorrebbe dire spuntare un movimento che nessuno ha riportato.
+   * Questa è costruita apposta perché contenga «: NERES (»: altrimenti
+   * cadrebbe sull'esordio della frase e non proverebbe niente sul resto.
+   */
+  it('non tocca le righe che non sono richieste di svincolo', () => {
+    const acquisto = 'Nella rosa FC CANEPARDO: NERES (A) è entrato, svincolato TIZIO';
+    expect(acquisto).toContain(': NERES (');
+    expect(rigaDaDecidere(acquisto, 'FC CANEPARDO', 'NERES')).toBe(false);
+  });
+
+  /*
+   * Un nome contenuto in un altro — MENDY dentro MENDY P. — non deve
+   * agganciare la riga sbagliata: il confronto arriva fino alla parentesi
+   * del ruolo. Lo stesso per la squadra: «FC» dentro «FC CANEPARDO».
+   */
+  it('non confonde un nome contenuto in un altro', () => {
+    const mendyP = 'Svincolo gratuito da decidere · Qarabaggio: MENDY P. (A)';
+    expect(rigaDaDecidere(mendyP, 'Qarabaggio', 'MENDY')).toBe(false);
+    expect(rigaDaDecidere(mendyP, 'Qarabaggio', 'MENDY P.')).toBe(true);
+  });
+
+  it('non confonde una squadra contenuta in un\'altra', () => {
+    expect(rigaDaDecidere(corpo, 'FC', 'NERES')).toBe(false);
+  });
+
+  /*
+   * Una riga già decisa non deve farsi riscrivere una seconda volta. Oggi
+   * non ci arriverebbe comunque — chi la cerca filtra le righe non fatte —
+   * ma il riconoscimento deve reggere da sé: è l'unica cosa che distingue
+   * una domanda aperta da una risposta già data.
+   */
+  it('non riapre una riga già decisa', () => {
+    const gia = 'Svincolo gratuito approvato · FC CANEPARDO: NERES (A)';
+    expect(rigaDaDecidere(gia, 'FC CANEPARDO', 'NERES')).toBe(false);
+  });
+
+  it('riscrive la riga con l\'esito, lasciando intatto il resto', () => {
+    expect(corpoDeciso(corpo, 'approvato'))
+      .toBe('Svincolo gratuito approvato · FC CANEPARDO: NERES (A)');
+    expect(corpoDeciso(corpo, 'respinto'))
+      .toBe('Svincolo gratuito respinto · FC CANEPARDO: NERES (A)');
+    expect(corpoDeciso(conCoda, 'ritirato'))
+      .toBe('Svincolo gratuito ritirato · Montester United: YILDIZ (A)'
+        + ' — congela la chiamata su ZHEGROVA');
+  });
+
+  it('una riga che non comincia come previsto resta com\'è', () => {
+    const altra = 'Nella rosa FC CANEPARDO: svincolare TIZIO (+1 cr)';
+    expect(corpoDeciso(altra, 'approvato')).toBe(altra);
   });
 });

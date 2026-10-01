@@ -931,7 +931,7 @@ th.ordinabile .livello{
 
 .coda-gruppo{border-top:1px solid var(--border);padding:10px 0 6px}
 .coda-gruppo:first-of-type{border-top:none}
-.coda-gruppo header{display:flex;align-items:baseline;gap:10px;margin:0 0 4px}
+.coda-gruppo header{display:flex;align-items:center;gap:10px;margin:0 0 6px}
 .coda-gruppo h3{
   font-size:.74rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;
   color:var(--muted);margin:0;
@@ -940,20 +940,54 @@ th.ordinabile .livello{
   display:inline-block;margin-left:5px;padding:1px 6px;border-radius:99px;
   background:var(--surface-2);color:var(--muted);font-size:.7rem;letter-spacing:0;
 }
+
+/* «Tutte» è un comando, non una nota a margine: prima era un testo
+   sottolineato e si leggeva come un rimando. Acceso quando il gruppo è tutto
+   scelto, così lo stato si vede anche senza guardare le caselle. */
 .coda-tutte{
-  margin-left:auto;background:none;border:none;padding:4px 6px;cursor:pointer;
-  color:var(--accent);font-size:.78rem;text-decoration:underline;
+  margin-left:auto;padding:4px 9px;font-size:.7rem;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--muted);
 }
-.coda-righe li{display:flex;align-items:flex-start;gap:8px}
+.coda-tutte.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+
+.coda-righe li{
+  display:flex;align-items:flex-start;gap:8px;border-radius:3px;
+  transition:background-color .15s ease;
+}
+.coda-righe li.scelta{background:var(--accent-soft)}
 .coda-righe li label{flex:1 1 auto;min-width:0}
-.coda-righe li label span{overflow-wrap:anywhere;flex:1 1 auto}
-.coda-segna{
-  flex:0 0 auto;margin-top:3px;padding:7px 11px;font-size:.8rem;
-  background:var(--surface-2);border:1px solid var(--border);border-radius:8px;
-  color:var(--ink);cursor:pointer;
+.coda-righe li label span{overflow-wrap:anywhere}
+.coda-righe li label span:last-child{flex:1 1 auto}
+
+/* La casella di sistema non si ingrandisce e non si colora: in mezzo a una
+   riga di testo restava un puntino grigio da centrare col dito. Questa è un
+   quadrato disegnato accanto alla casella vera, che resta nel DOM — invisibile
+   ma raggiungibile da tastiera, ed è lei a tenere lo stato. */
+.coda-spunta{position:absolute;width:1px;height:1px;opacity:0;margin:0}
+.coda-casella{
+  flex:0 0 auto;width:17px;height:17px;margin-top:1px;
+  border:1px solid var(--border);border-radius:2px;background:var(--surface);
+  display:grid;place-items:center;
+  transition:background-color .15s ease,border-color .15s ease;
 }
-.coda-segna:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
-.coda-segna:disabled{opacity:.5;cursor:default}
+.coda-casella::after{
+  content:'';width:9px;height:5px;margin-top:-2px;
+  border-left:2px solid var(--bg);border-bottom:2px solid var(--bg);
+  transform:rotate(-45deg) scale(.25);opacity:0;filter:blur(4px);
+  transition:opacity .15s ease,transform .15s cubic-bezier(0.2,0,0,1),filter .15s ease;
+}
+.coda-righe li label:hover .coda-casella{border-color:var(--accent)}
+.coda-spunta:checked + .coda-casella{background:var(--accent);border-color:var(--accent)}
+.coda-spunta:checked + .coda-casella::after{
+  transform:rotate(-45deg) scale(1);opacity:1;filter:blur(0);
+}
+.coda-spunta:focus-visible + .coda-casella{outline:2px solid var(--accent);outline-offset:2px}
+
+.coda-segna{flex:0 0 auto;margin-top:2px;padding:6px 10px;font-size:.76rem}
+.coda-segna .pallino,.coda-testa .pallino{
+  display:inline-block;margin-left:6px;padding:1px 6px;border-radius:99px;
+  font-size:.7rem;font-weight:700;background:var(--bg);color:var(--accent);
+}
 
 @media (max-width:440px){
   .coda-pannello{padding:12px 10px 2px}
@@ -962,7 +996,7 @@ th.ordinabile .livello{
   /* il bottone resta in riga: andando a capo ogni voce prendeva due righe in
      più e la coda di una serata diventava uno scorrimento infinito. Il testo
      ha comunque i suoi 60 caratteri abbondanti anche a 320 px. */
-  .coda-segna{padding:7px 9px;font-size:.78rem}
+  .coda-segna{padding:6px 8px;font-size:.74rem}
 }
 
 .gaz-stato{font-size:.82rem;color:var(--muted);margin:14px 0 6px}

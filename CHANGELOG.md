@@ -23,6 +23,16 @@ La coda operativa smette di essere un elenco che si guarda e basta.
 - La coda compare **anche in sala**, con le sole righe della serata: finita
   l'asta si riportano i movimenti senza cambiare pagina.
 
+### La richiesta di svincolo si chiude da sé
+- Quando approvi, respingi o annulli uno svincolo gratuito — e quando
+  l'allenatore ritira la richiesta — **la riga della coda si chiude da sola**
+  e cambia verbo: «Svincolo gratuito approvato · FC CANEPARDO: NERES (A)».
+  Deciderla *è* farla, e quella riga non chiede più niente a nessuno. Resta
+  scritta fra le fatte, perché quello che è successo si deve poter rileggere.
+- Si riconosce per squadra **e** giocatore: due squadre che chiedono un
+  omonimo non si chiudono la riga a vicenda. Se non si chiude, il messaggio
+  della decisione te lo dice, invece di lasciarti credere che sia a posto.
+
 ### Sistemato
 - **In sala, l'anteprima dei lotti che si assegnano senza asta diceva
   «svincolando mancante» su ogni riga** appena aperta la sala: cercava chi
@@ -35,6 +45,11 @@ La coda operativa smette di essere un elenco che si guarda e basta.
 - Le righe della coda erano scritte in **maiuscoletto grigio**, perché
   prendevano lo stile delle etichette dei campi: a schermo erano quasi
   illeggibili.
+- **Le caselle di selezione** erano quelle di sistema: un puntino grigio da
+  centrare col dito in mezzo a una riga di testo. Adesso sono quadrati
+  disegnati, grandi abbastanza, con la riga scelta che si colora; «Tutte»
+  è diventato un comando invece di un testo sottolineato, e si accende
+  quando il gruppo è tutto scelto.
 
 ## v4.0 — 1 ottobre 2026
 

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { annota, chiAgisce } from '@/lib/registroServer';
+import { annota, chiAgisce, dimentica } from '@/lib/registroServer';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
@@ -98,14 +98,14 @@ export async function requestFreeRelease(_prev: ActionState, form: FormData): Pr
 
   // se il giocatore è già impegnato in una chiamata o adesione, quella si congela
   const { data: participation } = await admin.from('lot_participants')
-    .select('id, is_caller, lot_id, lots(players(name))')
+    .select('id, is_caller, lot_id, session_id, lots(players(name))')
     .eq('team_id', team.id).eq('release_player_id', playerId).eq('status', 'confirmed')
     .maybeSingle();
 
-  const { error } = await db.from('free_release_requests').insert({
+  const { data: richiesta, error } = await db.from('free_release_requests').insert({
     league_id: team.league_id, team_id: team.id, player_id: playerId,
     lot_participant_id: participation?.id ?? null,
-  });
+  }).select('id').single();
   if (error) return { ok: false, message: `Non è andata: ${error.message}` };
 
   if (participation) {
@@ -131,10 +131,19 @@ export async function requestFreeRelease(_prev: ActionState, form: FormData): Pr
     target ? `la ${participation!.is_caller ? 'chiamata' : 'adesione'} su ${target}` : undefined,
   ));
 
+  /*
+   * `sessionId` qui non è un dettaglio: è quello che dice al registro «questo
+   * nome è ancora segreto». Il giocatore di una richiesta è quasi sempre lo
+   * svincolando dichiarato su una chiamata — il codice qui sopra lo cerca
+   * proprio così — e fino all'apertura della sala non si pubblica.
+   * L'impronta serve a togliere la riga se la richiesta viene ritirata.
+   */
   await annota({
     leagueId: team.league_id, azione: 'svincolo_richiesto',
     attore: { userId: auth.user.id, teamId: team.id, nome: team.name },
     playerId,
+    sessionId: participation?.session_id ?? null,
+    impronta: `svincolo_chiesto:${richiesta.id}`,
   });
 
   revalidatePath('/');
@@ -168,6 +177,9 @@ export async function withdrawFreeRelease(_prev: ActionState, form: FormData): P
     // l'operazione torna valida come svincolo ordinario al 75%
     await admin.from('lot_participants').update({ status: 'confirmed' }).eq('id', req.lot_participant_id);
   }
+  // una richiesta ritirata non è una richiesta fatta: la riga del registro
+  // se ne va con lei
+  await dimentica(`svincolo_chiesto:${req.id}`);
   revalidatePath('/');
   return { ok: true, message: 'Richiesta ritirata: torna uno svincolo ordinario al 75%.' };
 }
@@ -244,11 +256,16 @@ export async function decideFreeRelease(_prev: ActionState, form: FormData): Pro
    */
   if (decision === 'approved' || decision === 'rejected') {
     const { data: squadra } = await admin.from('teams').select('name').eq('id', req.team_id).single();
+    const { data: part } = req.lot_participant_id
+      ? await admin.from('lot_participants').select('session_id').eq('id', req.lot_participant_id).maybeSingle()
+      : { data: null };
     await annota({
       leagueId: req.league_id,
       azione: decision === 'approved' ? 'svincolo_approvato' : 'svincolo_respinto',
       attore: await chiAgisce(auth.user.id),
       playerId: req.player_id,
+      sessionId: (part?.session_id as string | undefined) ?? null,
+      impronta: `svincolo_deciso:${req.id}`,
       dati: { squadra: squadra?.name ?? null, ...(note ? { nota: note } : {}) },
     });
   }

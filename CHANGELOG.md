@@ -54,12 +54,16 @@ lega: una riga per ogni cosa che succede, leggibile da tutti.
   ricostruita dai dati che c'erano già. Per quelle righe il database sa quale
   squadra ha agito, non quale dei due allenatori: da adesso c'è il nome.
 - **Lo svincolando non compare** nelle chiamate e nelle adesioni: fino
-  all'apertura della sala è segreto, e il registro lo leggono tutti.
+  all'apertura della sala è segreto, e il registro lo leggono tutti. Per lo
+  stesso motivo uno svincolo gratuito chiesto su un'asta ancora in corso non
+  nomina il giocatore — il nome compare quando la sala si apre. Una richiesta
+  ritirata esce dal registro: non è una richiesta fatta.
 
 ### L'archivio delle aste
-- Accanto al registro, il tabellone di ogni serata chiusa: lotto per lotto chi
-  ha chiamato, chi se lo contendeva, chi l'ha preso e a quanto, chi è uscito e
-  con quale rimborso.
+- Accanto al registro, il tabellone di ogni serata **chiusa**: lotto per lotto
+  chi ha chiamato, chi se lo contendeva, chi l'ha preso e a quanto, chi è
+  uscito e con quale rimborso. Solo chiusa, e solo della propria lega: una
+  serata ancora da giocare non si apre nemmeno scrivendone l'indirizzo a mano.
 
 ### Questa pagina
 - Il changelog che stai leggendo: arriva dal file del progetto, quindi dice

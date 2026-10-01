@@ -79,6 +79,17 @@ export interface VoceDelRegistro {
   daAdmin: boolean;
   giocatore?: string | null;
   dati?: Record<string, unknown>;
+  /**
+   * Il nome del giocatore va tenuto per sé.
+   *
+   * Vale per gli svincoli gratuiti chiesti e decisi mentre l'asta a cui sono
+   * legati è ancora in corso: il giocatore della richiesta è quasi sempre lo
+   * svincolando già dichiarato su una chiamata, e quello è segreto fino
+   * all'apertura della sala. Dopo, il nome compare: lo decide chi legge il
+   * registro, non chi lo scrive, così la riga si completa da sé quando il
+   * segreto non c'è più.
+   */
+  riservato?: boolean;
 }
 
 // ------------------------------------------------------------------ chi
@@ -193,13 +204,19 @@ export function rigaDelRegistro(v: VoceDelRegistro): string {
     }
 
     case 'svincolo_richiesto':
-      return `${chi} ha chiesto lo svincolo gratuito di ${giocatore}`;
+      return v.riservato
+        ? `${chi} ha chiesto uno svincolo gratuito`
+        : `${chi} ha chiesto lo svincolo gratuito di ${giocatore}`;
 
     case 'svincolo_approvato':
-      return `${chi} ha approvato lo svincolo gratuito di ${giocatore} chiesto da ${squadra}${coda}`;
+      return v.riservato
+        ? `${chi} ha approvato uno svincolo gratuito chiesto da ${squadra}${coda}`
+        : `${chi} ha approvato lo svincolo gratuito di ${giocatore} chiesto da ${squadra}${coda}`;
 
     case 'svincolo_respinto':
-      return `${chi} ha respinto lo svincolo gratuito di ${giocatore} chiesto da ${squadra}${coda}`;
+      return v.riservato
+        ? `${chi} ha respinto uno svincolo gratuito chiesto da ${squadra}${coda}`
+        : `${chi} ha respinto lo svincolo gratuito di ${giocatore} chiesto da ${squadra}${coda}`;
 
     case 'schedina': {
       const giornata = n(d.giornata);
@@ -274,7 +291,7 @@ export function rigaDelRegistro(v: VoceDelRegistro): string {
       const squadre = n(d.squadre);
       const conti = [
         squadre != null ? `${squadre} ${squadre === 1 ? 'squadra' : 'squadre'}` : null,
-        giocatori != null ? `${giocatori} giocatori` : null,
+        giocatori != null ? `${giocatori} ${giocatori === 1 ? 'giocatore' : 'giocatori'}` : null,
       ].filter(Boolean).join(', ');
       return `${chi} ha importato le rose dal file della lega${conti ? `: ${conti}` : ''}${coda}`;
     }
@@ -287,5 +304,63 @@ export function rigaDelRegistro(v: VoceDelRegistro): string {
       }
       return `${chi} ha modificato i crediti di ${squadra}${coda}`;
     }
+    default:
+      /*
+       * Un'azione che questa versione non conosce. Succede in un solo caso
+       * vero: si torna indietro con l'app mentre nel registro ci sono già
+       * righe scritte da una versione più nuova. Senza questo ramo il tipo
+       * dice `string` e a runtime esce `undefined`, cioè una riga vuota nel
+       * registro — una cosa è avvenuta e non si legge. Meglio dire poco che
+       * non dire niente.
+       */
+      return `${chi} ha fatto qualcosa che questa versione dell'app non sa raccontare`
+        + `${v.giocatore ? ` (${v.giocatore})` : ''}`;
   }
+}
+
+// ------------------------------------------------------- giorni e confini
+
+/** Lo scostamento di Roma da UTC, in minuti, in un dato istante. */
+function offsetMinutiRoma(istante: Date): number {
+  const nome = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/Rome', timeZoneName: 'longOffset',
+  }).format(istante);
+  const t = /GMT([+-])(\d{2}):(\d{2})/.exec(nome);
+  if (!t) return 60;
+  const segno = t[1] === '-' ? -1 : 1;
+  return segno * (Number(t[2]) * 60 + Number(t[3]));
+}
+
+/**
+ * L'istante in cui comincia quel giorno a Roma, in UTC.
+ *
+ * L'offset si chiede a `Intl` e non si decide a tavolino: il filtro per data
+ * del registro ne aveva uno scritto a mano (`+02:00`), e dal 25 ottobre Roma
+ * sta a +01:00 — «fino al 30 novembre» tagliava via tutto quello che era
+ * successo dopo le 22:59.
+ *
+ * Si guarda l'offset a `giorno T00:00Z`, che a Roma cade all'una o alle due di
+ * notte, e questo basta: i cambi d'ora italiani avvengono alle 02:00 e alle
+ * 03:00 locali, quindi quell'istante sta sempre dalla stessa parte del cambio
+ * in cui sta la mezzanotte dello stesso giorno. In un fuso che cambiasse l'ora
+ * a mezzanotte servirebbe un secondo passaggio; qui sarebbe una riga che non
+ * fa niente, e si farebbe credere che quel caso esista.
+ */
+export function inizioGiornoRoma(giorno: string): string {
+  const comeSeUtc = Date.parse(`${giorno}T00:00:00.000Z`);
+  return new Date(comeSeUtc - offsetMinutiRoma(new Date(comeSeUtc)) * 60_000).toISOString();
+}
+
+/**
+ * L'ultimo istante di quel giorno a Roma: «fino a tutto il 30 novembre».
+ *
+ * Si ricava dall'inizio del giorno dopo, meno un millesimo: così fra la fine
+ * di un giorno e l'inizio del successivo non ci può essere un buco, qualunque
+ * cosa faccia l'ora legale — perché è lo stesso conto fatto una volta sola.
+ */
+export function fineGiornoRoma(giorno: string): string {
+  const dopo = new Date(`${giorno}T00:00:00.000Z`);
+  dopo.setUTCDate(dopo.getUTCDate() + 1);
+  const prossimo = dopo.toISOString().slice(0, 10);
+  return new Date(Date.parse(inizioGiornoRoma(prossimo)) - 1).toISOString();
 }

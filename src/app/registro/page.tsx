@@ -183,7 +183,9 @@ async function Aste({ leagueId, sceltaId }: { leagueId: string; sceltaId?: strin
     );
   }
 
-  const asta = await astaDellArchivio(sceltaId ?? elenco[0].id);
+  // la lega si passa sempre: l'id dell'asta arriva dall'indirizzo, e
+  // `astaDellArchivio` serve solo serate chiuse di questa lega
+  const asta = await astaDellArchivio(sceltaId ?? elenco[0].id, leagueId);
 
   return (
     <>

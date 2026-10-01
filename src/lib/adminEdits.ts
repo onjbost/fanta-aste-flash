@@ -403,14 +403,22 @@ export async function applySync(
     },
   });
 
-  await annota({
-    leagueId, azione: 'rose_importate', attore: await chiAgisce(opts.actor),
-    dati: {
-      giocatori: incoming.length,
-      squadre: new Set(incoming.map((p) => p.teamName).filter(Boolean)).size || undefined,
-      nota: details.join(' · ') || undefined,
-    },
-  });
+  /*
+   * Solo se qualcosa è cambiato. L'admin ricarica il file della lega anche
+   * solo per controllare, e l'app in quel caso dice «non c'era niente da
+   * cambiare»: una riga nel registro pubblico che annuncia un import che non
+   * ha importato niente è una riga che racconta il contrario.
+   */
+  if (details.length > 0) {
+    await annota({
+      leagueId, azione: 'rose_importate', attore: await chiAgisce(opts.actor),
+      dati: {
+        giocatori: incoming.length,
+        squadre: new Set(incoming.map((p) => p.teamName).filter(Boolean)).size || undefined,
+        nota: details.join(' · ') || undefined,
+      },
+    });
+  }
 
   return {
     ok: true,

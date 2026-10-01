@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  AZIONI, ETICHETTA_AZIONE, chiFirma, nomeAttore, quandoLeggibile, rigaDelRegistro,
+  AZIONI, ETICHETTA_AZIONE, chiFirma, fineGiornoRoma, inizioGiornoRoma, nomeAttore,
+  quandoLeggibile, rigaDelRegistro,
   type VoceDelRegistro,
 } from './registro';
 
@@ -258,5 +259,93 @@ describe('le azioni come elenco', () => {
       // niente «undefined» o «[object Object]» sfuggiti in una frase
       expect(r, a).not.toMatch(/undefined|NaN|\[object/);
     }
+  });
+});
+
+describe('i confini di un giorno, nell\'ora di Roma', () => {
+  it('conosce l\'ora legale e quella solare', () => {
+    // d'estate Roma è due ore avanti, d'inverno una
+    expect(inizioGiornoRoma('2026-07-15')).toBe('2026-07-14T22:00:00.000Z');
+    expect(inizioGiornoRoma('2026-12-15')).toBe('2026-12-14T23:00:00.000Z');
+  });
+
+  it('il giorno del cambio d\'ora comincia con l\'offset di quella notte', () => {
+    // il 25 ottobre 2026 Roma passa a +01:00 alle 03:00 locali, ma a
+    // mezzanotte era ancora a +02:00: il giorno comincia alle 22:00 del 24
+    expect(inizioGiornoRoma('2026-10-25')).toBe('2026-10-24T22:00:00.000Z');
+  });
+
+  it('l\'inizio del giorno è mezzanotte a Roma, non a Greenwich', () => {
+    // mezzanotte del 2 ottobre a Roma sono le 22:00 UTC del 1º
+    expect(new Date(inizioGiornoRoma('2026-10-02')).toISOString())
+      .toBe('2026-10-01T22:00:00.000Z');
+  });
+
+  it('la fine del giorno arriva a mezzanotte, anche d\'inverno', () => {
+    /*
+     * È il difetto che questo risolve: con «+02:00» scritto a mano, «fino a
+     * tutto il 30 novembre» si fermava alle 22:59 di Roma, e uno scambio
+     * registrato alle 23:15 non compariva nel filtro.
+     */
+    expect(new Date(fineGiornoRoma('2026-11-30')).toISOString())
+      .toBe('2026-11-30T22:59:59.999Z');
+    expect(new Date(fineGiornoRoma('2026-07-15')).toISOString())
+      .toBe('2026-07-15T21:59:59.999Z');
+  });
+
+  it('un giorno intero non lascia buchi né si sovrappone al successivo', () => {
+    const fine = new Date(fineGiornoRoma('2026-10-24')).getTime();
+    const dopo = new Date(inizioGiornoRoma('2026-10-25')).getTime();
+    expect(dopo - fine).toBe(1);
+  });
+});
+
+describe('un\'azione che questa versione non conosce', () => {
+  it('non lascia una riga vuota nel registro', () => {
+    const r = rigaDelRegistro({
+      avvenutoIl: '2026-10-01T07:22:00Z',
+      azione: 'qualcosa_di_nuovo' as never,
+      attore: { nome: 'Mattia', squadra: 'FC Joga Benito' },
+      daAdmin: false, giocatore: 'HAINAUT', dati: {},
+    });
+    expect(r).toBeTypeOf('string');
+    expect(r).toContain('Mattia (FC Joga Benito)');
+    expect(r).toContain('HAINAUT');
+  });
+});
+
+describe('lo svincolo gratuito, ad asta ancora aperta', () => {
+  /*
+   * Il giocatore di una richiesta di svincolo gratuito è quasi sempre lo
+   * svincolando già dichiarato su una chiamata: `requestFreeRelease` cerca la
+   * partecipazione proprio per `release_player_id`. Pubblicare quel nome nel
+   * registro, prima che la sala si apra, vorrebbe dire svelare a tutti lo
+   * svincolando — e con lui il budget — di chi ha chiamato.
+   */
+  it('non nomina il giocatore finché l\'asta è in corso', () => {
+    const r = rigaDelRegistro(voce({
+      azione: 'svincolo_richiesto', giocatore: 'GATTI', riservato: true,
+    }));
+    expect(r).toBe('Mattia (FC Joga Benito) ha chiesto uno svincolo gratuito');
+    expect(r).not.toContain('GATTI');
+  });
+
+  it('e non lo nomina nemmeno nella decisione dell\'admin', () => {
+    const approvato = rigaDelRegistro(voce({
+      azione: 'svincolo_approvato', giocatore: 'GATTI', riservato: true,
+      daAdmin: true, dati: { squadra: 'Pirati' },
+    }));
+    expect(approvato).toBe('Mattia (FC Joga Benito) ha approvato uno svincolo gratuito chiesto da Pirati');
+    expect(approvato).not.toContain('GATTI');
+
+    expect(rigaDelRegistro(voce({
+      azione: 'svincolo_respinto', giocatore: 'GATTI', riservato: true,
+      daAdmin: true, dati: { squadra: 'Pirati' },
+    }))).not.toContain('GATTI');
+  });
+
+  it('ad asta chiusa il nome compare: il segreto non c\'è più', () => {
+    expect(rigaDelRegistro(voce({ azione: 'svincolo_richiesto', giocatore: 'GATTI' })))
+      .toContain('GATTI');
   });
 });

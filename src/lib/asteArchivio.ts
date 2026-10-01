@@ -69,12 +69,26 @@ export async function asteChiuse(leagueId: string): Promise<AstaInElenco[]> {
   });
 }
 
-/** Il tabellone di una serata. */
-export async function astaDellArchivio(sessionId: string): Promise<AstaDellArchivio | null> {
+/**
+ * Il tabellone di una serata **chiusa**, e di quella lega.
+ *
+ * I due controlli non sono formalità. La lettura passa dal service role,
+ * quindi scavalca le policy: senza il controllo sullo stato, bastava copiare
+ * l'id di sessione dal form delle chiamate e aprire
+ * `/registro?vista=aste&asta=<id>` per leggere, ad asta ancora da giocare,
+ * gli svincolandi dichiarati da tutti — che è esattamente il segreto che la
+ * policy «partecipazioni segrete fino all'apertura» protegge, e da lì si
+ * ricava anche il budget altrui. Senza il controllo sulla lega, lo stesso
+ * trucco apriva le serate di un'altra lega.
+ */
+export async function astaDellArchivio(
+  sessionId: string, leagueId: string,
+): Promise<AstaDellArchivio | null> {
   const db = supabaseAdmin();
   const { data: s } = await db.from('auction_sessions')
     .select('id, number, auction_at, room_opened_at, status, league_id')
-    .eq('id', sessionId).maybeSingle();
+    .eq('id', sessionId).eq('league_id', leagueId).eq('status', 'closed')
+    .maybeSingle();
   if (!s) return null;
 
   const { data: lotRows } = await db.from('lots')
@@ -92,9 +106,19 @@ export async function astaDellArchivio(sessionId: string): Promise<AstaDellArchi
   };
   const lots = (lotRows ?? []) as unknown as LotRow[];
 
+  /*
+   * Solo le partecipazioni confermate, come fa la sala.
+   *
+   * Le `pending_approval` — congelate in attesa di una decisione sullo
+   * svincolo gratuito — non sono in gara: `openRoom` conta solo le confermate
+   * e può assegnare il lotto «senza contendenti». Contandole qui, l'archivio
+   * avrebbe scritto «se lo contendevano A e B» su un lotto che il registro
+   * racconta come non conteso, e avrebbe attribuito a B una contesa a cui non
+   * ha partecipato.
+   */
   const { data: partRows } = await db.from('lot_participants')
     .select('lot_id, team_id, release_player_id, status, withdrawn, teams(name), players(name)')
-    .eq('session_id', sessionId).neq('status', 'cancelled');
+    .eq('session_id', sessionId).eq('status', 'confirmed');
 
   type PartRow = {
     lot_id: string; team_id: string; release_player_id: string;

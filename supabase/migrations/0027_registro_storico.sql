@@ -159,31 +159,39 @@ where (select count(*) from picks pk where pk.slip_id = sl.id) > 0
   and not exists (select 1 from registro r where r.impronta = 'schedina:' || sl.id);
 
 -- --------------------------------------------- 7 · svincoli gratuiti chiesti
+-- Le richieste ritirate restano fuori: non sono una richiesta fatta, e in un
+-- elenco pubblico sembrerebbero una cosa che l'allenatore non ha mai chiesto.
+-- `session_id` segue la partecipazione congelata, quando c'è: è quello che
+-- dice al registro che il nome del giocatore è ancora segreto, perché su
+-- un'asta aperta quel giocatore è lo svincolando dichiarato da qualcuno.
 insert into registro
   (league_id, avvenuto_il, azione, attore_team, attore_nome, da_admin,
-   player_id, dati, impronta)
+   player_id, session_id, dati, impronta)
 select f.league_id, f.created_at, 'svincolo_richiesto', f.team_id, t.name, false,
-       f.player_id, '{}'::jsonb, 'svincolo_chiesto:' || f.id
+       f.player_id, lp.session_id, '{}'::jsonb, 'svincolo_chiesto:' || f.id
 from free_release_requests f
 join teams t on t.id = f.team_id
-where not exists (
-  select 1 from registro r where r.impronta = 'svincolo_chiesto:' || f.id
-);
+left join lot_participants lp on lp.id = f.lot_participant_id
+where f.status <> 'cancelled'
+  and not exists (
+    select 1 from registro r where r.impronta = 'svincolo_chiesto:' || f.id
+  );
 
 -- ---------------------------------------------- 8 · svincoli gratuiti decisi
 -- L'annullamento della richiesta non entra: non decide niente sullo svincolo
 -- e in un elenco pubblico sembrerebbe un «no» che non è stato dato.
 insert into registro
   (league_id, avvenuto_il, azione, attore_user, attore_nome, da_admin,
-   player_id, dati, impronta)
+   player_id, session_id, dati, impronta)
 select f.league_id, f.decided_at,
        case f.status when 'approved' then 'svincolo_approvato' else 'svincolo_respinto' end,
        f.decided_by, 'L''admin', true,
-       f.player_id,
+       f.player_id, lp.session_id,
        jsonb_strip_nulls(jsonb_build_object('squadra', t.name, 'nota', nullif(f.decision_note, ''))),
        'svincolo_deciso:' || f.id
 from free_release_requests f
 join teams t on t.id = f.team_id
+left join lot_participants lp on lp.id = f.lot_participant_id
 where f.status in ('approved', 'rejected') and f.decided_at is not null
   and not exists (
     select 1 from registro r where r.impronta = 'svincolo_deciso:' || f.id

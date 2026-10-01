@@ -1,6 +1,8 @@
 import 'server-only';
 import { supabaseAdmin } from './supabase';
-import { nomeAttore, type Azione, type VoceDelRegistro } from './registro';
+import {
+  fineGiornoRoma, inizioGiornoRoma, nomeAttore, type Azione, type VoceDelRegistro,
+} from './registro';
 
 /**
  * Leggere il registro: una query con i filtri, e i nomi risolti adesso.
@@ -49,7 +51,8 @@ export async function pagineDelRegistro(
 
   let q = db.from('registro')
     .select(`id, avvenuto_il, azione, attore_user, attore_team, attore_nome, da_admin,
-             dati, players(name), teams:attore_team(name)`)
+             dati, players(name), teams:attore_team(name),
+             auction_sessions:session_id(status)`)
     .eq('league_id', leagueId)
     .order('avvenuto_il', { ascending: false })
     .order('id', { ascending: false })
@@ -58,8 +61,10 @@ export async function pagineDelRegistro(
     .range(da, da + PER_PAGINA);
 
   if (f.azione && f.azione !== 'tutte') q = q.eq('azione', f.azione);
-  if (f.da) q = q.gte('avvenuto_il', f.da);
-  if (f.a) q = q.lte('avvenuto_il', fineDelGiorno(f.a));
+  // i due estremi si calcolano con il fuso vero di Roma, non con un offset
+  // scritto a mano: vedi `inizioGiornoRoma`
+  if (f.da) q = q.gte('avvenuto_il', inizioGiornoRoma(f.da));
+  if (f.a) q = q.lte('avvenuto_il', fineGiornoRoma(f.a));
   if (f.playerId) q = q.eq('player_id', f.playerId);
   if (f.allenatore) {
     const [userId, teamId] = f.allenatore.split(':');
@@ -81,6 +86,7 @@ export async function pagineDelRegistro(
     da_admin: boolean; dati: Record<string, unknown> | null;
     players: { name: string } | null;
     teams: { name: string } | null;
+    auction_sessions: { status: string } | null;
   };
   const righe = (data ?? []) as unknown as Riga[];
   const altre = righe.length > PER_PAGINA;
@@ -90,6 +96,15 @@ export async function pagineDelRegistro(
 
   const voci: VoceDelRegistro[] = visibili.map((r) => {
     const persona = r.attore_user ? nomi.get(r.attore_user) : undefined;
+    /*
+     * Gli svincoli gratuiti di un'asta ancora in corso non nominano il
+     * giocatore: quasi sempre è lo svincolando già dichiarato su una
+     * chiamata, e fino all'apertura della sala è segreto. Le righe che non
+     * sono legate a nessuna asta non hanno niente da nascondere.
+     */
+    const asta = r.auction_sessions?.status ?? null;
+    const riservato = r.azione.startsWith('svincolo_')
+      && asta !== null && asta !== 'live' && asta !== 'closed';
     return {
       id: r.id,
       avvenutoIl: r.avvenuto_il,
@@ -107,19 +122,11 @@ export async function pagineDelRegistro(
       // travasate dall'audit log, dove c'era solo il nome scritto, vale quello
       giocatore: r.players?.name ?? (typeof r.dati?.giocatore === 'string' ? r.dati.giocatore : null),
       dati: r.dati ?? {},
+      riservato,
     };
   });
 
   return { voci, pagina, altre };
-}
-
-/** Fine del giorno indicato, nell'ora di Roma: «fino a tutto il 3 ottobre». */
-function fineDelGiorno(giorno: string): string {
-  // il filtro arriva come 2026-10-03 da un campo data: la fine di quel giorno
-  // a Roma è l'inizio del giorno dopo meno un istante, e per un `lte` basta
-  // prendere le 23:59:59 locali — l'ora legale la risolve il database, che
-  // confronta istanti
-  return `${giorno}T23:59:59.999+02:00`;
 }
 
 export interface Allenatore {
@@ -173,9 +180,18 @@ export async function giocatoriNelRegistro(
   leagueId: string,
 ): Promise<{ id: string; nome: string }[]> {
   const db = supabaseAdmin();
+  /*
+   * Un tetto esplicito e un ordine: PostgREST taglia a mille righe da sé, in
+   * silenzio e senza ordine garantito, e il menù avrebbe perso proprio i
+   * giocatori delle righe più vecchie — quelli che uno va a cercare. Mille
+   * righe sono una stagione intera per otto squadre; oltre, il menù mostra i
+   * più recenti e il filtro resta raggiungibile dall'indirizzo.
+   */
   const { data } = await db.from('registro')
     .select('player_id, players(name)')
-    .eq('league_id', leagueId).not('player_id', 'is', null);
+    .eq('league_id', leagueId).not('player_id', 'is', null)
+    .order('avvenuto_il', { ascending: false })
+    .limit(1000);
 
   type Riga = { player_id: string; players: { name: string } | null };
   const visti = new Map<string, string>();

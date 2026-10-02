@@ -53,14 +53,15 @@ export async function generaQuoteAction(_p: ActionState, form: FormData): Promis
         const campo = s.osservata == null
           ? 'nessuna giornata in archivio'
           : `campo ${s.osservata.toFixed(1)} su ${s.giornate} ${s.giornate === 1 ? 'giornata' : 'giornate'}`;
-        return `${nome}: listone ${s.baseListone.toFixed(1)} · ${campo} → attesi ${s.mu.toFixed(1)} fp`;
+        return `${nome}: listone ${s.baseListone.toFixed(1)} · ${campo} → attesi ${s.mu.toFixed(1)} ± ${s.sd.toFixed(1)} fp`;
       });
 
     return {
       ok: true,
       message: r.sfide === 0
         ? 'Nessuna sfida da quotare: mancano gli accoppiamenti.'
-        : `Quote generate: ${r.sfide} sfide, ${r.esiti} esiti. Guardale e poi pubblicale.`,
+        : `Quote generate col Monte Carlo (${r.simulazioni.toLocaleString('it-IT')} giornate simulate): `
+          + `${r.sfide} sfide, ${r.esiti} esiti. Guardale e poi pubblicale.`,
       dettaglio: r.sfide === 0 ? undefined : dettaglio,
     };
   } catch (e) { return esito(e); }

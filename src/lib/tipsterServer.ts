@@ -2,9 +2,12 @@ import 'server-only';
 import { popolaritaPerSfida, type CasellaPopolare } from './popolarita';
 import { nonSchierabili } from './infortuni/infortuniServer';
 import { formaGiocatori, quotazioniAggiornate } from './fonti/fontiServer';
+import {
+  formazioneMC, quoteSfidaMC, semeDa, simulaGiornata, SIMULAZIONI, type FormazioneMC,
+} from './montecarlo';
 import { supabaseAdmin } from './supabase';
 import {
-  forzaClub, priorita, stimaSquadra, quoteSfida, risolviSchedina,
+  forzaClub, priorita, stimaSquadra, risolviSchedina,
   type ContestoClub, type GiocatoreTipster, type GiornataGiocata,
   type Mercato, type StimaSquadra,
 } from './tipster';
@@ -266,6 +269,8 @@ export interface QuoteGenerate {
   sfide: number;
   esiti: number;
   stime: StimaPubblicata[];
+  /** quante giornate ha giocato il Monte Carlo */
+  simulazioni: number;
 }
 
 /**
@@ -307,22 +312,34 @@ export async function generaQuote(leagueId: string, matchdayId: string): Promise
     club: String(p.club), quotazione: Number(p.quotation ?? 1),
   })));
 
-  const stime = new Map<string, StimaSquadra>();
+  /*
+   * Monte Carlo: tutte le squadre giocano la giornata insieme, ventimila
+   * volte, giocatore per giocatore (`montecarlo.ts`). Il livello di ogni
+   * squadra resta quello tarato di `stimaSquadra`; la simulazione aggiunge
+   * la forma vera della distribuzione — gol a scatti, titolari che non
+   * giocano, club condivisi fra due fantasquadre. Il seme è l'id della
+   * giornata: rigenerare con gli stessi dati dà le stesse quote.
+   */
+  const formazioni = new Map<string, FormazioneMC>();
   for (const [teamId, rosa] of rose) {
-    stime.set(teamId, stimaSquadra(rosa, contesti, {
+    formazioni.set(teamId, formazioneMC(rosa, contesti, {
       forzaClub: forza, correzioneMedia, pesoListone,
       storico: storico.get(teamId) ?? [],
     }));
   }
+  const stime = new Map<string, StimaSquadra>([...formazioni].map(([id, f]) => [id, f.stima]));
+  const sim = simulaGiornata(formazioni, { seme: semeDa(matchdayId), forzaClub: forza });
 
   const righe: Record<string, unknown>[] = [];
   let quotate = 0;
   for (const s of sfide) {
-    const casa = s.homeTeamId ? stime.get(s.homeTeamId) : undefined;
-    const ospite = s.awayTeamId ? stime.get(s.awayTeamId) : undefined;
+    const casa = s.homeTeamId ? formazioni.get(s.homeTeamId) : undefined;
+    const ospite = s.awayTeamId ? formazioni.get(s.awayTeamId) : undefined;
     if (!casa || !ospite) continue;      // accoppiamento non ancora deciso
     quotate++;
-    for (const e of quoteSfida(casa, ospite)) {
+    const esiti = quoteSfidaMC(sim,
+      { ...casa, teamId: s.homeTeamId as string }, { ...ospite, teamId: s.awayTeamId as string });
+    for (const e of esiti) {
       righe.push({
         fixture_id: s.id, market: e.market, selection: e.selection,
         probability: Number(e.probability.toFixed(6)), price: e.price,
@@ -342,8 +359,13 @@ export async function generaQuote(leagueId: string, matchdayId: string): Promise
   return {
     sfide: quotate,
     esiti: righe.length,
+    simulazioni: SIMULAZIONI,
     stime: [...stime].map(([teamId, s]) => ({
-      teamId, mu: s.mu, sd: s.sd,
+      teamId,
+      // media e dispersione sono quelle simulate: sono quelle da cui
+      // escono le quote
+      mu: sim.riepilogo.get(teamId)?.media ?? s.mu,
+      sd: sim.riepilogo.get(teamId)?.sd ?? s.sd,
       baseListone: s.baseListone, osservata: s.osservata, giornate: s.giornate,
     })),
   };

@@ -33,6 +33,14 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   vale il fantavoto calcolato con le nostre regole di bonus.
 - **Chi non gioca scivola fuori dall'undici stimato**: un titolare che non
   prende voto da tre giornate lascia il posto a chi gioca davvero.
+- **Le quote nascono da un Monte Carlo.** La giornata si gioca ventimila
+  volte, giocatore per giocatore: voto, gol, assist, cartellini, gol subiti
+  dei portieri, titolari che non giocano e riserve che entrano. Ogni club di
+  Serie A ha la sua giornata buona o cattiva, condivisa da tutti i suoi
+  giocatori: due fantasquadre con mezzo undici della stessa squadra salgono
+  e scendono insieme, e le quote lo sanno. Il livello delle squadre resta
+  quello tarato di prima; cambia la forma: gol a scatti, code più vere.
+  Le stesse quote escono rigenerando con gli stessi dati.
 
 ### In diretta
 - **La partita del fanta in diretta.** A giornata cominciata, la card della

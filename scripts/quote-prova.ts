@@ -14,9 +14,11 @@ import ExcelJS from 'exceljs';
 import { parseCsv } from '../src/lib/csv';
 import { parseListone } from '../src/lib/listone';
 import {
-  forzaClub, stimaSquadra, quoteSfida,
-  type GiocatoreTipster, type ContestoClub,
+  forzaClub, type GiocatoreTipster, type ContestoClub,
 } from '../src/lib/tipster';
+import {
+  formazioneMC, quoteSfidaMC, semeDa, simulaGiornata, type FormazioneMC,
+} from '../src/lib/montecarlo';
 
 const args = process.argv.slice(2);
 const arg = (n: string) => { const i = args.indexOf(`--${n}`); return i >= 0 ? args[i + 1] : undefined; };
@@ -69,13 +71,15 @@ async function main() {
     rose.set(p.teamName!, l);
   });
 
-  const stime = new Map([...rose].map(([nome, rosa]) =>
-    [nome, stimaSquadra(rosa, contesti, { forzaClub: forza })]));
+  // lo stesso Monte Carlo della generazione vera, con lo stesso tipo di seme
+  const formazioni = new Map<string, FormazioneMC>([...rose].map(([nome, rosa]) =>
+    [nome, formazioneMC(rosa, contesti, { forzaClub: forza })]));
+  const sim = simulaGiornata(formazioni, { seme: semeDa(`prova-${GIORNATA}`), forzaClub: forza });
 
   console.log(`\nGiornata di campionato ${GIORNATA} · Serie A ${gCamp.serie_a} · ${gCamp.data}\n`);
-  console.log('Fantapunti attesi:');
-  [...stime].sort((a, b) => b[1].mu - a[1].mu)
-    .forEach(([n, s]) => console.log(`  ${n.padEnd(24)} ${s.mu.toFixed(1)} ± ${s.sd.toFixed(1)}`));
+  console.log(`Fantapunti attesi (Monte Carlo, ${sim.n} giornate):`);
+  [...sim.riepilogo].sort((a, b) => b[1].media - a[1].media)
+    .forEach(([n, s]) => console.log(`  ${n.padEnd(24)} ${s.media.toFixed(1)} ± ${s.sd.toFixed(1)}`));
 
   const sfide: [string, string, string][] = [
     ...(gCamp.partite as [string, string][]).map(([c, o]) => ['campionato', c, o] as [string, string, string]),
@@ -83,9 +87,9 @@ async function main() {
   ];
 
   for (const [comp, casa, ospite] of sfide) {
-    const a = stime.get(casa); const b = stime.get(ospite);
+    const a = formazioni.get(casa); const b = formazioni.get(ospite);
     if (!a || !b) { console.log(`\n  ⚠ rosa mancante per ${!a ? casa : ospite}`); continue; }
-    const esiti = quoteSfida(a, b);
+    const esiti = quoteSfidaMC(sim, { ...a, teamId: casa }, { ...b, teamId: ospite });
     const q = (m: string, s: string) => {
       const e = esiti.find((x) => x.market === m && x.selection === s);
       return e ? e.price.toFixed(2) : '—';

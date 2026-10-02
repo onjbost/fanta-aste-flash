@@ -3,6 +3,7 @@ import { requireTeamContext } from '@/lib/queries';
 import { supabaseAdmin } from '@/lib/supabase';
 import { TopBar } from '../../TopBar';
 import { LinkForm, MemberRow } from './LinkForm';
+import { StemmaForm } from './StemmaForm';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,12 +12,16 @@ export default async function AllenatoriPage() {
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = supabaseAdmin();
-  const [{ data: teams }, { data: members }, users] = await Promise.all([
+  const [{ data: teams }, { data: members }, users, { data: loghi }] = await Promise.all([
     db.from('teams').select('id, name').eq('league_id', ctx.team.leagueId).order('name'),
     db.from('team_members').select('id, team_id, user_id, email, is_admin, created_at')
       .eq('league_id', ctx.team.leagueId),
     db.auth.admin.listUsers({ perPage: 200 }),
+    // a parte: senza la migrazione 0029 fallisce solo questa, e si vedono le iniziali
+    db.from('teams').select('id, logo_url').eq('league_id', ctx.team.leagueId),
   ]);
+  const logoDi = new Map(((loghi ?? []) as { id: string; logo_url: string | null }[])
+    .map((l) => [l.id, l.logo_url]));
 
   const linked = new Set((members ?? []).map((m) => m.user_id));
   const scollegati = (users.data?.users ?? [])
@@ -38,7 +43,7 @@ export default async function AllenatoriPage() {
       <TopBar teamName={ctx.team.name} isAdmin active="admin" />
 
       <p className="eyebrow">Pannello admin</p>
-      <h1>Allenatori</h1>
+      <h1>Allenatori e stemmi</h1>
       <p className="sub">
         Ogni squadra può averne due: vedono la stessa rosa, gli stessi crediti e gli
         stessi cambi, e possono entrambi chiamare, aderire e rilanciare. Per il mercato
@@ -73,6 +78,8 @@ export default async function AllenatoriPage() {
                 : '2 allenatori'}
             </span>
           </div>
+
+          <StemmaForm teamId={t.id} nome={t.name} url={logoDi.get(t.id) ?? null} />
 
           {t.members.length > 0 && (
             <div style={{ marginTop: 12, display: 'grid', gap: 8 }}>

@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { redirect } from 'next/navigation';
 import { supabaseServer } from './supabase';
 import {
@@ -7,7 +8,11 @@ import {
 } from './rules';
 
 export interface TeamContext {
-  team: { id: string; name: string; managerName: string; isAdmin: boolean; leagueId: string };
+  team: {
+    id: string; name: string; managerName: string; isAdmin: boolean; leagueId: string;
+    /** stemma caricato dall'admin; null finché non c'è (si mostra il monogramma) */
+    logoUrl: string | null;
+  };
   cfg: LeagueConfig;
   credits: number;
   roster: (RosterPlayer & { refund: number; refundFree: boolean; refundReason: string })[];
@@ -39,8 +44,13 @@ function cfgFromRow(l: Record<string, unknown>): LeagueConfig {
   };
 }
 
-/** Tutto quello che serve alla dashboard, in una sola andata al database. */
-export async function loadTeamContext(): Promise<TeamContext | null> {
+/**
+ * Tutto quello che serve alla dashboard, in una sola andata al database.
+ *
+ * Memorizzato per richiesta: la pagina e la testata lo chiedono entrambe
+ * (la testata per crediti e stemma), e la seconda volta non costa niente.
+ */
+export const loadTeamContext = cache(async (): Promise<TeamContext | null> => {
   const db = await supabaseServer();
   const { data: auth } = await db.auth.getUser();
   if (!auth.user) return null;
@@ -59,7 +69,7 @@ export async function loadTeamContext(): Promise<TeamContext | null> {
   if (!joined?.teams) return null;
   const team = { ...joined.teams, is_admin: joined.is_admin };
 
-  const [{ data: league }, { data: credits }, { data: contracts }, { data: requests }, { data: sessions }] =
+  const [{ data: league }, { data: credits }, { data: contracts }, { data: requests }, { data: sessions }, { data: logo }] =
     await Promise.all([
       db.from('leagues').select('*').eq('id', team.league_id).single(),
       db.from('v_team_credits').select('credits').eq('team_id', team.id).single(),
@@ -69,6 +79,9 @@ export async function loadTeamContext(): Promise<TeamContext | null> {
       db.from('free_release_requests').select('player_id, status').eq('team_id', team.id),
       db.from('auction_sessions').select('id, number, auction_at, status, excludes_new_signings')
         .eq('league_id', team.league_id).order('number'),
+      // a parte: se la colonna non c'è ancora (migrazione 0029 non applicata)
+      // fallisce solo questa lettura, e il resto della pagina non se ne accorge
+      db.from('teams').select('logo_url').eq('id', team.id).maybeSingle(),
     ]);
 
   const cfg = league ? cfgFromRow(league) : DEFAULT_CONFIG;
@@ -121,6 +134,7 @@ export async function loadTeamContext(): Promise<TeamContext | null> {
     team: {
       id: team.id, name: team.name, managerName: team.manager_name,
       isAdmin: team.is_admin, leagueId: team.league_id,
+      logoUrl: (logo as { logo_url?: string | null } | null)?.logo_url ?? null,
     },
     cfg,
     credits: credits?.credits ?? 0,
@@ -129,7 +143,7 @@ export async function loadTeamContext(): Promise<TeamContext | null> {
     changes: changesSummary(releases, now, cfg),
     nextSession: next,
   };
-}
+});
 
 export interface FreeAgent {
   id: string; name: string; role: Role; club: string;

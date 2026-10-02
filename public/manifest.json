@@ -3,7 +3,7 @@
   "short_name": "Aste Flash",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#101614",
-  "theme_color": "#101614",
+  "background_color": "#0C1410",
+  "theme_color": "#0C1410",
   "icons": []
 }

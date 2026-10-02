@@ -1,48 +1,58 @@
-'use client';
-
-import { useActionState } from 'react';
-import { useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
-import { sendMagicLink, type ActionState } from '../actions';
+import { supabaseAdmin } from '@/lib/supabase';
+import { ICONE } from '../BottomNav';
+import { LoginForm } from './LoginForm';
 
-function LoginForm() {
-  const [state, action, pending] = useActionState<ActionState, FormData>(sendMagicLink, null);
-  const error = useSearchParams().get('error');
+export const dynamic = 'force-dynamic';
 
-  return (
-    <div className="login">
-      <p className="eyebrow">Lega Fanta Mansarda</p>
-      <h1>Aste Flash</h1>
-      <p className="sub">
-        Entra con la mail che hai dato all'admin. Niente password: ti arriva un link,
-        lo apri, sei dentro.
-      </p>
-
-      <form action={action}>
-        <div className="field">
-          <label htmlFor="email">Email</label>
-          <input id="email" name="email" type="email" inputMode="email" autoComplete="email" required
-                 placeholder="nome@esempio.it" />
-        </div>
-        <button type="submit" className="primary" disabled={pending} style={{ width: '100%', padding: 10 }}>
-          {pending ? 'Invio…' : 'Mandami il link'}
-        </button>
-      </form>
-
-      {error && !state && (
-        <div className="callout crit" role="status">{error}</div>
-      )}
-      {state && (
-        <div className={state.ok ? 'callout' : 'callout crit'} role="status">{state.message}</div>
-      )}
-    </div>
-  );
+/**
+ * Tre numeri della lega per la porta d'ingresso: squadre, aste in stagione,
+ * giornate di Serie A. Chi arriva qui non è ancora entrato, quindi li legge
+ * il server con la chiave di servizio — solo conteggi, nessun dato di nessuno.
+ * Se qualcosa non risponde la fila sparisce: il login non deve mai rompersi
+ * per una decorazione.
+ */
+async function numeriDellaLega(): Promise<{ v: number; k: string }[] | null> {
+  try {
+    const db = supabaseAdmin();
+    const conta = (t: string) => db.from(t).select('id', { count: 'exact', head: true });
+    const [squadre, aste, giornate] = await Promise.all([
+      conta('teams'), conta('auction_sessions'), conta('matchdays'),
+    ]);
+    if (squadre.error || aste.error || giornate.error) return null;
+    return [
+      { v: squadre.count ?? 0, k: 'squadre' },
+      { v: aste.count ?? 0, k: 'aste flash' },
+      { v: giornate.count ?? 0, k: 'giornate' },
+    ].filter((n) => n.v > 0);
+  } catch {
+    return null;
+  }
 }
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  const numeri = await numeriDellaLega();
+
   return (
-    <Suspense>
-      <LoginForm />
-    </Suspense>
+    <main className="login">
+      <div className="login-marchio">
+        <span className="login-logo">{ICONE.asta}</span>
+        <span>Aste <b>Flash</b></span>
+      </div>
+
+      <h1 className="login-titolo">Il mercato della <span>Fanta Mansarda</span></h1>
+
+      {numeri && numeri.length > 0 && (
+        <div className="login-numeri">
+          {numeri.map((n) => (
+            <div key={n.k}><b className="num">{n.v}</b><span>{n.k}</span></div>
+          ))}
+        </div>
+      )}
+
+      <Suspense>
+        <LoginForm />
+      </Suspense>
+    </main>
   );
 }

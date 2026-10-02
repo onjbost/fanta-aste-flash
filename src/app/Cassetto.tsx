@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { signOut } from './actions';
@@ -41,8 +41,18 @@ function attiva(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-export function Cassetto({ squadra, crediti, stemma, isAdmin }: {
+/**
+ * Disegna la testata e, accanto a lei (non dentro), velo e cassetto.
+ *
+ * Il resto della testata (marchio, saldo) arriva come `children`. Stare fuori
+ * dalla testata non è un dettaglio: qualunque cosa la renda contenitore dei
+ * figli `position:fixed` — uno sfondo sfocato, una trasformazione, un browser
+ * che fa a modo suo — chiudeva il cassetto nei suoi 64px. Da fratello non
+ * c'è antenato che lo possa rimpicciolire.
+ */
+export function Cassetto({ squadra, crediti, stemma, isAdmin, children }: {
   squadra: string; crediti: number | null; stemma: string | null; isAdmin: boolean;
+  children?: ReactNode;
 }) {
   const [aperto, setAperto] = useState(false);
   const pathname = usePathname();
@@ -81,6 +91,7 @@ export function Cassetto({ squadra, crediti, stemma, isAdmin }: {
 
   return (
     <>
+      <header className="topbar">
       <button
         ref={bottone} type="button" className="icon-btn"
         aria-label="Apri il menù" aria-expanded={aperto} aria-controls="cassetto"
@@ -88,6 +99,8 @@ export function Cassetto({ squadra, crediti, stemma, isAdmin }: {
       >
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h10" /></svg>
       </button>
+      {children}
+      </header>
 
       <div className={`cassetto-velo${aperto ? ' aperto' : ''}`} onClick={chiudi} aria-hidden="true" />
 

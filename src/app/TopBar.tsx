@@ -20,20 +20,20 @@ export async function TopBar(props: { teamName: string; isAdmin: boolean; active
 
   return (
     <>
-      <header className="topbar">
-        <Cassetto
-          squadra={ctx?.team.name ?? props.teamName}
-          crediti={crediti}
-          stemma={ctx?.team.logoUrl ?? null}
-          isAdmin={props.isAdmin}
-        />
+      {/* la testata la disegna il cassetto, che le sta accanto e non dentro */}
+      <Cassetto
+        squadra={ctx?.team.name ?? props.teamName}
+        crediti={crediti}
+        stemma={ctx?.team.logoUrl ?? null}
+        isAdmin={props.isAdmin}
+      >
         <div className="brand">Aste <span>Flash</span></div>
         {crediti !== null && (
           <Link href="/rosa" className="saldo" aria-label={`${crediti} crediti residui`}>
             {crediti}<small>cr</small>
           </Link>
         )}
-      </header>
+      </Cassetto>
       {!props.pieno && <BottomNav active={props.active} salaLive={salaLive} />}
     </>
   );

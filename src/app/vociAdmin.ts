@@ -35,6 +35,8 @@ export const GRUPPI_ADMIN: GruppoAdmin[] = [
       { href: '/admin/schedine', testo: 'Tipster' },
       { href: '/admin/prova', testo: 'Sala di prova' },
       { href: '/admin/changelog', testo: 'Novità dell\'app' },
+      // TEMPORANEO: collaudo del calcolo automatico, da togliere
+      { href: '/admin/prova-cron', testo: 'Prova del cron (temporaneo)' },
     ],
   },
 ];

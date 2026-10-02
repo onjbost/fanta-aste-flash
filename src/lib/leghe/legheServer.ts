@@ -524,3 +524,68 @@ async function giaNostra(leagueId: string, tipo: TipoCompetizione, t: TurnoApi):
   if (!data?.length) return true;
   return data.every((f) => f.home_goals != null);
 }
+
+// =====================================================================
+// PROVA DEL CRON — temporaneo, da togliere dopo il collaudo
+// =====================================================================
+
+export interface PassoProva { nome: string; esito: 'ok' | 'ko' | 'info'; dettaglio: string }
+
+/**
+ * Il giro del cron su una giornata scelta, passo per passo.
+ *
+ * Fa esattamente quello che fa il cron — controllo delle partite finite,
+ * «Calcola giornata» su Leghe Fantacalcio, verifica, import — saltando solo
+ * i due filtri che impedirebbero di provarlo su una giornata passata: la
+ * data (il giorno dopo l'ultima partita) e il «già importata». Quei due li
+ * mostra comunque, come informazione.
+ */
+export async function provaCron(tipo: TipoCompetizione, giornata: number): Promise<PassoProva[]> {
+  const passi: PassoProva[] = [];
+  const passo = (nome: string, esito: PassoProva['esito'], dettaglio: string) => passi.push({ nome, esito, dettaglio });
+
+  try {
+    const comp = (await competizioniLega()).find((c) => c.tipo === tipo);
+    if (!comp) { passo('Competizione', 'ko', `nessuna competizione di tipo ${tipo} sulla lega`); return passi; }
+    passo('Competizione', 'ok', `${comp.name} (id ${comp.id})`);
+
+    const turno = (await calendario(comp.id)).find((t) => t.matchDay === giornata);
+    if (!turno) { passo('Giornata sulla lega', 'ko', `la giornata ${giornata} non è nel calendario della lega`); return passi; }
+    passo('Giornata sulla lega', 'info',
+      `giornata ${giornata} = ${turno.championshipMatchDay}ª di Serie A · ${turno.calculated ? 'risulta GIÀ calcolata' : 'NON risulta calcolata'}`);
+
+    const cal = await calendarioSerieA(turno.championshipMatchDay);
+    const giorno = giornoDelCalcolo(cal);
+    passo('Quando la leggerebbe il cron', 'info', giorno
+      ? `dal ${giorno} (giorno dopo l'ultima partita) · oggi ${giornataPronta(cal, Date.now()) ? 'il cron procederebbe' : 'il cron aspetterebbe'}`
+      : 'il calendario non ha date: il cron non procederebbe');
+
+    const finite = await partiteFinite(turno.championshipMatchDay);
+    if (!finite.ok) { passo('Partite finite (live)', 'ko', finite.perche); return passi; }
+    passo('Partite finite (live)', 'ok', 'tutte le partite non rinviate risultano finite');
+
+    if (turno.calculated) {
+      passo('Calcolo su Leghe', 'info', 'già calcolata: il cron non la ricalcolerebbe. Annulla il calcolo sulla lega per provare anche questo passo.');
+    } else {
+      const r = await calcolaGiornata(comp.id, giornata);
+      if (!r.ok) { passo('Calcolo su Leghe', 'ko', r.messaggio); return passi; }
+      passo('Calcolo su Leghe', 'ok', 'la lega ha risposto CALOK');
+      const dopo = (await calendario(comp.id)).find((t) => t.matchDay === giornata);
+      if (!dopo?.calculated) { passo('Verifica del calcolo', 'ko', 'la lega non la dà ancora per calcolata'); return passi; }
+      passo('Verifica del calcolo', 'ok', 'la giornata ora risulta calcolata');
+    }
+
+    const imp = await importaGiornateConcluse({ forza: { tipo, giornata } });
+    const fatta = imp.importate[0];
+    if (!fatta) { passo('Import nella nostra app', 'ko', imp.problemi.join(' · ') || 'non importata'); return passi; }
+    const e = fatta.esito;
+    passo('Import nella nostra app', e.problemi.length ? 'info' : 'ok',
+      `${e.sfideScritte}/${e.sfideLette} sfide scritte · ${e.giocatori} giocatori (${e.agganciati} agganciati) · `
+      + `${e.classificheScritte} classifiche`
+      + (e.schedine ? ` · schedine: ${e.schedine.schedine} chiuse` : '')
+      + (e.problemi.length ? ` — ${e.problemi.join(' · ')}` : ''));
+  } catch (err) {
+    passo('Errore', 'ko', (err as Error).message);
+  }
+  return passi;
+}

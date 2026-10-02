@@ -1,9 +1,9 @@
 import Link from 'next/link';
+import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { TopBar } from '../TopBar';
 import { Gioca } from './Gioca';
 import { Storico } from './Storico';
-import { Classifica } from './Classifica';
 import { Altre } from './Altre';
 
 export const dynamic = 'force-dynamic';
@@ -14,7 +14,8 @@ const TAB: { key: Tab; label: string; href: string }[] = [
   { key: 'gioca', label: 'Gioca', href: '/schedine' },
   { key: 'storico', label: 'Le mie schedine', href: '/schedine?tab=storico' },
   { key: 'altre', label: 'Giocate degli altri', href: '/schedine?tab=altre' },
-  { key: 'classifica', label: 'Classifica', href: '/schedine?tab=classifica' },
+  // la classifica dei tipster vive con le altre, nella pagina delle classifiche
+  { key: 'classifica', label: 'Classifica', href: '/classifica?c=tipster&da=schedine' },
 ];
 
 export default async function SchedinePage({
@@ -22,7 +23,8 @@ export default async function SchedinePage({
 }: { searchParams: Promise<{ tab?: string }> }) {
   const ctx = await requireTeamContext();
   const { tab } = await searchParams;
-  const attiva: Tab = tab === 'storico' || tab === 'altre' || tab === 'classifica' ? tab : 'gioca';
+  if (tab === 'classifica') redirect('/classifica?c=tipster&da=schedine');
+  const attiva: Tab = tab === 'storico' || tab === 'altre' ? tab : 'gioca';
 
   return (
     <div className="shell">
@@ -43,7 +45,6 @@ export default async function SchedinePage({
       {attiva === 'gioca' && <Gioca teamId={ctx.team.id} leagueId={ctx.team.leagueId} />}
       {attiva === 'storico' && <Storico teamId={ctx.team.id} />}
       {attiva === 'altre' && <Altre teamId={ctx.team.id} leagueId={ctx.team.leagueId} />}
-      {attiva === 'classifica' && <Classifica teamId={ctx.team.id} leagueId={ctx.team.leagueId} />}
     </div>
   );
 }

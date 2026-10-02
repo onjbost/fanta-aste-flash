@@ -50,8 +50,10 @@ function attiva(pathname: string, href: string): boolean {
  * che fa a modo suo — chiudeva il cassetto nei suoi 64px. Da fratello non
  * c'è antenato che lo possa rimpicciolire.
  */
-export function Cassetto({ squadra, crediti, stemma, isAdmin, children }: {
+export function Cassetto({ squadra, crediti, stemma, isAdmin, indietro, children }: {
   squadra: string; crediti: number | null; stemma: string | null; isAdmin: boolean;
+  /** se c'è, al posto del ☰ una freccia che porta qui */
+  indietro?: string;
   children?: ReactNode;
 }) {
   const [aperto, setAperto] = useState(false);
@@ -92,13 +94,21 @@ export function Cassetto({ squadra, crediti, stemma, isAdmin, children }: {
   return (
     <>
       <header className="topbar">
-      <button
-        ref={bottone} type="button" className="icon-btn"
-        aria-label="Apri il menù" aria-expanded={aperto} aria-controls="cassetto"
-        onClick={() => setAperto(true)}
-      >
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h10" /></svg>
-      </button>
+      {/* nelle pagine a schermo pieno il primo tasto riporta indietro: da lì
+          si esce, non si naviga altrove */}
+      {indietro ? (
+        <Link href={indietro} className="icon-btn" aria-label="Indietro">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+        </Link>
+      ) : (
+        <button
+          ref={bottone} type="button" className="icon-btn"
+          aria-label="Apri il menù" aria-expanded={aperto} aria-controls="cassetto"
+          onClick={() => setAperto(true)}
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16" /><path d="M4 12h16" /><path d="M4 17h10" /></svg>
+        </button>
+      )}
       {children}
       </header>
 

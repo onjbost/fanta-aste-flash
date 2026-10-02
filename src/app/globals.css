@@ -1084,3 +1084,113 @@ th.ordinabile .livello{
 .login-card-titolo{font-family:var(--font-display);font-size:1.5rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
 .login-nota{margin:10px 0 0;text-align:center;font-size:.8rem;color:var(--muted)}
 @media (min-height:760px){ .login-card{margin-top:auto;margin-bottom:6vh} }
+
+/* =====================================================================
+   Home — banner partita a scorrimento, tasti, scadenze
+   ===================================================================== */
+.segmento{
+  display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;padding:4px;margin:4px 0 10px;
+  background:var(--surface);border-radius:var(--pill);
+}
+.segmento button{
+  border:none;background:none;min-height:0;padding:8px 10px;border-radius:var(--pill);
+  color:var(--muted);font-size:.88rem;font-weight:600;
+}
+.segmento button:hover{color:var(--ink);border:none}
+.segmento button[aria-selected="true"]{background:var(--surface-2);color:var(--ink)}
+
+/* le slide scorrono col dito e si fermano a calamita: il selettore sopra e
+   i pallini sotto dicono dove sei, e toccarli porta alla slide */
+.carosello{
+  display:grid;grid-auto-flow:column;grid-auto-columns:100%;gap:12px;
+  overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none;
+  overscroll-behavior-x:contain;
+}
+.carosello::-webkit-scrollbar{display:none}
+.carosello > *{scroll-snap-align:start;min-width:0}
+.pallini{display:flex;justify-content:center;gap:5px;margin:10px 0 0}
+.pallini span{width:6px;height:6px;border-radius:99px;background:var(--surface-3);transition:width .2s ease,background .2s ease}
+.pallini span.on{width:18px;background:var(--accent)}
+
+.banner{
+  background:var(--accent);color:var(--on-accent);border-radius:18px;padding:14px 16px 16px;
+}
+.banner-testa{display:flex;justify-content:space-between;gap:10px;font-size:.82rem;font-weight:600}
+.banner-sfida{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-top:14px;text-align:center;
+}
+.banner-squadra{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0}
+.banner-squadra .nome{
+  font-family:var(--font-display);font-weight:700;font-size:1.15rem;line-height:1.05;text-transform:uppercase;
+  overflow-wrap:anywhere;
+}
+.banner .stemma{background:var(--on-accent);color:var(--accent)}
+.banner-vs{font-family:var(--font-display);font-weight:700;font-size:1.4rem;opacity:.7}
+.banner-nota{margin-top:12px;font-size:.84rem;text-align:center;opacity:.85}
+.banner.vuoto{background:var(--surface);color:var(--muted);text-align:center;padding:28px 16px}
+
+.azioni{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.azione{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  background:var(--surface);border:none;border-radius:var(--r);padding:12px 4px;min-height:74px;
+  color:var(--ink);font-size:.78rem;font-weight:600;text-align:center;line-height:1.15;text-decoration:none;
+}
+.azione:hover{color:var(--accent);text-decoration:none;border:none}
+.azione svg{width:24px;height:24px;color:var(--accent);fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.azione:disabled{opacity:.4}
+
+.titoletto{
+  font-size:.74rem;font-weight:600;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);
+  margin:24px 2px 8px;
+}
+.tessere{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.tessera{background:var(--surface);border-radius:var(--r);padding:12px;border:1px solid transparent}
+.tessera.prossima{border-color:var(--accent)}
+.tessera .k{font-size:.78rem;color:var(--muted);font-weight:600}
+.tessera .v{
+  font-family:var(--font-num);font-variant-numeric:tabular-nums;font-weight:700;font-size:1.7rem;line-height:1.1;margin-top:2px;
+}
+.tessera .v.urgente{color:var(--crit)}
+.tessera .v.vicina{color:var(--warn)}
+.tessera .v.chiusa{color:var(--muted);font-size:1.2rem}
+.tessera .d{font-size:.78rem;color:var(--muted)}
+
+/* =====================================================================
+   Foglio dal basso: il dettaglio che si apre sopra la pagina
+   ===================================================================== */
+dialog.foglio{
+  margin:auto auto 0;width:100%;max-width:560px;max-height:86dvh;
+  border-radius:22px 22px 0 0;padding:8px 16px calc(18px + env(safe-area-inset-bottom));
+  overflow-y:auto;
+}
+dialog.foglio[open]{animation:foglio-sale .24s cubic-bezier(.22,1,.36,1)}
+@keyframes foglio-sale{from{transform:translateY(40px);opacity:.4}}
+@media (prefers-reduced-motion:reduce){ dialog.foglio[open]{animation:velo-entra .12s ease} }
+.foglio-maniglia{width:40px;height:4px;border-radius:99px;background:var(--surface-3);margin:4px auto 12px}
+.foglio-testa{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.foglio-testa h2{margin:0}
+.foglio-testa .icon-btn{background:var(--surface-2);width:36px;height:36px}
+
+/* pallini della forma: verde vinta, bianco pari, rosso persa */
+.forma{display:inline-flex;gap:5px;align-items:center}
+.forma i{width:14px;height:14px;border-radius:50%;display:inline-block}
+.forma i.V{background:var(--ok)}
+.forma i.N{background:var(--ink)}
+.forma i.P{background:var(--crit)}
+.forma-riga{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0}
+.forma-riga .chi{display:flex;align-items:center;gap:10px;min-width:0;font-weight:600}
+.precedente{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;padding:9px 0;border-top:1px solid var(--border);font-size:.9rem}
+.precedente .quando{font-size:.76rem;color:var(--muted)}
+
+/* =====================================================================
+   Classifiche
+   ===================================================================== */
+.classifica table{min-width:0}
+.classifica td,.classifica th{padding:9px 6px}
+.classifica td:first-child,.classifica th:first-child{padding-left:12px}
+.classifica .squadra-cella{display:flex;align-items:center;gap:8px;min-width:0;font-weight:600}
+.classifica .squadra-cella span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.classifica tr.mia td{background:var(--surface-2)}
+.classifica td.pos{color:var(--accent);font-family:var(--font-num);font-weight:700}
+.classifica td.pt{color:var(--ink);font-size:1.1rem}
+.classifica-nota{font-size:.8rem;color:var(--muted);margin:8px 2px 0}

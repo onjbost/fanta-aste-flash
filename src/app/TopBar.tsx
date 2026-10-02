@@ -10,10 +10,14 @@ import { Cassetto } from './Cassetto';
  * richiesta, quindi la pagina che l'ha già chiesto non paga una seconda
  * andata al database, e le pagine non devono passarli a mano.
  *
- * `pieno` toglie la barra in basso: la sala e le classifiche sono schermate
- * in cui serve tutto lo spazio, e da cui si esce con ←.
+ * `pieno` toglie la barra in basso e mette ← al posto del ☰: la sala e le
+ * classifiche sono schermate in cui serve tutto lo spazio, e da cui si esce.
  */
-export async function TopBar(props: { teamName: string; isAdmin: boolean; active: NavKey; pieno?: boolean }) {
+export async function TopBar(props: {
+  teamName: string; isAdmin: boolean; active: NavKey; pieno?: boolean;
+  /** con `pieno`, dove porta la freccia ← al posto del ☰ */
+  indietro?: string;
+}) {
   const ctx = await loadTeamContext();
   const crediti = ctx?.credits ?? null;
   const salaLive = ctx?.nextSession?.status === 'live';
@@ -26,6 +30,7 @@ export async function TopBar(props: { teamName: string; isAdmin: boolean; active
         crediti={crediti}
         stemma={ctx?.team.logoUrl ?? null}
         isAdmin={props.isAdmin}
+        indietro={props.pieno ? (props.indietro ?? '/') : undefined}
       >
         <div className="brand">Aste <span>Flash</span></div>
         {crediti !== null && (

@@ -16,6 +16,10 @@ export const metadata: Metadata = {
   title: 'Aste Flash · Fanta Mansarda',
   description: 'Mercato degli svincolati della Lega Fanta Mansarda',
   manifest: '/manifest.json',
+  // le icone (favicon e home del telefono) sono il martelletto del login:
+  // icon.svg, favicon.ico e apple-icon.png in questa cartella, le altre in
+  // public/. Si rigenerano con `node scripts/icone.mjs`
+  appleWebApp: { capable: true, title: 'Aste Flash', statusBarStyle: 'black' },
 };
 
 export const viewport: Viewport = {

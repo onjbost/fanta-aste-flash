@@ -1,5 +1,11 @@
 # Aste Flash · Fanta Mansarda
 
+## v5.3 — 2 ottobre 2026
+
+- **Il logo dell'app**: il martelletto dorato del login è la favicon della
+  scheda del browser e l'icona che compare aggiungendo l'app alla schermata
+  Home, su iPhone e su Android.
+
 ## v5.2 — 2 ottobre 2026
 
 Chi è fermo e quanto rende, dappertutto si sceglie un giocatore.

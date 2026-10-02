@@ -3,7 +3,9 @@ import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { freeReleaseScenarios, type Role, type PlayerStatus } from '@/lib/rules';
 import { leggiLaCoda } from '@/lib/codaLettura';
+import Link from 'next/link';
 import { Coda } from './Coda';
+import { VOCI_ADMIN } from '../vociAdmin';
 import { TopBar } from '../TopBar';
 import { DecideForm } from './DecideForm';
 import { TelegramCheck } from './TelegramCheck';
@@ -69,57 +71,57 @@ export default async function AdminPage() {
       <p className="eyebrow">Pannello admin</p>
       <h1>Da decidere</h1>
       <TelegramCheck configured={telegramConfigured()} />
-      <p className="sub">
-        {requests.length === 0
-          ? 'Nessuna richiesta in attesa.'
-          : `${requests.length} richieste di svincolo gratuito congelano altrettante operazioni.`}
-      </p>
 
-      {requests.map((r) => {
-        const price = prices.get(r.players?.id ?? '') ?? 0;
-        const s = freeReleaseScenarios({
-          playerId: '', name: '', role: r.players?.role ?? 'D', club: '',
-          status: r.players?.status ?? 'active', price,
-        }, ctx.cfg);
-        const op = r.lot_participants;
-        const target = op?.lots?.players?.name;
+      <nav className="scorciatoie" aria-label="Strumenti admin">
+        {VOCI_ADMIN.filter((v) => v.href !== '/admin').map((v) => (
+          <Link key={v.href} href={v.href}>{v.testo}</Link>
+        ))}
+      </nav>
 
-        return (
-          <div className="panel" key={r.id} style={{ padding: 18, marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <b style={{ fontSize: '1.05rem' }}>{r.players?.name}</b>{' '}
-                <span className="role-badge">{r.players?.role}</span>{' '}
-                <span style={{ color: 'var(--muted)' }}>{r.players?.club}</span>
-                <div style={{ color: 'var(--muted)', fontSize: '.9rem', marginTop: 2 }}>
-                  {r.teams?.name} · pagato {price} cr · {STATUS_NOTE[r.players?.status ?? 'active']}
+      <h2>
+        Svincoli gratuiti <span className="h2-conta">{requests.length}</span>
+      </h2>
+      {requests.length === 0 && (
+        <div className="panel"><div className="empty">Nessuna richiesta in attesa.</div></div>
+      )}
+
+      <ul className="decisioni">
+        {requests.map((r) => {
+          const price = prices.get(r.players?.id ?? '') ?? 0;
+          const s = freeReleaseScenarios({
+            playerId: '', name: '', role: r.players?.role ?? 'D', club: '',
+            status: r.players?.status ?? 'active', price,
+          }, ctx.cfg);
+          const op = r.lot_participants;
+          const target = op?.lots?.players?.name;
+
+          return (
+            <li className="decisione" key={r.id}>
+              <div className="lotto-riga">
+                <span className="role-badge">{r.players?.role}</span>
+                <div className="lotto-chi">
+                  <b>{r.players?.name}</b>
+                  <small>{r.teams?.name} · {r.players?.club} · {STATUS_NOTE[r.players?.status ?? 'active']}</small>
                 </div>
+                <span className="carta-cifre"><b className="num">{price}</b><small>pagato</small></span>
               </div>
-              <div className="mono" style={{ textAlign: 'right', fontSize: '.85rem' }}>
-                <div><b>Approva</b> · {s.approved.refund} cr · cambio non consumato</div>
-                <div style={{ color: 'var(--muted)' }}>
-                  Rifiuta · {s.rejected.refund} cr · cambio consumato
-                </div>
-                <div style={{ color: 'var(--muted)' }}>differenza {s.delta} cr</div>
-              </div>
-            </div>
 
-            {target ? (
-              <div className="callout" style={{ margin: '14px 0 0' }}>
-                Congela la <b>{op?.is_caller ? 'chiamata' : 'adesione'}</b> su <b>{target}</b>.
-                Se annulli, {r.teams?.name} può rifarla mettendo sul piatto un altro giocatore.
+              <div className="esiti-due">
+                <div><span>Se approvi</span><b className="num">{s.approved.refund} cr</b><small>cambio non consumato</small></div>
+                <div><span>Se rifiuti</span><b className="num">{s.rejected.refund} cr</b><small>cambio consumato · −{s.delta}</small></div>
               </div>
-            ) : (
-              <p style={{ fontSize: '.9rem', color: 'var(--muted)', margin: '12px 0 0' }}>
-                Nessuna chiamata collegata: decide solo quanto varrà questo giocatore quando
-                verrà svincolato.
+
+              <p className="foglio-nota">
+                {target
+                  ? <>Congela la <b>{op?.is_caller ? 'chiamata' : 'adesione'}</b> su <b>{target}</b>. Se annulli, {r.teams?.name} può rifarla con un altro giocatore.</>
+                  : 'Nessuna chiamata collegata: decide solo quanto varrà questo giocatore quando verrà svincolato.'}
               </p>
-            )}
 
-            <DecideForm requestId={r.id} hasOperation={!!target} />
-          </div>
-        );
-      })}
+              <DecideForm requestId={r.id} hasOperation={!!target} />
+            </li>
+          );
+        })}
+      </ul>
 
       <Coda voci={coda.voci} avviso={coda.avviso} />
     </div>

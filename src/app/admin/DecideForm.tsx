@@ -7,22 +7,19 @@ export function DecideForm({ requestId, hasOperation }: { requestId: string; has
   const [state, action, pending] = useActionState<ActionState, FormData>(decideFreeRelease, null);
 
   return (
-    <form action={action} style={{ marginTop: 14 }}>
+    <form action={action} className="decidi">
       <input type="hidden" name="requestId" value={requestId} />
-      <div className="field">
-        <label htmlFor={`note-${requestId}`}>Nota interna (facoltativa)</label>
-        <input id={`note-${requestId}`} name="decisionNote" placeholder="Prognosi 75 giorni, ok." />
-      </div>
-      <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+      <input id={`note-${requestId}`} name="decisionNote" aria-label="Nota interna, facoltativa"
+             placeholder="Nota interna, facoltativa" />
+      <div className="decidi-bottoni">
         <button type="submit" name="decision" value="approved" className="primary" disabled={pending}>
-          Accetta · 100%
+          Approva · 100%
         </button>
         <button type="submit" name="decision" value="rejected" disabled={pending}>
-          Declina · 75%
+          Rifiuta · 75%
         </button>
         {hasOperation && (
-          <button type="submit" name="decision" value="cancelled" disabled={pending}
-                  style={{ marginLeft: 'auto', color: 'var(--crit)', borderColor: 'var(--crit)' }}>
+          <button type="submit" name="decision" value="cancelled" disabled={pending} className="pericolo">
             Annulla l'operazione
           </button>
         )}

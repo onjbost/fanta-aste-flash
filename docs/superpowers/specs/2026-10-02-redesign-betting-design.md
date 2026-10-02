@@ -1,6 +1,6 @@
 # Redesign «Coppa sotto i fari» — stile app di betting
 
-Data: 2026-10-02 · Stato: approvato in chat, fase 1 in corso
+Data: 2026-10-02 · Stato: fasi 1–6 fatte sul ramo `development`, da verificare in preview
 
 ## Obiettivo
 
@@ -77,4 +77,33 @@ Compaiono ovunque c'è una squadra.
 5. Rosa, Svincolati, Registro, Regolamento.
 6. Restyling admin e riscrittura di `DESIGN.md`.
 
-Ogni fase si verifica nel browser prima della successiva.
+Ogni fase si verifica nel browser prima della successiva. Su richiesta, le fasi
+3–6 sono state fatte di fila senza fermarsi: le correzioni arrivano dopo la
+verifica in preview.
+
+## Scelte fatte durante le fasi 3–6
+
+- **Asta:** «Chiama uno svincolato» è un bottone d'oro che apre un foglio in due
+  passi (prima chi chiami, poi chi esce). «Entra in sala» compare dal giorno
+  dell'asta, non solo a sala aperta, così l'admin la raggiunge per aprirla.
+- **Sala:** l'anello d'oro diventa arancio negli ultimi 10 secondi e rosso negli
+  ultimi 3; il pannello di rilancio sta fisso in fondo. Il cassetto di regia non
+  è modale e resta aperto finché l'admin non lo chiude.
+- **Schedine:** la classifica tipster si apre da un tasto in testata, non è più
+  una tab. «Cosa gioca la lega» guarda la giornata corrente e conta tutte le
+  schedine, compresa la propria.
+- **Rosa:** il foglio del giocatore porta «Chiama qualcuno al suo posto» (solo a
+  chiamate aperte) e lo svincolo gratuito. **Svincolati:** «Chiama all'asta»
+  porta su `/asta?chiama=<id>` con il foglio di chiamata già aperto.
+- **Registro:** le aste passate si scelgono con le chip e si leggono in timeline.
+- **Admin:** Home con le scorciatoie agli strumenti e le richieste di svincolo
+  gratuito in card con i bottoni inline. Le altre pagine admin prendono il
+  restyling dai token e dai componenti condivisi.
+
+## Rimandato
+
+- **Classifica tipster per giornata** (com'era nella vecchia pagina schedine):
+  per ora la tab Tipster di `/classifica` mostra solo il totale. Da rimettere in
+  un secondo momento.
+- **Novità nel CHANGELOG** per il redesign: da scrivere quando si porta in produzione.
+

@@ -427,7 +427,7 @@ ol.rules li::before{
   content:counter(r);position:absolute;left:0;top:0;
   width:28px;height:28px;display:flex;align-items:center;justify-content:center;
   font-family:var(--font-num);font-size:.86rem;font-weight:600;
-  color:var(--accent);border:1px solid var(--border);border-radius:2px;background:var(--surface);
+  color:var(--accent);border:1px solid var(--border);border-radius:10px;background:var(--surface);
 }
 
 /* =====================================================================
@@ -671,7 +671,7 @@ th.ordinabile .livello{
    Scheletro di caricamento
    ===================================================================== */
 .sk{
-  display:inline-block;background:var(--surface-2);border-radius:2px;
+  display:inline-block;background:var(--surface-2);border-radius:8px;
   position:relative;overflow:hidden;
 }
 .sk::after{
@@ -863,7 +863,7 @@ th.ordinabile .livello{
 .gaz-paragrafo-cima{display:flex;gap:6px;align-items:center;margin-bottom:4px}
 .gaz-titoletto{
   flex:1;font-weight:600;font-size:.9rem;padding:5px 8px;
-  border:1px solid var(--border);border-radius:6px;
+  border:1px solid var(--border);border-radius:var(--r-sm);
   background:var(--surface);color:var(--ink);
 }
 .gaz-paragrafo-cima button{padding:4px 9px;line-height:1}
@@ -962,7 +962,7 @@ th.ordinabile .livello{
 .coda-tutte.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 
 .coda-righe li{
-  display:flex;align-items:flex-start;gap:8px;border-radius:3px;
+  display:flex;align-items:flex-start;gap:8px;border-radius:10px;
   transition:background-color .15s ease;
 }
 .coda-righe li.scelta{background:var(--accent-soft)}
@@ -977,7 +977,7 @@ th.ordinabile .livello{
 .coda-spunta{position:absolute;width:1px;height:1px;opacity:0;margin:0}
 .coda-casella{
   flex:0 0 auto;width:17px;height:17px;margin-top:1px;
-  border:1px solid var(--border);border-radius:2px;background:var(--surface);
+  border:1px solid var(--border);border-radius:6px;background:var(--surface);
   display:grid;place-items:center;
   transition:background-color .15s ease,border-color .15s ease;
 }
@@ -1020,7 +1020,7 @@ th.ordinabile .livello{
 
 .gaz-anteprima{position:sticky;top:12px}
 .gaz-foglio{
-  overflow:hidden;border:1px solid var(--border);border-radius:6px;
+  overflow:hidden;border:1px solid var(--border);border-radius:var(--r-sm);
   box-shadow:var(--shadow);background:#fff;
 }
 .gaz-didascalia{font-size:.76rem;color:var(--muted);margin:8px 0 0}
@@ -1034,7 +1034,7 @@ th.ordinabile .livello{
   font-size:.78rem;font-weight:600;color:var(--muted);
 }
 .gaz-etichetta em{font-style:normal;font-variant-numeric:tabular-nums;font-weight:500}
-.gaz-etichetta em.fuori{color:var(--danger,#c0392b);font-weight:700}
+.gaz-etichetta em.fuori{color:var(--crit);font-weight:700}
 .gaz-campo textarea{resize:vertical;min-height:60px}
 .gaz-nota{font-size:.74rem;color:var(--muted);margin:0}
 
@@ -1611,3 +1611,21 @@ details[open] > summary .giu{transform:rotate(180deg)}
 .calendario li.passata{opacity:.55}
 .calendario li.prossima{border-color:var(--accent)}
 .calendario .avviso{color:var(--warn)}
+
+/* =====================================================================
+   Admin: scorciatoie agli strumenti, decisioni in card
+   ===================================================================== */
+button.ghost,.btn.ghost{background:transparent;border-color:var(--surface-3)}
+.scorciatoie{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:16px 0 0}
+.scorciatoie a{
+  background:var(--surface);border-radius:var(--r-sm);padding:12px 14px;
+  color:var(--ink);font-weight:600;font-size:.9rem;
+}
+.scorciatoie a:hover{background:var(--surface-2);color:var(--accent);text-decoration:none}
+@media (min-width:620px){ .scorciatoie{grid-template-columns:repeat(3,1fr)} }
+.decisioni{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.decisione{background:var(--surface);border-radius:var(--r);padding:14px}
+.decidi{margin-top:12px;display:flex;flex-direction:column;gap:10px}
+.decidi-bottoni{display:flex;gap:8px;flex-wrap:wrap}
+.decidi-bottoni button{flex:1 1 auto}
+.decisione .callout{margin:10px 0 0}

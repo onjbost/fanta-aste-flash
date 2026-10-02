@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from './actions';
 import { ICONE } from './BottomNav';
 import { Stemma } from './Stemma';
+import { VOCI_ADMIN as ADMIN } from './vociAdmin';
 
 /**
  * Il cassetto ☰, uno solo per tutti.
@@ -21,19 +22,6 @@ const COMUNI = [
   { href: '/regolamento', testo: 'Regolamento', icona: ICONE.regolamento },
 ];
 
-const ADMIN: { href: string; testo: string }[] = [
-  { href: '/admin', testo: 'Da decidere' },
-  { href: '/admin/rose', testo: 'Rose e import' },
-  { href: '/admin/allenatori', testo: 'Allenatori e stemmi' },
-  { href: '/admin/messaggi', testo: 'Centro messaggi' },
-  { href: '/admin/scambi', testo: 'Scambi' },
-  { href: '/admin/schedine', testo: 'Tipster' },
-  { href: '/admin/redazione', testo: 'La redazione' },
-  { href: '/admin/gazzetta', testo: 'La Gazzetta' },
-  { href: '/admin/infortuni', testo: 'Indisponibili' },
-  { href: '/admin/prova', testo: 'Sala di prova' },
-  { href: '/admin/changelog', testo: 'Novità dell\'app' },
-];
 
 /** La voce che corrisponde alla pagina di adesso, senza falsi positivi. */
 function attiva(pathname: string, href: string): boolean {

@@ -92,27 +92,63 @@ export function Sala({ myTeamId, isAdmin, sessionId, isLive, lots, tempi, adesso
     return () => { db.removeChannel(channel); };
   }, []);
 
+  const vivo = rows.find((l) => l.status === 'live');
+  const prossimo = rows.find((l) => l.status === 'called');
+  const riassunto = !isLive ? 'Sala da aprire'
+    : vivo ? `Lotto ${vivo.index} · ${vivo.player.name}`
+    : prossimo ? `Prossimo: lotto ${prossimo.index} · ${prossimo.player.name}`
+    : 'Tutti i lotti chiusi';
+
   return (
-    <>
+    <div className={isAdmin ? 'sala con-regia' : 'sala'}>
+      {isLive
+        ? <AuctionRoom myTeamId={myTeamId} lots={rows} tempi={tempi} scarto={scarto.current} />
+        : (
+          <div className="sala-vuota">
+            {rows.length} {rows.length === 1 ? 'lotto pronto' : 'lotti pronti'}.
+            Si comincia quando l&apos;admin apre la sala.
+          </div>
+        )}
+
       {isAdmin && (
-        <>
+        <CassettoRegia riassunto={riassunto} acceso={Boolean(vivo) || !isLive}>
           <RoomControls
             sessionId={sessionId} isLive={isLive} lots={rows}
             tempi={tempi} scarto={scarto.current}
           />
           {children}
-        </>
+        </CassettoRegia>
       )}
+    </div>
+  );
+}
 
-      {isLive
-        ? <AuctionRoom myTeamId={myTeamId} lots={rows} tempi={tempi} scarto={scarto.current} />
-        : (
-          <div className="panel">
-            <div className="empty">
-              {rows.length} lotti pronti. Si comincia quando l&apos;admin apre la sala.
-            </div>
-          </div>
-        )}
-    </>
+/**
+ * La regia dell'admin, in un cassetto da tirare su dal fondo.
+ *
+ * Chiuso, è una barra che dice a che punto è la serata; aperto, porta tutti i
+ * comandi. Non è modale: con la regia aperta l'anello del timer resta visibile
+ * sopra, ed è proprio quello che l'admin guarda prima di battere il martello.
+ * Resta aperto finché non lo chiudi, così fra un lotto e l'altro non va
+ * ritirato su ogni volta.
+ */
+function CassettoRegia({ riassunto, acceso, children }: {
+  riassunto: string; acceso: boolean; children: React.ReactNode;
+}) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <aside className={`regia${aperto ? ' aperta' : ''}`} aria-label="Regia dell'admin">
+      <button type="button" className="regia-maniglia" aria-expanded={aperto} onClick={() => setAperto((x) => !x)}>
+        <span className="foglio-maniglia" aria-hidden="true" />
+        <span className="regia-riga">
+          <span className="regia-k">Regia</span>
+          <span className="regia-riassunto">
+            {acceso && <i className="pallino-live" aria-hidden="true" />}{riassunto}
+          </span>
+          <svg className="giu" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>
+        </span>
+      </button>
+      {aperto && <div className="regia-corpo">{children}</div>}
+    </aside>
   );
 }

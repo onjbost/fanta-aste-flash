@@ -146,7 +146,7 @@ function Regia({ lot, tempi, scarto }: { lot: LotView; tempi: TempiSala; scarto:
           </span>
           <form action={doClose} style={{ marginLeft: 'auto' }}>
             <input type="hidden" name="lotId" value={lot.id} />
-            <button disabled={closing} style={{ color: 'var(--crit)', borderColor: 'var(--crit)' }}>
+            <button className="pericolo" disabled={closing}>
               {closing ? 'Chiudo…' : 'Chiudi subito'}
             </button>
           </form>
@@ -167,7 +167,7 @@ function Regia({ lot, tempi, scarto }: { lot: LotView; tempi: TempiSala; scarto:
               */}
             <form action={doSettle}>
               <input type="hidden" name="lotId" value={lot.id} />
-              <button className="primary" disabled={settling}>
+              <button className="primary largo" disabled={settling}>
                 {settling ? 'Aggiudico…' : lot.currentLeader
                   ? `Aggiudica ${lot.player.name} a ${lot.currentLeader} per ${lot.currentPrice}`
                   : `Aggiudica ${lot.player.name} al chiamante`}
@@ -212,7 +212,7 @@ function AnnullaAggiudicazione({ lot }: { lot: LotView }) {
           placeholder="scrivi ANNULLA" className="assegna-prezzo" aria-label="Conferma"
           style={{ width: 140 }}
         />
-        <button disabled={inCorso || !pronto} style={{ color: 'var(--crit)', borderColor: 'var(--crit)' }}>
+        <button className="pericolo" disabled={inCorso || !pronto}>
           {inCorso ? 'Annullo…' : 'Annulla'}
         </button>
       </div>
@@ -246,13 +246,12 @@ export function RoomControls({ sessionId, isLive, lots, tempi, scarto }: {
   const state = openState ?? lotState ?? endState;
 
   return (
-    <div className="panel" style={{ padding: 16, marginBottom: 20, background: 'var(--surface-2)' }}>
-      <p className="eyebrow" style={{ margin: '0 0 10px' }}>Regia · solo admin</p>
+    <div className="regia-comandi">
       <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
         {!isLive && (
           <form action={doOpenRoom}>
             <input type="hidden" name="sessionId" value={sessionId} />
-            <button className="primary" disabled={openingRoom}>
+            <button className="primary largo" disabled={openingRoom}>
               {openingRoom ? 'Apro…' : 'Apri la sala'}
             </button>
           </form>
@@ -261,7 +260,7 @@ export function RoomControls({ sessionId, isLive, lots, tempi, scarto }: {
         {isLive && next && !live && (
           <form action={doOpenLot}>
             <input type="hidden" name="lotId" value={next.id} />
-            <button className="primary" disabled={openingLot}>
+            <button className="primary largo" disabled={openingLot}>
               {openingLot ? 'Apro…' : `Apri lotto ${next.index} · ${next.player.name}`}
             </button>
           </form>
@@ -270,7 +269,7 @@ export function RoomControls({ sessionId, isLive, lots, tempi, scarto }: {
         {isLive && !next && !live && (
           <form action={doCloseSession}>
             <input type="hidden" name="sessionId" value={sessionId} />
-            <button className="primary" disabled={ending}>
+            <button className="primary largo" disabled={ending}>
               {ending ? 'Chiudo…' : 'Chiudi la serata'}
             </button>
           </form>

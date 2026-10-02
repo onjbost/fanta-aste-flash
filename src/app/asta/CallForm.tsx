@@ -2,20 +2,31 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { callPlayer, type ActionState } from './actions';
-import { ROLE_LABEL, ROLE_PLURAL, type Role } from '@/lib/rules';
+import { ROLE_LABEL, type Role } from '@/lib/rules';
 import { chiamatoDa, daMostrare, esitoDellaScelta, type Chiamata } from '@/lib/chiamate';
+import { Foglio } from '../Foglio';
+import { SceltaSvincolo, type Svincolabile } from './SceltaSvincolo';
 
 interface FreeAgent { id: string; name: string; role: Role; club: string; quotation: number }
-interface RosterOption { id: string; name: string; role: Role; price: number; refund: number; free: boolean; committed: boolean }
+type RosterOption = Svincolabile & { committed: boolean };
 
-export function CallForm({ sessionId, freeAgents, roster, credits, changes, chiamate = [] }: {
+interface Props {
   sessionId: string;
   freeAgents: FreeAgent[];
   roster: RosterOption[];
   credits: number;
   changes: { role: Role; left: number }[];
   chiamate?: Chiamata[];
-}) {
+}
+
+/**
+ * Il foglio della chiamata, in due passi: prima chi chiami, poi chi esce.
+ *
+ * Due tendine una sopra l'altra funzionavano al computer; sul telefono la
+ * prima apriva un elenco di seicento nomi in un rullo. Qui si cerca, si tocca
+ * una riga, e il secondo passo mostra solo i giocatori del ruolo giusto.
+ */
+function ModuloChiamata({ sessionId, freeAgents, roster, credits, changes, chiamate = [] }: Props) {
   const [state, action, pending] = useActionState<ActionState, FormData>(callPlayer, null);
   const [targetId, setTargetId] = useState('');
   const [releaseId, setReleaseId] = useState('');
@@ -37,91 +48,104 @@ export function CallForm({ sessionId, freeAgents, roster, credits, changes, chia
   const filtered = useMemo(() => {
     const t = q.trim().toUpperCase();
     const scelta = daMostrare(freeAgents, chiamate);
-    return scelta.filter((p) => !t || p.name.includes(t) || p.club.toUpperCase().includes(t)).slice(0, 60);
+    return scelta.filter((p) => !t || p.name.includes(t) || p.club.toUpperCase().includes(t)).slice(0, 40);
   }, [freeAgents, chiamate, q]);
 
-  return (
-    <div className="panel" style={{ padding: 18 }}>
-      <form action={action}>
-        <input type="hidden" name="sessionId" value={sessionId} />
-
-        <div className="field">
+  if (!target) {
+    return (
+      <div>
+        <div className="field" style={{ marginTop: 4 }}>
           <label htmlFor="q">Cerca tra gli svincolati</label>
-          <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cognome o squadra" />
+          <input id="q" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Cognome o squadra"
+                 autoComplete="off" enterKeyHint="search" />
         </div>
+        {filtered.length === 0 && <div className="empty">Nessuno svincolato con questo nome.</div>}
+        <ul className="elenco-scelta">
+          {filtered.map((p) => {
+            const gia = chiamatoDa(p.id, chiamate);
+            return (
+              <li key={p.id}>
+                <button type="button" onClick={() => { setTargetId(p.id); setReleaseId(''); }}>
+                  <span className="role-badge">{p.role}</span>
+                  <span className="chi-col">
+                    <b>{p.name}</b>
+                    <small>{p.club}{gia ? ` · già chiamato da ${gia}` : ''}</small>
+                  </span>
+                  <span className="num qt">{p.quotation}</span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    );
+  }
 
-        <div className="field">
-          <label htmlFor="targetId">Giocatore da chiamare</label>
-          <select id="targetId" name="targetId" value={targetId}
-                  onChange={(e) => { setTargetId(e.target.value); setReleaseId(''); }} required>
-            <option value="">— scegli —</option>
-            {filtered.map((p) => {
-              const gia = chiamatoDa(p.id, chiamate);
-              return (
-                <option key={p.id} value={p.id}>
-                  {p.role} · {p.name} ({p.club}) · qt {p.quotation}
-                  {gia ? ` · già chiamato da ${gia}` : ''}
-                </option>
-              );
-            })}
-          </select>
-        </div>
+  return (
+    <form action={action}>
+      <input type="hidden" name="sessionId" value={sessionId} />
+      <input type="hidden" name="targetId" value={targetId} />
 
-        {esito.tipo === 'adesione' && (
-          <div className="callout crit" role="status">
-            <b>{esito.avviso}</b>
-            <div style={{ marginTop: 6, fontSize: '.86rem' }}>
-              Non stai aprendo un lotto nuovo: entri in quello di {esito.squadra}, e al rilancio
-              ci sarete in due. Lo svincolando che scegli qui resta impegnato su questo lotto.
-            </div>
-          </div>
-        )}
-        {esito.tipo === 'dentro' && (
-          <div className="callout crit" role="status">{esito.avviso}</div>
-        )}
-
-        <div className="field">
-          <label htmlFor="releaseId">
-            Giocatore da svincolare {target && `· deve essere un ${ROLE_LABEL[target.role].toLowerCase()}`}
-          </label>
-          <select id="releaseId" name="releaseId" value={releaseId}
-                  onChange={(e) => setReleaseId(e.target.value)} required disabled={!target}>
-            <option value="">— scegli —</option>
-            {eligible.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.name} · pagato {r.price} → rende {r.refund}{r.free ? ' (gratuito)' : ''}
-              </option>
-            ))}
-          </select>
-          {target && eligible.length === 0 && (
-            <p style={{ fontSize: '.86rem', color: 'var(--crit)', marginTop: 6 }}>
-              Non hai {ROLE_PLURAL[target.role]} disponibili da mettere sul piatto:
-              gli altri sono già impegnati in un altro lotto di questa asta.
-            </p>
-          )}
-        </div>
-
-        {budget != null && (
-          <div className="callout">
-            Budget su questo lotto: <b>{budget} crediti</b> ({credits} residui + {release!.refund} di rimborso).
-            {changesLeft != null && ` Cambi ${target!.role} rimasti: ${changesLeft}.`}
-          </div>
-        )}
-
-        <button type="submit" className="primary"
-                disabled={pending || !targetId || !releaseId || esito.tipo === 'dentro'}>
-          {pending
-            ? 'Registro…'
-            : esito.tipo === 'adesione' ? 'Conferma: aderisci all\'asta' : 'Chiama all\'asta'}
+      <div className="scelto">
+        <span className="role-badge">{target.role}</span>
+        <span className="chi-col"><b>{target.name}</b><small>{target.club} · qt {target.quotation}</small></span>
+        <button type="button" className="piccolo" onClick={() => { setTargetId(''); setReleaseId(''); }}>
+          Cambia
         </button>
+      </div>
 
-        {state && (
-          <div className={state.ok ? 'callout' : 'callout crit'} role="status">
-            {state.message}
-            {state.warnings?.map((w) => <div key={w} style={{ marginTop: 6, fontSize: '.86rem' }}>⚠ {w}</div>)}
+      {esito.tipo === 'adesione' && (
+        <div className="callout crit" role="status">
+          <b>{esito.avviso}</b>
+          <div style={{ marginTop: 6, fontSize: '.86rem' }}>
+            Non stai aprendo un lotto nuovo: entri in quello di {esito.squadra}, e al rilancio
+            ci sarete in due. Lo svincolando che scegli qui resta impegnato su questo lotto.
           </div>
-        )}
-      </form>
-    </div>
+        </div>
+      )}
+      {esito.tipo === 'dentro' && <div className="callout crit" role="status">{esito.avviso}</div>}
+
+      <p className="foglio-k">Il tuo {ROLE_LABEL[target.role].toLowerCase()} da svincolare</p>
+      <SceltaSvincolo opzioni={eligible} valore={releaseId} onScegli={setReleaseId} ruolo={target.role} />
+
+      {budget != null && (
+        <div className="budget-riga">
+          <span>Budget su questo lotto</span>
+          <b className="num">{budget} cr</b>
+          <small className="num">
+            {credits} + {release!.refund}{changesLeft != null && ` · cambi ${target.role} ${changesLeft}`}
+          </small>
+        </div>
+      )}
+
+      {state && (
+        <div className={state.ok ? 'callout' : 'callout crit'} role="status">
+          {state.message}
+          {state.warnings?.map((w) => <div key={w} style={{ marginTop: 6, fontSize: '.86rem' }}>⚠ {w}</div>)}
+        </div>
+      )}
+
+      <button type="submit" className="primary largo"
+              disabled={pending || !releaseId || esito.tipo === 'dentro'}>
+        {pending
+          ? 'Registro…'
+          : esito.tipo === 'adesione' ? 'Conferma: aderisci all\'asta' : `Chiama ${target.name}`}
+      </button>
+    </form>
+  );
+}
+
+/** «Chiama uno svincolato»: il bottone d'oro della fase delle chiamate. */
+export function CallForm(props: Props) {
+  const [aperto, setAperto] = useState(false);
+  return (
+    <>
+      <button type="button" className="primary largo" onClick={() => setAperto(true)}>
+        Chiama uno svincolato
+      </button>
+      <Foglio aperto={aperto} onChiudi={() => setAperto(false)} titolo="Chiama uno svincolato">
+        <ModuloChiamata {...props} />
+      </Foglio>
+    </>
   );
 }

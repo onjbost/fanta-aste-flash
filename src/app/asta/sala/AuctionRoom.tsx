@@ -26,7 +26,8 @@ export function AuctionRoom({ myTeamId, lots, tempi, scarto }: {
   const bid = useCallback((lotId: string, amount: number) => {
     startTransition(async () => {
       const r = await placeBid(lotId, amount);
-      setNotice(r?.message ?? null);
+      // l'offerta accettata la dice l'anello; qui resta solo il rifiuto
+      setNotice(r?.ok ? null : r?.message ?? null);
     });
   }, []);
 
@@ -47,6 +48,8 @@ export function AuctionRoom({ myTeamId, lots, tempi, scarto }: {
 
   return (
     <>
+      <ProgrammaSerata rows={lots} />
+
       {live ? (
         <LiveLot
           lot={live} myTeamId={myTeamId} tempi={tempi} scarto={scarto}
@@ -54,19 +57,12 @@ export function AuctionRoom({ myTeamId, lots, tempi, scarto }: {
           errore={notice}
         />
       ) : (
-        <div className="panel"><div className="empty">Nessun lotto aperto in questo momento.</div></div>
+        <div className="sala-vuota">
+          {lots.some((l) => l.status === 'called')
+            ? 'Nessun lotto aperto in questo momento: il prossimo lo apre l\'admin.'
+            : 'La serata è finita: tutti i lotti sono chiusi.'}
+        </div>
       )}
-
-      {/*
-        * Il messaggio del server si vede sempre, anche a lotto aperto: un
-        * rilancio rifiutato («tempo scaduto», «budget») è la cosa che chi
-        * gioca deve leggere subito. Quando è aperta la finestra delle
-        * presenze il resto della pagina è inerte, e per quel caso lo stesso
-        * testo entra dentro la finestra.
-        */}
-      {notice && <div className="callout" role="status">{notice}</div>}
-
-      <ProgrammaSerata rows={lots} />
     </>
   );
 }

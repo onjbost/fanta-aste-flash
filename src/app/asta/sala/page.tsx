@@ -1,4 +1,3 @@
-import { redirect } from 'next/navigation';
 import { supabaseServer } from '@/lib/supabase';
 import { requireTeamContext } from '@/lib/queries';
 import { refundValue, salaApribile, type Role, type PlayerStatus } from '@/lib/rules';
@@ -85,8 +84,9 @@ export default async function SalaPage() {
     : { data: [] };
   const presenze = (presRows ?? []) as { lot_id: string; team_id: string; confirmed_at: string }[];
 
-  const { data: teams } = await db.from('teams').select('id, name').eq('league_id', ctx.team.leagueId);
+  const { data: teams } = await db.from('teams').select('id, name, logo_url').eq('league_id', ctx.team.leagueId);
   const teamNames = new Map((teams ?? []).map((t) => [t.id, t.name]));
+  const stemmi = new Map((teams ?? []).map((t) => [t.id, (t as { logo_url: string | null }).logo_url]));
 
   const { data: credits } = await db.from('v_team_credits').select('team_id, credits');
   const creditsMap = new Map((credits ?? []).map((c) => [c.team_id, c.credits]));
@@ -139,6 +139,7 @@ export default async function SalaPage() {
       releaseName: p.players?.name ?? '?',
       budget: budgetVivi.get(`${l.id}:${p.team_id}`) ?? p.budget,
       liveCredits: creditsMap.get(p.team_id) ?? 0,
+      stemma: stemmi.get(p.team_id) ?? null,
     })),
     myBudget: myBudgets.get(l.id) ?? null,
     iParticipate: parts.some((p) => p.lot_id === l.id && p.team_id === ctx.team.id),
@@ -153,16 +154,19 @@ export default async function SalaPage() {
   const tempi = { timerSeconds: ctx.cfg.timerSeconds, graceSeconds: ctx.cfg.graceSeconds };
 
   return (
-    <div className="shell">
-      <TopBar teamName={ctx.team.name} isAdmin={ctx.team.isAdmin} active="asta" />
+    <div className="shell pieno">
+      <TopBar teamName={ctx.team.name} isAdmin={ctx.team.isAdmin} active="asta" pieno indietro="/asta" />
 
-      <p className="eyebrow">Asta flash #{sessionRow.number}</p>
-      <h1>{isLive ? 'Sala d\'asta' : 'La sala non è ancora aperta'}</h1>
-      <p className="sub">
-        {isLive
-          ? 'I lotti vanno uno alla volta, in ordine di chiamata. Ogni rilancio riporta il timer a zero.'
-          : 'Svincolandi e budget compaiono nel momento in cui l\'admin apre la sala.'}
-      </p>
+      <div className="sala-testa">
+        <p className="eyebrow">Asta flash #{sessionRow.number}</p>
+        {isLive && <span className="tag crit"><i className="pallino-live" aria-hidden="true" />Live</span>}
+      </div>
+      {!isLive && (
+        <p className="sub">
+          La sala non è ancora aperta: svincolandi e budget compaiono nel momento in cui
+          l&apos;admin la apre.
+        </p>
+      )}
 
       {/*
         * Regia e sala stanno dentro un componente solo perché devono vedere

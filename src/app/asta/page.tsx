@@ -1,9 +1,8 @@
-import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { supabaseServer } from '@/lib/supabase';
 import { requireTeamContext } from '@/lib/queries';
 import {
-  callsCloseAt, joinsCloseAt, expectedStatus, refundValue,
+  callsCloseAt, joinsCloseAt, expectedStatus, refundValue, salaApribile,
   type Role, type SessionInfo,
 } from '@/lib/rules';
 import { TopBar } from '../TopBar';
@@ -12,6 +11,7 @@ import { JoinForm } from './JoinForm';
 import { Countdown } from './Countdown';
 import { MyParticipation, AdminCancel } from './MyParticipation';
 import { chiamateDaiLotti } from '@/lib/chiamate';
+import { lineaDelleFasi, scadenzaDellaFase } from '@/lib/asta';
 
 export const dynamic = 'force-dynamic';
 
@@ -130,6 +130,11 @@ export default async function AstaPage() {
   const budgetVivo = (releaseId: string) =>
     ctx.credits + (rosterOptions.find((r) => r.id === releaseId)?.refund ?? 0);
 
+  const linea = lineaDelleFasi(effective);
+  const scadenza = scadenzaDellaFase(effective, {
+    chiamate: callsCloseAt(s, ctx.cfg), adesioni: joinsCloseAt(s, ctx.cfg), asta: new Date(s.auctionAt),
+  });
+
   return (
     <div className="shell">
       <TopBar teamName={ctx.team.name} isAdmin={ctx.team.isAdmin} active="asta" />
@@ -139,38 +144,46 @@ export default async function AstaPage() {
       <p className="sub">
         {new Date(s.auctionAt).toLocaleString('it-IT', {
           weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+          timeZone: 'Europe/Rome',
         })}
         {s.excludesNewSignings && ' · finestra di gennaio: nuovi acquisti esclusi'}
       </p>
 
-      <div className="stats">
-        <div className="stat">
-          <div className="k">Chiamate chiuse tra</div>
-          <div className="v"><Countdown to={callsCloseAt(s, ctx.cfg).toISOString()} /></div>
-          <div className="note">5 giorni prima dell'asta</div>
-        </div>
-        <div className="stat">
-          <div className="k">Adesioni chiuse tra</div>
-          <div className="v"><Countdown to={joinsCloseAt(s, ctx.cfg).toISOString()} /></div>
-          <div className="note">1 giorno prima dell'asta</div>
-        </div>
-        <div className="stat">
-          <div className="k">Crediti · lotti</div>
-          <div className="v">{ctx.credits}<small> / {mine.size}</small></div>
-          <div className="note">tuoi crediti e tue partecipazioni</div>
-        </div>
-      </div>
+      <ol className="fasi" aria-label="Fasi dell'asta">
+        {linea.map((f) => (
+          <li key={f.chiave} className={f.stato} aria-current={f.stato === 'adesso' ? 'step' : undefined}>
+            <span className="fasi-punto" aria-hidden="true" />
+            {f.etichetta}
+          </li>
+        ))}
+      </ol>
 
-      {s.status === 'live' && (
-        <div className="callout">
-          L'asta è in corso. <Link href="/asta/sala"><b>Entra in sala →</b></Link>
+      <section className="conto-grande">
+        {scadenza ? (
+          <>
+            <div className="k">{scadenza.etichetta}</div>
+            <div className="v"><Countdown to={scadenza.quando.toISOString()} /></div>
+          </>
+        ) : (
+          <>
+            <div className="k">{s.status === 'live' ? 'La sala è aperta' : 'Oggi si fa l\'asta'}</div>
+            <div className="v">{s.status === 'live' ? 'Live' : 'Oggi'}</div>
+          </>
+        )}
+        <div className="conto-dati">
+          <span><b className="num">{ctx.credits}</b> crediti</span>
+          <span><b className="num">{mine.size}</b> {mine.size === 1 ? 'lotto' : 'lotti'} tuoi</span>
+          <span>cambi {ctx.changes.map((c) => `${c.role} ${c.left}`).join(' · ')}</span>
         </div>
-      )}
+        {salaApribile(s, new Date(), ctx.cfg) && (
+          <Link href="/asta/sala" className="btn primary largo">Entra in sala</Link>
+        )}
+      </section>
 
       {annullate.length > 0 && (
         <div className="callout crit">
           <b>Annullate:</b>
-          <ul style={{ margin: '8px 0 0' }}>
+          <ul style={{ margin: '8px 0 0', paddingLeft: 18 }}>
             {annullate.map((a) => (
               <li key={a.lot_id}>
                 La tua {a.is_caller ? 'chiamata' : 'adesione'} è stata annullata
@@ -182,81 +195,8 @@ export default async function AstaPage() {
         </div>
       )}
 
-      <h2>Lotti chiamati</h2>
-      {lots.length === 0 && (
-        <div className="panel"><div className="empty">Nessuno ha ancora chiamato. Puoi essere il primo.</div></div>
-      )}
-
-      {lots.map((l) => {
-        const my = mine.get(l.id);
-        const partecipanti = byLot.get(l.id) ?? [];
-        const altri = partecipanti.filter((p) => p.teamId !== ctx.team.id);
-        const scadenza = my?.is_caller
-          ? callsCloseAt(s, ctx.cfg)
-          : joinsCloseAt(s, ctx.cfg);
-        const modificabile = new Date() < scadenza;
-
-        return (
-          <div className="panel" key={l.id} style={{ padding: 16, marginBottom: 12 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-              <div>
-                <span className="role-badge">{l.players?.role}</span>{' '}
-                <b style={{ fontSize: '1.05rem' }}>{l.players?.name}</b>{' '}
-                <span style={{ color: 'var(--muted)' }}>{l.players?.club}</span>
-                <div style={{ color: 'var(--muted)', fontSize: '.86rem', marginTop: 2 }}>
-                  Chiamato da {l.teams?.name} · {partecipanti.length}{' '}
-                  {partecipanti.length === 1 ? 'partecipante' : 'partecipanti'}
-                  {altri.length > 0 && `: ${altri.map((p) => p.name).join(', ')}`}
-                </div>
-
-                {ctx.team.isAdmin && (
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: '.72rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--muted)' }}>
-                      admin
-                    </span>
-                    {partecipanti.map((p) => (
-                      <span key={p.id} style={{ display: 'inline-flex', gap: 4, alignItems: 'center', fontSize: '.8rem' }}>
-                        {p.name}
-                        <AdminCancel participantId={p.id} teamName={p.name} isCaller={p.isCaller} />
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {my ? (
-                <MyParticipation
-                  lotId={l.id}
-                  isCaller={my.is_caller}
-                  status={my.status}
-                  budget={budgetVivo(my.release_player_id)}
-                  credits={ctx.credits}
-                  currentReleaseId={my.release_player_id}
-                  roster={rosterOptions.filter((r) =>
-                    r.role === l.players?.role && (!r.committed || r.id === my.release_player_id))}
-                  editable={modificabile && my.status !== 'pending_approval'}
-                  deadlineLabel={my.status === 'pending_approval'
-                    ? 'in attesa dell\'admin'
-                    : my.is_caller ? 'chiamate chiuse' : 'adesioni chiuse'}
-                />
-              ) : (
-                ['calls_open', 'calls_closed'].includes(effective) && (
-                  <JoinForm
-                    lotId={l.id}
-                    role={l.players?.role ?? 'D'}
-                    roster={rosterOptions.filter((r) => r.role === l.players?.role && !r.committed)}
-                    credits={ctx.credits}
-                  />
-                )
-              )}
-            </div>
-          </div>
-        );
-      })}
-
-      {effective === 'calls_open' ? (
-        <>
-          <h2>Chiama uno svincolato</h2>
+      {effective === 'calls_open' && (
+        <div style={{ margin: '16px 0 0' }}>
           <CallForm
             sessionId={s.id}
             freeAgents={callable.map((p) => ({
@@ -267,19 +207,91 @@ export default async function AstaPage() {
             changes={ctx.changes}
             chiamate={chiamate}
           />
-        </>
-      ) : (
-        <div className="callout">
-          Le chiamate per questa asta sono chiuse.
-          {effective === 'calls_closed' && ' Puoi ancora aderire ai lotti qui sopra.'}
         </div>
       )}
 
-      <div className="callout" style={{ marginTop: 24 }}>
-        Ricorda: chi entra e chi esce devono essere dello stesso ruolo, ogni chiamata vuole uno
-        svincolando diverso, e non puoi partecipare a più lotti di quanti cambi ti restano in quel
-        ruolo ({ctx.changes.map((c) => `${c.role} ${c.left}`).join(' · ')}).
-      </div>
+      <h2>Lotti chiamati <span className="h2-conta">{lots.length}</span></h2>
+      {lots.length === 0 ? (
+        <div className="panel"><div className="empty">Nessuno ha ancora chiamato. Puoi essere il primo.</div></div>
+      ) : (
+        <ul className="lotti">
+          {lots.map((l) => {
+            const my = mine.get(l.id);
+            const partecipanti = byLot.get(l.id) ?? [];
+            const altri = partecipanti.filter((p) => p.teamId !== ctx.team.id);
+            const scadenzaMia = my?.is_caller ? callsCloseAt(s, ctx.cfg) : joinsCloseAt(s, ctx.cfg);
+            const modificabile = new Date() < scadenzaMia;
+            const puoAderire = !my && ['calls_open', 'calls_closed'].includes(effective);
+
+            return (
+              <li key={l.id} className={`lotto${my ? ' mio' : ''}`}>
+                <div className="lotto-riga">
+                  <span className="role-badge">{l.players?.role}</span>
+                  <div className="lotto-chi">
+                    <b>{l.players?.name}</b>
+                    <small>
+                      {l.players?.club} · da {l.teams?.name}
+                      {altri.length > 0 && ` · con ${altri.map((p) => p.name).join(', ')}`}
+                    </small>
+                  </div>
+                  <span className="lotto-n num" title="partecipanti">
+                    {partecipanti.length}
+                    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2" /><path d="M3 19a6 6 0 0 1 12 0" /><path d="M16 5.5a3 3 0 0 1 0 5.6" /><path d="M18 14.5a5.5 5.5 0 0 1 3 4.5" /></svg>
+                    <span className="sr-only">{partecipanti.length === 1 ? 'partecipante' : 'partecipanti'}</span>
+                  </span>
+                  {puoAderire && (
+                    <JoinForm
+                      lotId={l.id}
+                      role={l.players?.role ?? 'D'}
+                      giocatore={l.players?.name ?? ''}
+                      roster={rosterOptions.filter((r) => r.role === l.players?.role && !r.committed)}
+                      credits={ctx.credits}
+                    />
+                  )}
+                </div>
+
+                {my && (
+                  <MyParticipation
+                    lotId={l.id}
+                    isCaller={my.is_caller}
+                    status={my.status}
+                    budget={budgetVivo(my.release_player_id)}
+                    credits={ctx.credits}
+                    currentReleaseId={my.release_player_id}
+                    roster={rosterOptions.filter((r) =>
+                      r.role === l.players?.role && (!r.committed || r.id === my.release_player_id))}
+                    editable={modificabile && my.status !== 'pending_approval'}
+                    deadlineLabel={my.status === 'pending_approval'
+                      ? 'in attesa dell\'admin'
+                      : my.is_caller ? 'chiamate chiuse' : 'adesioni chiuse'}
+                  />
+                )}
+
+                {ctx.team.isAdmin && (
+                  <div className="lotto-admin">
+                    <span className="tag muted">admin</span>
+                    {partecipanti.map((p) => (
+                      <AdminCancel key={p.id} participantId={p.id} teamName={p.name} isCaller={p.isCaller} />
+                    ))}
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {effective !== 'calls_open' && effective !== 'live' && (
+        <p className="nota-piede">
+          Le chiamate per questa asta sono chiuse.
+          {effective === 'calls_closed' && ' Puoi ancora aderire ai lotti qui sopra.'}
+        </p>
+      )}
+
+      <p className="nota-piede">
+        Chi entra e chi esce devono essere dello stesso ruolo, ogni chiamata vuole uno svincolando
+        diverso, e non puoi partecipare a più lotti di quanti cambi ti restano in quel ruolo.
+      </p>
     </div>
   );
 }

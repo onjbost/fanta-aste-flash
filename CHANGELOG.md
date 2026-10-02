@@ -51,6 +51,13 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   fatto in campo. Dice dove sta andando la partita prima che finisca.
 - La formazione è quella vera quando la lega l'ha importata; altrimenti la
   probabile del motore delle quote, e la pagina lo dice.
+- **Modificatore difesa e fattore capitano**, con le fasce della lega. Il
+  modificatore vale solo con la difesa schierata almeno a quattro: media dei
+  voti puri del portiere e dei tre difensori migliori. Il fattore capitano
+  guarda il voto puro del capitano, o del vice se il capitano resta senza
+  voto. La diretta mostra i punti e il conto da cui vengono.
+- Il tabellino della lega ora salva anche il **vicecapitano** (migrazione
+  0031); finché la migrazione non c'è, l'import va avanti senza.
 
 ## v5.0 — 2 ottobre 2026
 

@@ -100,6 +100,8 @@ export interface Schierato {
   titolare: boolean;
   /** ordine in panchina: la prima riserva entra per prima */
   ordine: number;
+  /** la fascia: capitano o vicecapitano */
+  fascia?: 'C' | 'V' | null;
 }
 
 export type StatoRiga =
@@ -134,6 +136,17 @@ export interface SquadraLive {
   /** titolari che hanno già un voto, su undici */
   conVoto: number;
   sostituzioni: number;
+  /** i due bonus di squadra, com'è adesso e nella simulazione */
+  modificatore: BonusSquadra;
+  modificatoreSimulato: BonusSquadra;
+  capitano: BonusSquadra;
+  capitanoSimulato: BonusSquadra;
+}
+
+export interface BonusSquadra {
+  punti: number;
+  /** come ci si è arrivati, in una riga: «media 6,38 (P 6,5 · D 7, 6,5, 6)» */
+  spiegazione: string;
 }
 
 export interface ContestoLive {
@@ -215,6 +228,88 @@ function applicaCambi(
   return { usate, cambi };
 }
 
+// =====================================================================
+// modificatore della difesa e fattore capitano
+// =====================================================================
+
+/**
+ * Il modificatore della difesa, con le fasce della lega: la media dei voti
+ * puri (niente bonus né malus) del portiere e dei tre difensori migliori.
+ * Ogni voce è «sotto questa soglia, questi punti».
+ */
+export const FASCE_DIFESA: [number, number][] = [
+  [6, 0], [6.25, 0.5], [6.5, 1], [6.75, 1.5], [7, 2], [7.25, 2.5], [7.5, 3.5], [Infinity, 4],
+];
+/** Serve una difesa schierata almeno a quattro: a tre il modificatore non c'è. */
+export const DIFENSORI_MINIMI = 4;
+
+/** Il fattore capitano sul voto puro del capitano: «da questo voto in su, questi punti». */
+export const FASCE_CAPITANO: [number, number][] = [[7.5, 1.5], [7, 1], [6.5, 0.5]];
+
+export function puntiModificatore(media: number): number {
+  for (const [soglia, punti] of FASCE_DIFESA) if (media < soglia) return punti;
+  return 0;
+}
+
+export function puntiCapitano(voto: number): number {
+  for (const [soglia, punti] of FASCE_CAPITANO) if (voto >= soglia) return punti;
+  return 0;
+}
+
+const virgola = (n: number) => String(Math.round(n * 100) / 100).replace('.', ',');
+
+/**
+ * Il modificatore della difesa su una formazione già risolta (chi conta).
+ *
+ * La difesa a quattro si guarda sui titolari schierati: è il modulo che
+ * l'allenatore ha scelto. I voti invece sono di chi conta davvero, riserve
+ * entrate comprese. Finché portiere e tre difensori non hanno un voto, il
+ * modificatore resta in attesa e vale zero.
+ */
+export function modificatoreDifesa(
+  righe: RigaLive[], conta: (r: RigaLive) => boolean, voto: (r: RigaLive) => number | null,
+): BonusSquadra {
+  const schierati = righe.filter((r) => r.titolare && r.ruolo === 'D').length;
+  if (schierati < DIFENSORI_MINIMI) {
+    return { punti: 0, spiegazione: `difesa a ${schierati}: serve almeno a ${DIFENSORI_MINIMI}` };
+  }
+  const portiere = righe.find((r) => conta(r) && r.ruolo === 'P' && voto(r) != null);
+  const difensori = righe
+    .filter((r) => conta(r) && r.ruolo === 'D' && voto(r) != null)
+    .map((r) => voto(r) as number)
+    .sort((a, b) => b - a)
+    .slice(0, 3);
+  if (!portiere || difensori.length < 3) {
+    return { punti: 0, spiegazione: 'in attesa dei voti di portiere e difensori' };
+  }
+  const vp = voto(portiere) as number;
+  const media = (vp + difensori.reduce((a, b) => a + b, 0)) / 4;
+  return {
+    punti: puntiModificatore(media),
+    spiegazione: `media ${virgola(media)} (P ${virgola(vp)} · D ${difensori.map(virgola).join(', ')})`,
+  };
+}
+
+/**
+ * Il fattore capitano: il voto puro del capitano, o del vicecapitano se il
+ * capitano resta senza voto. Finché il capitano può ancora prenderlo, si
+ * aspetta lui.
+ */
+export function fattoreCapitano(righe: RigaLive[], voto: (r: RigaLive) => number | null, simulata: boolean): BonusSquadra {
+  const c = righe.find((r) => r.fascia === 'C');
+  const v = righe.find((r) => r.fascia === 'V');
+  if (!c) return { punti: 0, spiegazione: 'nessun capitano indicato' };
+  const vc = voto(c);
+  if (vc != null) return { punti: puntiCapitano(vc), spiegazione: `${c.nome}, voto ${virgola(vc)}` };
+  // il capitano non ha (ancora) voto: passa al vice solo se il capitano è
+  // fuori dai giochi — nella simulazione anche se è in panchina a partita in corso
+  const fuori = c.stato === 'sv' || (simulata && c.stato === 'fuori');
+  if (!fuori) return { punti: 0, spiegazione: `${c.nome}: in attesa del voto` };
+  const vv = v ? voto(v) : null;
+  if (!v || vv == null) return { punti: 0, spiegazione: `${c.nome} senza voto, e nessun vice con voto` };
+  return { punti: puntiCapitano(vv), spiegazione: `${c.nome} senza voto: vale il vice ${v.nome}, voto ${virgola(vv)}` };
+}
+
 export function squadraLive(formazione: Schierato[], ctx: ContestoLive): SquadraLive {
   const righe = formazione.map((s) => riga(s, ctx));
 
@@ -233,12 +328,23 @@ export function squadraLive(formazione: Schierato[], ctx: ContestoLive): Squadra
   }
   const pulite = righe.map(({ _eventi, ...r }) => { void _eventi; return r; });
 
+  // il voto puro della simulazione: quello vero, o il 6 d'ufficio a chi
+  // prende il simulato (chi è in campo o deve ancora giocare)
+  const votoSim = (r: RigaLive) => r.voto ?? (r.simulato != null ? VOTO_SIMULATO : null);
+  const modificatore = modificatoreDifesa(pulite, (r) => r.conta, (r) => r.voto);
+  const modificatoreSimulato = modificatoreDifesa(pulite, (r) => r.contaSimulato, votoSim);
+  const capitano = fattoreCapitano(pulite, (r) => r.voto, false);
+  const capitanoSimulato = fattoreCapitano(pulite, votoSim, true);
+  totale += modificatore.punti + capitano.punti;
+  totaleSimulato += modificatoreSimulato.punti + capitanoSimulato.punti;
+
   return {
     righe: pulite,
     totale: Math.round(totale * 100) / 100,
     totaleSimulato: Math.round(totaleSimulato * 100) / 100,
     gol: golDaFantapunti(totale),
     golSimulati: golDaFantapunti(totaleSimulato),
+    modificatore, modificatoreSimulato, capitano, capitanoSimulato,
     conVoto: righe.filter((r) => r.titolare && r.stato === 'voto').length,
     sostituzioni: ora.cambi,
   };

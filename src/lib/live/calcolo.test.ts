@@ -2,7 +2,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { decodificaLive, type PartitaLive } from './protobuf';
-import { bonusDaEventi, eventiSconosciuti, minuto, squadraLive, type Schierato } from './calcolo';
+import {
+  bonusDaEventi, eventiSconosciuti, minuto, puntiCapitano, puntiModificatore, squadraLive, type Schierato,
+} from './calcolo';
 import { stessoClub } from '@/lib/fonti/pagine';
 
 // Il messaggio vero della 4ª giornata 2023/24, tutte le partite finite. Lo
@@ -114,5 +116,61 @@ describe('minuto', () => {
     const p = { status: 3, fhDate: 0, shDate: 1_000_000 };
     expect(minuto(p, 1_000_000 + 10 * 60_000)).toBe(55);
     expect(minuto({ status: 2, fhDate: 0, shDate: 0 }, 0)).toBe(45);
+  });
+});
+
+describe('le fasce della lega', () => {
+  it('modificatore difesa', () => {
+    expect([5.9, 6, 6.24, 6.25, 6.5, 6.75, 7, 7.25, 7.49, 7.5, 8].map(puntiModificatore))
+      .toEqual([0, 0.5, 0.5, 1, 1.5, 2, 2.5, 3.5, 3.5, 4, 4]);
+  });
+
+  it('fattore capitano', () => {
+    expect([4.5, 5, 5.5, 6, 6.5, 7, 7.5, 8].map(puntiCapitano))
+      .toEqual([0, 0, 0, 0, 0.5, 1, 1.5, 1.5]);
+  });
+});
+
+describe('modificatore e capitano in diretta', () => {
+  // un'unica partita finita, con voti scelti apposta
+  const g = (id: number, position: string, vote: number | null, events: number[] = []) =>
+    ({ id, name: String(id), position, vote, events, eventsMinutes: events.map(() => 10) });
+  const partita = (giocatori: ReturnType<typeof g>[], status = 4): PartitaLive[] => [{
+    matchId: 1, teamHome: 'Inter', teamAway: 'Milan', goalHome: 0, goalAway: 0, status,
+    fhDate: 0, shDate: 0, matchDate: 0, playersHome: giocatori, playersAway: [],
+  }];
+  const ctx = (p: PartitaLive[]) => ({ partite: p, ora: 0, stessoClub: (a: string, b: string) => stessoClub(a, b) });
+  const s = (id: number, ruolo: Schierato['ruolo'], fascia: Schierato['fascia'] = null, titolare = true): Schierato =>
+    ({ playerId: String(id), extId: String(id), nome: `G${id}`, ruolo, club: 'Inter', titolare, ordine: 0, fascia });
+
+  it('difesa a 4: media di portiere e tre migliori difensori, voti puri', () => {
+    const live = partita([g(1, 'P', 6.5), g(2, 'D', 7, [3]), g(3, 'D', 6.5), g(4, 'D', 6), g(5, 'D', 5)]);
+    const r = squadraLive([s(1, 'P'), s(2, 'D'), s(3, 'D'), s(4, 'D'), s(5, 'D')], ctx(live));
+    // (6.5 + 7 + 6.5 + 6) / 4 = 6.5 → 1.5; il gol di 2 non entra nella media
+    expect(r.modificatore.punti).toBe(1.5);
+    expect(r.totale).toBe(7.5 + 10 + 6.5 + 6 + 5 + 1.5);
+  });
+
+  it('difesa a 3: niente modificatore', () => {
+    const live = partita([g(1, 'P', 8), g(2, 'D', 8), g(3, 'D', 8), g(4, 'D', 8)]);
+    const r = squadraLive([s(1, 'P'), s(2, 'D'), s(3, 'D'), s(4, 'D')], ctx(live));
+    expect(r.modificatore.punti).toBe(0);
+    expect(r.modificatore.spiegazione).toMatch(/difesa a 3/);
+  });
+
+  it('capitano col voto; senza voto passa al vice', () => {
+    const live = partita([g(1, 'A', 7.5), g(2, 'C', 7)]);
+    expect(squadraLive([s(1, 'A', 'C'), s(2, 'C', 'V')], ctx(live)).capitano.punti).toBe(1.5);
+    const sv = partita([g(1, 'A', null), g(2, 'C', 7)]);
+    const r = squadraLive([s(1, 'A', 'C'), s(2, 'C', 'V')], ctx(sv));
+    expect(r.capitano.punti).toBe(1);
+    expect(r.capitano.spiegazione).toMatch(/vice/);
+  });
+
+  it('a partita in corso il capitano senza voto si aspetta; la simulazione gli dà 6', () => {
+    const live = partita([g(1, 'A', null)], 3);
+    const r = squadraLive([s(1, 'A', 'C'), s(2, 'C', 'V')], ctx(live));
+    expect(r.capitano.spiegazione).toMatch(/in attesa/);
+    expect(r.capitanoSimulato.punti).toBe(0);
   });
 });

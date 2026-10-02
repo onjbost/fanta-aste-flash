@@ -204,13 +204,20 @@ export async function importaGiornata(grezzo: unknown): Promise<EsitoImport> {
           league_id: leagueId, fixture_id: fixtureId, team_id: teamId,
           slot: r.slot, player_name: r.playerName, player_id: playerId,
           role: r.role, starter: r.starter, entered: r.entered,
-          is_captain: r.isCaptain, voto: r.voto, fantavoto: r.fantavoto,
+          is_captain: r.isCaptain, is_vice: r.isVice, voto: r.voto, fantavoto: r.fantavoto,
           bonus: r.bonus, counted: r.counted,
         };
       });
 
-      const { error } = await db.from('lineup_entries')
+      let { error } = await db.from('lineup_entries')
         .upsert(righe, { onConflict: 'fixture_id,team_id,slot' });
+      // senza la migrazione 0031 la colonna del vicecapitano non c'è: il
+      // tabellino si scrive lo stesso, e il vice si perde finché non la si esegue
+      if (error && /is_vice/.test(error.message)) {
+        ({ error } = await db.from('lineup_entries')
+          .upsert(righe.map(({ is_vice: _v, ...r }) => { void _v; return r; }), { onConflict: 'fixture_id,team_id,slot' }));
+        if (!error) problemi.push('manca la migrazione 0031: il vicecapitano non è stato salvato');
+      }
       if (error) problemi.push(`${(squadra as SquadraGrezza).nome}: ${error.message}`);
     }
 

@@ -108,10 +108,14 @@ const STATO: Record<number, string> = {
 async function formazioneDellaLega(fixtureId: string, matchdayId: string, teamId: string): Promise<Schierato[] | null> {
   const db = supabaseAdmin();
   const leggi = async (ids: string[]) => {
+    const campi = 'slot, player_name, player_id, role, starter, is_captain, players(ext_id, club)';
+    const conVice = await db.from('lineup_entries')
+      .select(`${campi}, is_vice`).in('fixture_id', ids).eq('team_id', teamId).order('slot');
+    if (!conVice.error) return (conVice.data ?? []) as Record<string, unknown>[];
+    // senza la migrazione 0031 il vice non c'è: si legge il resto
     const { data } = await db.from('lineup_entries')
-      .select('slot, player_name, player_id, role, starter, players(ext_id, club)')
-      .in('fixture_id', ids).eq('team_id', teamId).order('slot');
-    return data ?? [];
+      .select(campi).in('fixture_id', ids).eq('team_id', teamId).order('slot');
+    return (data ?? []) as Record<string, unknown>[];
   };
   let righe = await leggi([fixtureId]);
   if (!righe.length) {
@@ -133,6 +137,7 @@ async function formazioneDellaLega(fixtureId: string, matchdayId: string, teamId
         club: p?.club ?? '',
         titolare: Boolean(r.starter),
         ordine: Number(r.slot),
+        fascia: r.is_captain ? 'C' as const : r.is_vice ? 'V' as const : null,
       };
     });
 }
@@ -170,6 +175,7 @@ export async function diretta(fixtureId: string, leagueId: string): Promise<Dire
       club: p.club,
       titolare: p.titolare,
       ordine: p.ordine,
+      fascia: p.fascia,
     }));
   };
 

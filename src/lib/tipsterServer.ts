@@ -170,6 +170,8 @@ export interface Probabile extends GiocatoreTipster {
   titolare: boolean;
   /** posto in panchina, dalla prima riserva */
   ordine: number;
+  /** capitano e vice probabili: i due titolari da cui ci si aspetta di più */
+  fascia: 'C' | 'V' | null;
 }
 
 /**
@@ -189,9 +191,14 @@ export async function formazioniProbabili(
     const panchina = rosa
       .filter((p) => !undici.has(p.playerId) && p.disponibile !== false)
       .sort((a, b) => priorita(b) - priorita(a));
+    const titolari = rosa.filter((p) => undici.has(p.playerId))
+      .sort((a, b) => priorita(b) - priorita(a));
     esito.set(teamId, [
-      ...rosa.filter((p) => undici.has(p.playerId)).map((p) => ({ ...p, titolare: true, ordine: 0 })),
-      ...panchina.map((p, i) => ({ ...p, titolare: false, ordine: i + 1 })),
+      ...titolari.map((p, i) => ({
+        ...p, titolare: true, ordine: 0,
+        fascia: i === 0 ? 'C' as const : i === 1 ? 'V' as const : null,
+      })),
+      ...panchina.map((p, i) => ({ ...p, titolare: false, ordine: i + 1, fascia: null })),
     ]);
   }
   return esito;

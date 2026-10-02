@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { Diretta as DatiDiretta, LatoDiretta } from '@/lib/live/liveServer';
-import type { RigaLive } from '@/lib/live/calcolo';
+import type { BonusSquadra, RigaLive } from '@/lib/live/calcolo';
 import { Stemma } from '../../Stemma';
 
 /** Ogni quanto si rilegge il live mentre si gioca: il sito aggiorna al minuto. */
@@ -34,7 +34,10 @@ function Riga({ r, simula }: { r: RigaLive; simula: boolean }) {
     }}>
       <span className="role-badge">{r.ruolo}</span>
       <span style={{ minWidth: 0 }}>
-        <b style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.nome}</b>
+        <b style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {r.nome}
+          {r.fascia && <span className="tag muted" style={{ marginLeft: 6 }} title={r.fascia === 'C' ? 'Capitano' : 'Vicecapitano'}>{r.fascia}</span>}
+        </b>
         <small style={{ color: 'var(--muted)' }}>
           {[r.club, r.partita, STATO[r.stato], ...r.eventi].filter(Boolean).join(' · ')}
           {!r.titolare && conta && ' · entra'}
@@ -47,6 +50,22 @@ function Riga({ r, simula }: { r: RigaLive; simula: boolean }) {
         )}
       </span>
     </li>
+  );
+}
+
+/** Una riga dei bonus di squadra: i punti e da dove vengono. */
+function BonusRiga({ nome, b }: { nome: string; b: BonusSquadra }) {
+  return (
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, alignItems: 'center',
+      padding: '6px 0', borderBottom: '1px solid var(--surface-3)',
+    }}>
+      <span style={{ minWidth: 0 }}>
+        <b style={{ display: 'block' }}>{nome}</b>
+        <small style={{ color: 'var(--muted)' }}>{b.spiegazione}</small>
+      </span>
+      <b className="num">{b.punti > 0 ? `+${fmt(b.punti)}` : fmt(b.punti)}</b>
+    </div>
   );
 }
 
@@ -67,6 +86,8 @@ function Formazione({ lato, simula }: { lato: LatoDiretta; simula: boolean }) {
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {titolari.map((r) => <Riga key={`t${r.ordine}-${r.nome}`} r={r} simula={simula} />)}
       </ul>
+      <BonusRiga nome="Modificatore difesa" b={simula ? lato.live.modificatoreSimulato : lato.live.modificatore} />
+      <BonusRiga nome="Fattore capitano" b={simula ? lato.live.capitanoSimulato : lato.live.capitano} />
       {panchina.length > 0 && (
         <details style={{ marginTop: 8 }}>
           <summary className="sub" style={{ cursor: 'pointer' }}>Panchina ({panchina.length})</summary>
@@ -129,7 +150,7 @@ export function Diretta({ d }: { d: DatiDiretta }) {
         {simula
           ? 'Chi non ha ancora voto prende 6, più i bonus e i malus che ha già fatto. Chi è in panchina in una partita già cominciata non lo prende: entra la riserva. È un\'indicazione di dove sta andando la partita, non un risultato.'
           : 'Contano solo i voti già usciti. Le riserve entrano per chi ha finito la sua partita senza voto, fino a tre cambi.'}
-        {' '}Il modificatore della difesa non è calcolato.
+        {' '}Modificatore difesa e fattore capitano usano i voti puri, senza bonus.
       </p>
 
       {d.errore && <div className="callout crit">{d.errore}</div>}

@@ -274,6 +274,8 @@ export interface RigaTabellino {
   starter: boolean;
   entered: boolean;
   isCaptain: boolean;
+  /** la fascia «V»: il fattore capitano passa a lui se il capitano non prende voto */
+  isVice: boolean;
   voto: number | null;
   fantavoto: number | null;
   bonus: Bonus;
@@ -297,6 +299,7 @@ export function righeTabellino(squadra: SquadraGrezza, f: Formazione): RigaTabel
     starter: g.titolare,
     entered: entrati.has(g),
     isCaptain: g.fascia === 'C',
+    isVice: g.fascia === 'V' && g.titolare,
     voto: g.voto,
     fantavoto: g.fantavoto,
     bonus: traduciEventi(g.eventi),

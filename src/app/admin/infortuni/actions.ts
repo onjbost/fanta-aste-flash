@@ -22,6 +22,7 @@ export async function aggiornaIndisponibili(): Promise<InfState> {
 
   const e = await raccogliIndisponibili();
   revalidatePath('/admin/infortuni');
+  revalidatePath('/admin/pannello');
   if (!e.reportId) return { ok: false, message: e.problemi.join(' · ') || 'Non ho raccolto niente.' };
   return {
     ok: true,
@@ -70,6 +71,7 @@ export async function aggiornaFonti(): Promise<InfState> {
 
   const [q, v] = [await raccogliQuotazioni(), await raccogliVoti()];
   revalidatePath('/admin/infortuni');
+  revalidatePath('/admin/pannello');
   revalidatePath('/listone');
   const problemi = [...q.problemi, ...v.problemi];
   return {

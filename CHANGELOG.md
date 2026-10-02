@@ -111,6 +111,19 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   La redazione.
 - In fondo Tipster, Sala di prova, Novità dell'app ed Esci.
 
+### Pannello amministratore
+- **Prima voce del menu admin**, accanto alla Coda operativa. Tre pulsanti:
+  **Importa giornata** (se la lega l'ha calcolata la importa, altrimenti
+  prima la calcola — solo a partite finite — e poi la importa), **Aggiorna
+  quotazioni e voti** (spostato da Indisponibili) e **Aggiorna
+  indisponibili**.
+- **Il registro dei giri sulla giornata**, diviso per giornata: ogni giro del
+  cron, a mano o da reimport scrive i passi fatti e com'è andato (partite
+  finite, calcolo sulla lega, import). Gli errori del cron arrivano anche su
+  Telegram (migrazione 0033).
+- Senza live, che per le giornate passate non risponde, per sapere se una
+  giornata è finita bastano le pagelle: i voti di tutte le squadre.
+
 ## v5.0 — 2 ottobre 2026
 
 L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,

@@ -4,9 +4,9 @@ import { supabaseAdmin } from '@/lib/supabase';
 import {
   GIORNI_SVINCOLO_GRATUITO, indisponibiliAttuali, svincoliProponibili,
 } from '@/lib/infortuni/infortuniServer';
-import { quotazioniAggiornate, ultimeRaccolte } from '@/lib/fonti/fontiServer';
+import { quotazioniAggiornate } from '@/lib/fonti/fontiServer';
 import { TopBar } from '../../TopBar';
-import { BottoneAggiorna, BottoneFonti, BottoneProponi } from './Pannello';
+import { BottoneAggiorna, BottoneProponi } from './Pannello';
 import { RigheIndisponibile } from './Righe';
 
 export const dynamic = 'force-dynamic';
@@ -29,12 +29,11 @@ export default async function InfortuniPage() {
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = supabaseAdmin();
-  const [tutti, proposte, { data: rosa }, quotazioni, raccolte] = await Promise.all([
+  const [tutti, proposte, { data: rosa }, quotazioni] = await Promise.all([
     indisponibiliAttuali(),
     svincoliProponibili(ctx.team.leagueId),
     db.from('v_roster').select('player_id, name, team_id').eq('league_id', ctx.team.leagueId),
     quotazioniAggiornate(),
-    ultimeRaccolte(),
   ]);
 
   const squadraDi = new Map((rosa ?? []).map((r) => [r.player_id as string, r.team_id as string]));
@@ -179,30 +178,6 @@ export default async function InfortuniPage() {
         </div>
       )}
 
-      <h2>Quotazioni e voti</h2>
-      <p className="sub">
-        Letti da fantacalcio.it ogni mattina. Le quotazioni aggiornate stanno accanto a
-        quelle del listone della lega (che non vengono toccate), e insieme ai voti delle
-        ultime giornate entrano nelle quote del Torneo dei Tipster: chi è in forma pesa
-        di più, chi non prende voto da settimane scivola fuori dall&apos;undici stimato.
-      </p>
-      <ul className="sub" style={{ margin: '0 0 12px', paddingLeft: 18 }}>
-        <li>
-          Quotazioni: {raccolte.quotazioni
-            ? <>{quando(raccolte.quotazioni.fetchedAt)} · {raccolte.quotazioni.righe} lette,
-              {' '}{raccolte.quotazioni.agganciate} agganciate
-              {raccolte.quotazioni.nota && <> · {raccolte.quotazioni.nota}</>}</>
-            : 'mai lette'}
-        </li>
-        <li>
-          Voti: {raccolte.voti
-            ? <>{quando(raccolte.voti.fetchedAt)} · {raccolte.voti.righe} letti,
-              {' '}{raccolte.voti.agganciate} agganciati
-              {raccolte.voti.nota && <> · {raccolte.voti.nota}</>}</>
-            : 'mai letti'}
-        </li>
-      </ul>
-      <BottoneFonti />
     </div>
   );
 }

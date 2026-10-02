@@ -268,7 +268,8 @@ export async function importaDaLegheAction(): Promise<ActionState> {
   try {
     const { leagueId } = await requireAdmin();
     const { importaGiornateConcluse, importaFormazioni } = await import('@/lib/leghe/legheServer');
-    const g = await importaGiornateConcluse();   // il pulsante non aspetta il giorno del calcolo
+    // il pulsante non aspetta il giorno del calcolo
+    const g = await importaGiornateConcluse({ origine: 'manuale' });
 
     // la giornata in corso: la prima di oggi o di domani, se c'è
     const oggi = new Date().toISOString().slice(0, 10);
@@ -301,7 +302,9 @@ export async function reimportaGiornataAction(_p: ActionState, form: FormData): 
     if (!Number.isInteger(giornata) || giornata < 1) return { ok: false, message: 'Scrivi il numero della giornata.' };
     const { importaGiornateConcluse } = await import('@/lib/leghe/legheServer');
     const ricalcola = form.get('ricalcola') === 'on';
-    const g = await importaGiornateConcluse({ forza: { tipo, giornata }, calcola: ricalcola });
+    const g = await importaGiornateConcluse({
+      forza: { tipo, giornata }, calcola: ricalcola, ricalcola, origine: 'reimport',
+    });
     revalidatePath('/admin/redazione');
     const fatta = g.importate[0];
     if (!fatta) return { ok: false, message: g.problemi.join(' · ') || 'Non importata.' };

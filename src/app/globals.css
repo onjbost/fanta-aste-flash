@@ -76,7 +76,9 @@ button .icona:only-child{margin-right:0}
   padding:0 16px calc(var(--tabbar-h) + 40px + env(safe-area-inset-bottom));
 }
 .topbar{
-  position:sticky;top:0;z-index:40;
+  /* sopra la tab bar (50): il cassetto ☰ vive qui dentro, e il suo livello è
+     quello della testata — più basso, la barra gli coprirebbe «Esci» */
+  position:sticky;top:0;z-index:55;
   display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:8px;
   margin:0 -16px 18px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
   /* fondo quasi pieno e niente backdrop-filter: la sfocatura renderebbe la

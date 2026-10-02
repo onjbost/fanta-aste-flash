@@ -5,13 +5,19 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { notifyAdmin, notifyAdminPlain, tgPhaseChange } from '@/lib/telegram';
 import { raccogliIndisponibili } from '@/lib/infortuni/infortuniServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
+import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
+
+// le pagine di fantacalcio.it si leggono in fila: il tempo standard di una
+// funzione non basta quando c'è da recuperare qualche giornata di voti
+export const maxDuration = 60;
 
 /**
- * Cron giornaliero (Vercel). Fa quattro cose:
+ * Cron giornaliero (Vercel). Fa cinque cose:
  *   1. allinea lo stato delle sessioni al calendario
  *   2. prepara i riepiloghi di T−5 e T−1 come bozze da controllare
  *   3. il mercoledì, raccoglie gli indisponibili di Serie A e le foto delle news
- *   4. tocca il database, così il progetto Supabase gratuito non va in pausa
+ *   4. ogni giorno, le quotazioni aggiornate e i voti dell'ultima giornata
+ *   5. tocca il database, così il progetto Supabase gratuito non va in pausa
  *
  * Le fasi vengono comunque ricalcolate dall'orologio a ogni pagina: se il cron
  * salta un giro, l'app resta corretta lo stesso.
@@ -64,9 +70,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Quotazioni e voti tutti i giorni: sono una pagina ciascuna, la scrittura
+  // sovrascrive e non duplica, e i voti escono fra lunedì e martedì ma i
+  // recuperi arrivano quando arrivano. Se qualcosa non torna lo dice una
+  // volta a settimana, il mercoledì con gli indisponibili: un guasto della
+  // pagina non deve diventare un messaggio ogni mattina.
+  const quotazioni = await raccogliQuotazioni();
+  const voti = await raccogliVoti();
+  const guasti = [
+    ...quotazioni.problemi.map((p) => `Quotazioni: ${p}`),
+    ...voti.problemi.map((p) => `Voti: ${p}`),
+  ];
+  if (guasti.length && new Date().getUTCDay() === 3) await notifyAdminPlain(guasti.join('\n'));
+
   const { count } = await db.from('players').select('id', { count: 'exact', head: true });
 
   return NextResponse.json({
-    ok: true, changed, players: count ?? 0, indisponibili, foto, at: new Date().toISOString(),
+    ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti,
+    at: new Date().toISOString(),
   });
 }

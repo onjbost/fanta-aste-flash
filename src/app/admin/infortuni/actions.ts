@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { raccogliIndisponibili, svincoliProponibili } from '@/lib/infortuni/infortuniServer';
+import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
 
 export type InfState = { ok: boolean; message: string } | null;
 
@@ -58,4 +59,23 @@ export async function proponiSvincolo(_prev: InfState, form: FormData): Promise<
   revalidatePath('/admin/infortuni');
   revalidatePath('/admin');
   return { ok: true, message: `Richiesta aperta per ${p.nome}: adesso la decidi dal pannello admin.` };
+}
+
+/**
+ * Rilegge quotazioni e voti adesso, senza aspettare il cron della mattina.
+ * Utile la prima volta, per riempire le giornate arretrate (tre per volta).
+ */
+export async function aggiornaFonti(): Promise<InfState> {
+  if (!await requireAdmin()) return { ok: false, message: 'Serve essere admin.' };
+
+  const [q, v] = [await raccogliQuotazioni(), await raccogliVoti()];
+  revalidatePath('/admin/infortuni');
+  revalidatePath('/listone');
+  const problemi = [...q.problemi, ...v.problemi];
+  return {
+    ok: q.righe > 0 || v.giornate.length > 0,
+    message: `Quotazioni: ${q.righe} lette, ${q.agganciate} agganciate. `
+      + `Voti: ${v.giornate.length ? `giornate ${v.giornate.join(', ')}` : 'nessuna giornata nuova'}.`
+      + (problemi.length ? ` — ${problemi.join(' · ')}` : ''),
+  };
 }

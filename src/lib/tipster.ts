@@ -11,6 +11,7 @@
  * produrrebbe quote che si contraddicono fra loro: così è impossibile.
  */
 import type { Role } from './rules';
+import { fantavotoConForma, type Forma } from './forma';
 
 // =====================================================================
 // 1 · dai fantapunti ai gol
@@ -291,6 +292,29 @@ export interface GiocatoreTipster {
   quotazione: number;
   /** chi non può giocare non entra nell'undici */
   disponibile?: boolean;
+  /**
+   * La forma delle ultime giornate, quando abbiamo i voti. Sposta il
+   * fantavoto atteso e, con la titolarità, la scelta dell'undici.
+   */
+  forma?: Pick<Forma, 'fantamedia' | 'peso' | 'titolarita'> | null;
+}
+
+/**
+ * Il fantavoto che ci si aspetta da un giocatore, a campo neutro: la stima da
+ * quotazione, corretta dalla forma quando c'è.
+ */
+export function fantavotoAtteso(p: GiocatoreTipster): number {
+  return fantavotoConForma(fantamediaAttesa(p.role, p.quotazione), p.forma);
+}
+
+/**
+ * L'ordine in cui si sceglie l'undici: chi rende di più, pesato per quanto è
+ * probabile che giochi. Senza voti è la quotazione, come prima; con i voti,
+ * chi non prende voto da tre giornate scivola dietro chi gioca.
+ */
+function priorita(p: GiocatoreTipster): number {
+  const t = p.forma?.titolarita;
+  return fantavotoAtteso(p) * (t == null ? 1 : 0.4 + 0.6 * t);
 }
 
 /** Modulo di riferimento per la stima: 3-4-3. */
@@ -467,7 +491,8 @@ export function forzaClub(listone: { club: string; quotazione: number }[]): Reco
 /**
  * Stima la distribuzione dei fantapunti di una fantasquadra in una giornata.
  *
- * Sceglie l'undici più forte per quotazione dentro il modulo, corregge ogni
+ * Sceglie l'undici più forte dentro il modulo — per quotazione e forma,
+ * pesando chi gioca davvero (`fantavotoAtteso`, `priorita`) — corregge ogni
  * voto per l'avversario reale del club e per il fattore campo, e somma. La
  * deviazione viene dalla dispersione dei singoli voti più un termine di
  * incertezza del modello: senza quello, le quote sarebbero più sicure di
@@ -499,7 +524,7 @@ export function stimaSquadra(
   (Object.keys(MODULO) as Role[]).forEach((r) => {
     undici.push(...disponibili
       .filter((p) => p.role === r)
-      .sort((a, b) => b.quotazione - a.quotazione)
+      .sort((a, b) => priorita(b) - priorita(a) || b.quotazione - a.quotazione)
       .slice(0, MODULO[r]));
   });
 
@@ -508,7 +533,7 @@ export function stimaSquadra(
   let varianza = 0;
   const contributi = undici.map((p) => {
     const ctx = contesti[p.club];
-    const nudo = fantamediaAttesa(p.role, p.quotazione);
+    const nudo = fantavotoAtteso(p);
     let fv: number;
     if (ctx?.seiPolitico) {
       fv = 6;                       // niente voto, niente bonus: 6 secco

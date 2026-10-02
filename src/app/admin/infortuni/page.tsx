@@ -4,8 +4,10 @@ import { supabaseAdmin } from '@/lib/supabase';
 import {
   GIORNI_SVINCOLO_GRATUITO, indisponibiliAttuali, svincoliProponibili,
 } from '@/lib/infortuni/infortuniServer';
+import { quotazioniAggiornate, ultimeRaccolte } from '@/lib/fonti/fontiServer';
 import { TopBar } from '../../TopBar';
-import { BottoneAggiorna, BottoneProponi } from './Pannello';
+import { BottoneAggiorna, BottoneFonti, BottoneProponi } from './Pannello';
+import { RigheIndisponibile } from './Righe';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,10 +29,12 @@ export default async function InfortuniPage() {
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = supabaseAdmin();
-  const [tutti, proposte, { data: rosa }] = await Promise.all([
+  const [tutti, proposte, { data: rosa }, quotazioni, raccolte] = await Promise.all([
     indisponibiliAttuali(),
     svincoliProponibili(ctx.team.leagueId),
     db.from('v_roster').select('player_id, name, team_id').eq('league_id', ctx.team.leagueId),
+    quotazioniAggiornate(),
+    ultimeRaccolte(),
   ]);
 
   const squadraDi = new Map((rosa ?? []).map((r) => [r.player_id as string, r.team_id as string]));
@@ -44,6 +48,21 @@ export default async function InfortuniPage() {
   const nostri = tutti
     .filter((r) => r.playerId && squadraDi.has(r.playerId))
     .sort((a, b) => (b.giorniDiStop ?? -1) - (a.giorniDiStop ?? -1));
+
+  // Gli svincolati: agganciati a un giocatore della lega che non è in
+  // nessuna rosa. Sono quelli da non chiamare all'asta senza saperlo.
+  const liberiIds = [...new Set(tutti
+    .filter((r) => r.playerId && !squadraDi.has(r.playerId))
+    .map((r) => r.playerId as string))];
+  const { data: anagrafica } = liberiIds.length
+    ? await db.from('players').select('id, role, quotation, league_id')
+      .in('id', liberiIds).eq('league_id', ctx.team.leagueId)
+    : { data: [] as { id: string; role: string; quotation: number; league_id: string }[] };
+  const perId = new Map((anagrafica ?? []).map((p) => [p.id as string, p]));
+  const liberi = tutti
+    .filter((r) => r.playerId && perId.has(r.playerId) && !squadraDi.has(r.playerId))
+    .sort((a, b) => (b.giorniDiStop ?? -1) - (a.giorniDiStop ?? -1));
+  const nonAgganciati = tutti.filter((r) => !r.playerId).length;
 
   const raccoltoIl = tutti[0]?.raccoltoIl ?? null;
   const fuoriUso = tutti.filter((r) => r.categoria === 'infortunato' || r.categoria === 'squalificato');
@@ -110,17 +129,43 @@ export default async function InfortuniPage() {
           </thead>
           <tbody>
             {nostri.map((r) => (
-              <tr key={`${r.playerId}-${r.categoria}`}>
-                <td>{r.nome}<br /><span className="sub">{r.club}</span></td>
-                <td>{nomeSquadra.get(squadraDi.get(r.playerId as string) ?? '') ?? '—'}</td>
-                <td>{ETICHETTA[r.categoria] ?? r.categoria}</td>
-                <td>
-                  {r.rientroStimato
-                    ? <>{r.rientroStimato}<br /><span className="sub">~{r.giorniDiStop} giorni</span></>
-                    : <span className="sub">non deducibile</span>}
-                </td>
-              </tr>
+              <RigheIndisponibile key={`${r.playerId}-${r.categoria}`} r={r}
+                etichetta={ETICHETTA[r.categoria] ?? r.categoria}
+                seconda={nomeSquadra.get(squadraDi.get(r.playerId as string) ?? '') ?? '—'} />
             ))}
+          </tbody>
+        </table>
+        </div>
+      )}
+
+      <h2>Fra gli svincolati</h2>
+      <p className="sub">
+        Indisponibili che non sono in nessuna rosa della lega. Nella pagina Svincolati
+        tutti gli allenatori li vedono con l&apos;etichetta, così nessuno chiama all&apos;asta
+        un giocatore fermo senza saperlo.
+        {nonAgganciati > 0 && <> {nonAgganciati} righe della fonte non corrispondono a
+        nessun giocatore del listone e restano fuori da entrambe le tabelle.</>}
+      </p>
+      {liberi.length === 0 ? (
+        <div className="empty">Nessuno svincolato risulta indisponibile.</div>
+      ) : (
+        <div className="tablewrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Giocatore</th><th className="num">Quot.</th><th>Stato</th><th>Rientro</th>
+            </tr>
+          </thead>
+          <tbody>
+            {liberi.map((r) => {
+              const p = perId.get(r.playerId as string)!;
+              const q = quotazioni.get(r.playerId as string)?.qtAttuale ?? Number(p.quotation);
+              return (
+                <RigheIndisponibile key={`${r.playerId}-${r.categoria}`} r={r}
+                  etichetta={ETICHETTA[r.categoria] ?? r.categoria}
+                  ruolo={p.role as string} seconda={String(q)} secondaNum />
+              );
+            })}
           </tbody>
         </table>
         </div>
@@ -133,6 +178,31 @@ export default async function InfortuniPage() {
           conta che non giochino, non quando torneranno.
         </div>
       )}
+
+      <h2>Quotazioni e voti</h2>
+      <p className="sub">
+        Letti da fantacalcio.it ogni mattina. Le quotazioni aggiornate stanno accanto a
+        quelle del listone della lega (che non vengono toccate), e insieme ai voti delle
+        ultime giornate entrano nelle quote del Torneo dei Tipster: chi è in forma pesa
+        di più, chi non prende voto da settimane scivola fuori dall&apos;undici stimato.
+      </p>
+      <ul className="sub" style={{ margin: '0 0 12px', paddingLeft: 18 }}>
+        <li>
+          Quotazioni: {raccolte.quotazioni
+            ? <>{quando(raccolte.quotazioni.fetchedAt)} · {raccolte.quotazioni.righe} lette,
+              {' '}{raccolte.quotazioni.agganciate} agganciate
+              {raccolte.quotazioni.nota && <> · {raccolte.quotazioni.nota}</>}</>
+            : 'mai lette'}
+        </li>
+        <li>
+          Voti: {raccolte.voti
+            ? <>{quando(raccolte.voti.fetchedAt)} · {raccolte.voti.righe} letti,
+              {' '}{raccolte.voti.agganciate} agganciati
+              {raccolte.voti.nota && <> · {raccolte.voti.nota}</>}</>
+            : 'mai letti'}
+        </li>
+      </ul>
+      <BottoneFonti />
     </div>
   );
 }

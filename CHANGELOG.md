@@ -1,5 +1,38 @@
 # Aste Flash · Fanta Mansarda
 
+## v5.1 — 2 ottobre 2026
+
+Infortuni più leggibili, e due fonti nuove da fantacalcio.it: le quotazioni
+aggiornate e i voti di giornata, che entrano anche nelle quote.
+
+### Indisponibili
+- **La didascalia della fonte su ogni riga.** Sotto la stima di rientro
+  dell'app c'è il testo intero di fantacalcio.it, e la frase da cui la stima
+  è stata dedotta: il controllo si fa qui, senza aprire il sito.
+- **Gli svincolati indisponibili**, in una tabella loro: chi è fermo e non è
+  in nessuna rosa della lega.
+- **Nella pagina Svincolati tutti vedono l'etichetta** «Infortunato»,
+  «Squalificato», «In dubbio» o «Diffidato», con il rientro stimato.
+  Toccandola si legge la didascalia.
+
+### Quotazioni e voti
+- **Le quotazioni aggiornate** di fantacalcio.it, lette ogni mattina, accanto
+  a quelle del listone (che restano quelle delle aste). Negli Svincolati c'è
+  la colonna «Qt. attuale», ordinabile, con la freccia se è salita o scesa.
+- **I voti di ogni giornata di Serie A**, letti ogni mattina; le giornate
+  arretrate si recuperano tre alla volta.
+- Tutte e due si possono rileggere subito da Indisponibili → «Aggiorna
+  quotazioni e voti».
+
+### Le quote del Torneo dei Tipster
+- **La forma conta.** Il fantavoto atteso di ogni giocatore parte dalla
+  quotazione (quella aggiornata, se c'è) e si sposta con la fantamedia
+  delle ultime cinque giornate, pesando di più le recenti.
+- **I tabellini della lega** entrano nel conto: per chi è stato schierato
+  vale il fantavoto calcolato con le nostre regole di bonus.
+- **Chi non gioca scivola fuori dall'undici stimato**: un titolare che non
+  prende voto da tre giornate lascia il posto a chi gioca davvero.
+
 ## v5.0 — 2 ottobre 2026
 
 L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,

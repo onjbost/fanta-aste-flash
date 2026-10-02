@@ -151,6 +151,14 @@ export interface FreeAgent {
   outOfList: boolean;
   /** prima sessione in cui torna chiamabile, se è appena uscito da una rosa */
   lockedUntilNumber: number | null;
+  /** la quotazione aggiornata di fantacalcio.it, se è stata letta */
+  qtAttuale: number | null;
+  /** l'ultima raccolta degli indisponibili, se il giocatore c'è */
+  indisponibile: {
+    categoria: 'infortunato' | 'squalificato' | 'in_dubbio' | 'diffidato';
+    descrizione: string;
+    rientroStimato: string | null;
+  } | null;
 }
 
 /**
@@ -175,17 +183,43 @@ export async function loadFreeAgents(
   if (!filter.fuoriLista) query = query.eq('out_of_list', false);
   if (filter.role) query = query.eq('role', filter.role);
   if (filter.q) query = query.ilike('name', `%${filter.q}%`);
-  const { data, error } = await query;
+  // indisponibili e quotazioni aggiornate li legge chiunque sia dentro:
+  // l'etichetta «Infortunato» negli svincolati deve vederla ogni allenatore,
+  // non solo l'admin. Se una delle due letture fallisce, la tabella si
+  // mostra lo stesso senza quel dato.
+  const [{ data, error }, { data: fermi }, { data: prezzi }] = await Promise.all([
+    query,
+    db.from('v_indisponibili_ultimi')
+      .select('player_id, categoria, descrizione, rientro_stimato').not('player_id', 'is', null),
+    db.from('player_prices').select('player_id, qt_attuale').not('player_id', 'is', null).limit(2000),
+  ]);
   if (error) {
     console.error('[listone] query fallita:', error.message);
     return { players: [], error: error.message };
   }
+  // un giocatore può comparire due volte (infortunato e diffidato): vince la
+  // categoria che pesa di più
+  const GRAVITA = ['infortunato', 'squalificato', 'in_dubbio', 'diffidato'];
+  const stato = new Map<string, FreeAgent['indisponibile']>();
+  for (const f of fermi ?? []) {
+    const prima = stato.get(f.player_id as string);
+    if (prima && GRAVITA.indexOf(prima.categoria) <= GRAVITA.indexOf(f.categoria as string)) continue;
+    stato.set(f.player_id as string, {
+      categoria: f.categoria as NonNullable<FreeAgent['indisponibile']>['categoria'],
+      descrizione: String(f.descrizione ?? ''),
+      rientroStimato: (f.rientro_stimato as string | null) ?? null,
+    });
+  }
+  const qt = new Map((prezzi ?? []).map((p) => [p.player_id as string, Number(p.qt_attuale)]));
+
   return { players: (data ?? []).map((p) => ({
     id: p.id, name: p.name, role: p.role as Role, club: p.club,
     quotation: p.quotation, status: p.status as PlayerStatus,
     signingWindow: p.signing_window as 'summer' | 'winter',
     outOfList: !!p.out_of_list,
     lockedUntilNumber: p.locked_until_number ?? null,
+    qtAttuale: qt.get(p.id) ?? null,
+    indisponibile: stato.get(p.id) ?? null,
   })), error: null };
 }
 

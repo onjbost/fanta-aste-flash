@@ -20,7 +20,8 @@ export default async function SvincolatiPage() {
       <h1>Svincolati</h1>
       <p className="sub">
         Chi è uscito da una rosa nell&apos;ultima asta torna chiamabile dalla prossima. I fuori
-        lista non compaiono: non prendono voto.
+        lista non compaiono: non prendono voto. Gli indisponibili hanno l&apos;etichetta, e nel
+        foglio del giocatore c&apos;è cosa scrive fantacalcio.it.
       </p>
 
       {error && (

@@ -9,7 +9,7 @@
 
 import type { Role } from '@/lib/rules';
 
-export type Campo = 'ruolo' | 'nome' | 'club' | 'quotazione';
+export type Campo = 'ruolo' | 'nome' | 'club' | 'quotazione' | 'attuale';
 export type Verso = 'asc' | 'desc';
 export interface Ordine { campo: Campo; verso: Verso }
 
@@ -19,6 +19,8 @@ export interface Ordinabile {
   club: string;
   role: Role;
   quotation: number;
+  /** la quotazione aggiornata di fantacalcio.it; senza, vale quella del listone */
+  qtAttuale?: number | null;
 }
 
 /**
@@ -30,7 +32,7 @@ export interface Ordinabile {
  * del campo, P D C A, non l'alfabetico.
  */
 export const PRIMO_VERSO: Record<Campo, Verso> = {
-  ruolo: 'asc', nome: 'asc', club: 'asc', quotazione: 'desc',
+  ruolo: 'asc', nome: 'asc', club: 'asc', quotazione: 'desc', attuale: 'desc',
 };
 
 const ORDINE_RUOLI = 'PDCA';
@@ -41,6 +43,7 @@ export function confronta(a: Ordinabile, b: Ordinabile, campo: Campo): number {
     case 'nome': return a.name.localeCompare(b.name, 'it');
     case 'club': return a.club.localeCompare(b.club, 'it');
     case 'quotazione': return a.quotation - b.quotation;
+    case 'attuale': return (a.qtAttuale ?? a.quotation) - (b.qtAttuale ?? b.quotation);
   }
 }
 

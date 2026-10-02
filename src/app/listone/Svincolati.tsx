@@ -26,13 +26,36 @@ const COLONNE: { campo: Campo; etichetta: string; num?: boolean }[] = [
   { campo: 'nome', etichetta: 'Giocatore' },
   { campo: 'club', etichetta: 'Club' },
   { campo: 'quotazione', etichetta: 'Quotazione', num: true },
+  { campo: 'attuale', etichetta: 'Qt. attuale', num: true },
 ];
 
-/** Le etichette che cambiano cosa si può fare con un giocatore. */
+const INDISPONIBILE: Record<string, { testo: string; classe: string }> = {
+  infortunato: { testo: 'Infortunato', classe: 'crit' },
+  squalificato: { testo: 'Squalificato', classe: 'crit' },
+  in_dubbio: { testo: 'In dubbio', classe: 'warn' },
+  diffidato: { testo: 'Diffidato', classe: 'muted' },
+};
+
+/** «25 novembre»: la stima di rientro detta in breve. */
+function rientro(iso: string | null): string | null {
+  if (!iso) return null;
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('it-IT', {
+    day: 'numeric', month: 'long', timeZone: 'UTC',
+  });
+}
+
+/**
+ * Le etichette che cambiano cosa si può fare con un giocatore.
+ *
+ * L'indisponibilità viene dall'ultima raccolta di fantacalcio.it e la vedono
+ * tutti: chi chiama all'asta un giocatore fermo deve saperlo prima.
+ */
 function Note({ p }: { p: FreeAgent }) {
+  const ind = p.indisponibile ? INDISPONIBILE[p.indisponibile.categoria] : null;
   return (
     <>
-      {p.status === 'injured_long' && <span className="tag crit">Infortunato</span>}
+      {ind && <span className={`tag ${ind.classe}`}>{ind.testo}</span>}
+      {p.status === 'injured_long' && !ind && <span className="tag crit">Infortunato</span>}
       {p.status === 'out_of_serie_a' && <span className="tag warn">Fuori Serie A</span>}
       {p.lockedUntilNumber != null && <span className="tag muted">dall&apos;asta #{p.lockedUntilNumber}</span>}
       {p.signingWindow === 'winter' && <span className="tag muted">gennaio</span>}
@@ -121,7 +144,11 @@ export function Svincolati({ players, chiamateAperte }: { players: FreeAgent[]; 
                   <Note p={p} />
                 </small>
               </span>
-              <span className="carta-cifre"><b className="num">{p.quotation}</b><small>qt</small></span>
+              <span className="carta-cifre">
+                <b className="num">{p.qtAttuale ?? p.quotation}</b>
+                <small>{p.qtAttuale != null && p.qtAttuale !== p.quotation
+                  ? `${p.qtAttuale > p.quotation ? '▲' : '▼'} da ${p.quotation}` : 'qt'}</small>
+              </span>
             </button>
           </li>
         ))}
@@ -138,8 +165,22 @@ export function Svincolati({ players, chiamateAperte }: { players: FreeAgent[]; 
             <p className="foglio-nota" style={{ marginTop: 2 }}>
               {ROLE_LABEL[aperto.role]} · {aperto.club} <Note p={aperto} />
             </p>
+            {aperto.indisponibile && (
+              <div className="callout" style={{ margin: '8px 0 12px' }}>
+                <b>{INDISPONIBILE[aperto.indisponibile.categoria].testo}</b>
+                {rientro(aperto.indisponibile.rientroStimato) && (
+                  <> · rientro stimato dall&apos;app: {rientro(aperto.indisponibile.rientroStimato)}</>
+                )}
+                {aperto.indisponibile.descrizione && (
+                  <p style={{ margin: '6px 0 0', fontStyle: 'italic' }}>
+                    «{aperto.indisponibile.descrizione}» — fantacalcio.it
+                  </p>
+                )}
+              </div>
+            )}
             <div className="esiti-due">
-              <div><span>Quotazione</span><b className="num">{aperto.quotation}</b></div>
+              <div><span>Quotazione</span><b className="num">{aperto.quotation}</b>
+                {aperto.qtAttuale != null && <small>attuale {aperto.qtAttuale}</small>}</div>
               <div><span>Ruolo</span><b>{aperto.role}</b><small>esce un {ROLE_LABEL[aperto.role].toLowerCase()}</small></div>
             </div>
             {chiamateAperte ? (

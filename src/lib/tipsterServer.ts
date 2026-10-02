@@ -1,6 +1,7 @@
 import 'server-only';
 import { popolaritaPerSfida, type CasellaPopolare } from './popolarita';
 import { nonSchierabili } from './infortuni/infortuniServer';
+import { formaGiocatori, quotazioniAggiornate } from './fonti/fontiServer';
 import { supabaseAdmin } from './supabase';
 import {
   forzaClub, stimaSquadra, quoteSfida, risolviSchedina,
@@ -125,10 +126,21 @@ export async function sfideDiGiornata(matchdayId: string): Promise<Sfida[]> {
  * è peggio chi gioca al suo posto — e non «quanto valeva chi si è fatto
  * male»: chi ha tre attaccanti buoni e ne perde uno non deve essere punito
  * come chi perde l'unico difensore decente.
+ *
+ * Due dati in più, quando ci sono: la quotazione **aggiornata** di
+ * fantacalcio.it al posto di quella d'agosto del listone, e la **forma**
+ * delle ultime giornate (pagelle di Serie A e tabellini della lega) alla
+ * vigilia della giornata `serieA`. Senza, la stima è quella di prima.
  */
-async function roseVive(leagueId: string): Promise<Map<string, GiocatoreTipster[]>> {
+async function roseVive(leagueId: string, serieA: number | null): Promise<Map<string, GiocatoreTipster[]>> {
   const db = supabaseAdmin();
-  const fuori = await nonSchierabili();
+  const [fuori, quotazioni, { forma }] = await Promise.all([
+    nonSchierabili(),
+    quotazioniAggiornate(),
+    serieA == null
+      ? Promise.resolve({ forma: new Map() })
+      : formaGiocatori(leagueId, serieA).catch(() => ({ forma: new Map() })),
+  ]);
   const { data } = await db.from('v_roster')
     .select('team_id, player_id, role, club, quotation, status').eq('league_id', leagueId);
 
@@ -139,7 +151,8 @@ async function roseVive(leagueId: string): Promise<Map<string, GiocatoreTipster[
       playerId: r.player_id as string,
       role: r.role as GiocatoreTipster['role'],
       club: String(r.club),
-      quotazione: Number(r.quotation ?? 1),
+      quotazione: quotazioni.get(r.player_id as string)?.qtAttuale ?? Number(r.quotation ?? 1),
+      forma: forma.get(r.player_id as string) ?? null,
       // chi ha lasciato la Serie A non gioca, e nemmeno chi è infortunato o
       // squalificato secondo l'ultima raccolta degli indisponibili
       disponibile: r.status !== 'out_of_serie_a'
@@ -230,17 +243,18 @@ export interface QuoteGenerate {
  */
 export async function generaQuote(leagueId: string, matchdayId: string): Promise<QuoteGenerate> {
   const db = supabaseAdmin();
-  const [rose, contesti, sfide, { data: listone }] = await Promise.all([
-    roseVive(leagueId),
-    contestiDiGiornata(matchdayId),
-    sfideDiGiornata(matchdayId),
-    db.from('players').select('club, quotation').eq('league_id', leagueId),
-  ]);
-
   const [{ data: lega }, { data: md }] = await Promise.all([
     db.from('leagues')
       .select('tipster_correzione_media, tipster_peso_listone').eq('id', leagueId).maybeSingle(),
-    db.from('matchdays').select('fanta').eq('id', matchdayId).maybeSingle(),
+    db.from('matchdays').select('fanta, serie_a').eq('id', matchdayId).maybeSingle(),
+  ]);
+  const serieA = (md as { serie_a: number | null } | null)?.serie_a ?? null;
+
+  const [rose, contesti, sfide, { data: listone }] = await Promise.all([
+    roseVive(leagueId, serieA),
+    contestiDiGiornata(matchdayId),
+    sfideDiGiornata(matchdayId),
+    db.from('players').select('club, quotation').eq('league_id', leagueId),
   ]);
   const impostazioni = lega as
     { tipster_correzione_media?: number; tipster_peso_listone?: number } | null;

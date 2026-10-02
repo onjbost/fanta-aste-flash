@@ -536,3 +536,33 @@ describe('la stima di squadra guarda anche il campo', () => {
     expect(uno.price).toBeLessThan(due.price);
   });
 });
+
+describe('stimaSquadra con la forma dei giocatori', () => {
+  const att = (id: string, q: number, forma?: GiocatoreTipster['forma']): GiocatoreTipster =>
+    ({ playerId: id, role: 'A', club: 'X', quotazione: q, forma });
+  const base: GiocatoreTipster[] = [
+    { playerId: 'p', role: 'P', club: 'X', quotazione: 10 },
+    ...['d1', 'd2', 'd3'].map((id) => ({ playerId: id, role: 'D' as const, club: 'X', quotazione: 10 })),
+    ...['c1', 'c2', 'c3', 'c4'].map((id) => ({ playerId: id, role: 'C' as const, club: 'X', quotazione: 10 })),
+  ];
+
+  it('senza voti sceglie e stima come prima', () => {
+    const s = stimaSquadra([...base, att('a1', 30), att('a2', 20), att('a3', 10), att('a4', 5)], {});
+    expect(s.undici.filter((p) => p.role === 'A').map((p) => p.playerId)).toEqual(['a1', 'a2', 'a3']);
+  });
+
+  it('un attaccante in forma alza la media della squadra', () => {
+    const fredda = stimaSquadra([...base, att('a1', 20), att('a2', 20), att('a3', 20)], {});
+    const calda = stimaSquadra([...base, att('a1', 20, { fantamedia: 12, peso: 3, titolarita: 1 }),
+      att('a2', 20), att('a3', 20)], {});
+    expect(calda.mu).toBeGreaterThan(fredda.mu + 2);
+  });
+
+  it('chi non gioca da settimane esce dall\'undici anche se costa di più', () => {
+    const s = stimaSquadra([...base,
+      att('a1', 30, { fantamedia: null, peso: 0, titolarita: 0 }),
+      att('a2', 20), att('a3', 15), att('a4', 12, { fantamedia: 7, peso: 2, titolarita: 1 })], {});
+    expect(s.undici.map((p) => p.playerId)).not.toContain('a1');
+    expect(s.undici.map((p) => p.playerId)).toContain('a4');
+  });
+});

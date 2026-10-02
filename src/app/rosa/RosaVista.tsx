@@ -1,7 +1,6 @@
-import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
-import { freeReleaseEligibility, ROLE_LABEL, type Role } from '@/lib/rules';
-import { FreeReleaseButton } from '../FreeReleaseButton';
+import { expectedStatus, freeReleaseEligibility, type Role } from '@/lib/rules';
+import { RosaCarte } from './RosaCarte';
 import { TopBar } from '../TopBar';
 import type { NavKey } from '../BottomNav';
 
@@ -14,16 +13,11 @@ const STATUS_TAG: Record<string, { cls: string; label: string } | null> = {
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleString('it-IT', {
-    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+    weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
   });
 }
 
-/**
- * La rosa, con crediti e cambi rimasti.
- *
- * Per ora la mostra anche la Home: la dashboard nuova (partita, scadenze)
- * arriva nella fase 2 del redesign e prenderà il posto di questa su `/`.
- */
+/** La rosa, con crediti e cambi rimasti, e i giocatori in card. */
 export async function RosaVista({ active }: { active: NavKey }) {
   const ctx = await requireTeamContext();
 
@@ -77,67 +71,26 @@ export async function RosaVista({ active }: { active: NavKey }) {
       </div>
 
       <h2>La mia rosa</h2>
-      <div className="panel">
-        <div className="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>R</th>
-                <th>Giocatore</th>
-                <th>Club</th>
-                <th className="num">Pagato</th>
-                <th className="num">Svincolo</th>
-                <th>Stato</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {roster.map((p) => {
-                const tag = STATUS_TAG[p.status];
-                const el = freeReleaseEligibility(p);
-                return (
-                  <tr key={p.playerId}>
-                    <td><span className="role-badge" title={ROLE_LABEL[p.role]}>{p.role}</span></td>
-                    <td><b>{p.name}</b></td>
-                    <td style={{ color: 'var(--muted)' }}>{p.club}</td>
-                    <td className="num">{p.price}</td>
-                    <td className="num">
-                      {p.refund}
-                      {p.refundFree && <span className="tag ok" style={{ marginLeft: 6 }}>100%</span>}
-                    </td>
-                    <td>
-                      {tag && <span className={`tag ${tag.cls}`}>{tag.label}</span>}
-                      {p.freeReleasePending && <span className="tag warn">In attesa</span>}
-                      {p.freeReleaseApproved && <span className="tag ok">Gratuito</span>}
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <FreeReleaseButton
-                        playerId={p.playerId}
-                        playerName={p.name}
-                        price={p.price}
-                        refund={p.refund}
-                        canRequest={el.canRequest && !p.refundFree}
-                        pending={!!p.freeReleasePending}
-                        hint={p.refundFree ? 'Già al 100%' : el.reason}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-              {roster.length === 0 && (
-                <tr><td colSpan={7}><div className="empty">Rosa non ancora caricata. L'admin deve importare le rose dopo l'asta.</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <RosaCarte
+        chiamateAperte={nextSession ? expectedStatus(nextSession, new Date(), ctx.cfg) === 'calls_open' : false}
+        carte={roster.map((p) => {
+          const el = freeReleaseEligibility(p);
+          return {
+            playerId: p.playerId, name: p.name, role: p.role, club: p.club,
+            price: p.price, refund: p.refund, refundFree: p.refundFree,
+            stato: STATUS_TAG[p.status] ?? null,
+            pending: !!p.freeReleasePending, approved: !!p.freeReleaseApproved,
+            canRequest: el.canRequest && !p.refundFree,
+            hint: p.refundFree ? 'Già al 100%' : el.reason,
+          };
+        })}
+      />
 
-      <div className="callout">
-        Il valore di svincolo è il 75% del prezzo pagato, arrotondato per difetto e
-        mai sotto 1 credito. Diventa il 100%
-        — e non consuma un cambio — per chi ha lasciato la Serie A, è squalificato dalla Lega o ha
-        un infortunio oltre 60 giorni approvato dall'admin.
-      </div>
+      <p className="nota-piede">
+        Il valore di svincolo è il 75% del prezzo pagato, arrotondato per difetto e mai sotto 1
+        credito. Diventa il 100% — e non consuma un cambio — per chi ha lasciato la Serie A, è
+        squalificato dalla Lega o ha un infortunio oltre 60 giorni approvato dall&apos;admin.
+      </p>
     </div>
   );
 }

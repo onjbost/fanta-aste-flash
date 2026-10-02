@@ -1,8 +1,13 @@
 'use client';
 
-import { useActionState, useEffect, useRef } from 'react';
+import { useActionState } from 'react';
 import { requestFreeRelease, withdrawFreeRelease, type ActionState } from './actions';
 
+/**
+ * Lo svincolo gratuito di un giocatore della rosa, dentro il suo foglio:
+ * cosa succede se l'admin approva o rifiuta, e il bottone per chiederlo (o
+ * ritirare la richiesta già fatta).
+ */
 export function FreeReleaseButton(props: {
   playerId: string;
   playerName: string;
@@ -12,79 +17,42 @@ export function FreeReleaseButton(props: {
   pending: boolean;
   hint: string;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
   const [state, action, sending] = useActionState<ActionState, FormData>(requestFreeRelease, null);
   const [wState, withdraw, withdrawing] = useActionState<ActionState, FormData>(withdrawFreeRelease, null);
 
-  useEffect(() => {
-    if (state?.ok) {
-      const t = setTimeout(() => ref.current?.close(), 1600);
-      return () => clearTimeout(t);
-    }
-  }, [state]);
-
   if (props.pending) {
     return (
-      <form action={withdraw} style={{ display: 'inline' }}>
+      <form action={withdraw}>
+        <p className="foglio-nota">La richiesta di svincolo gratuito aspetta la decisione dell&apos;admin.</p>
         <input type="hidden" name="playerId" value={props.playerId} />
-        <button type="submit" className="link" disabled={withdrawing} title={wState?.message}>
-          {withdrawing ? 'Ritiro…' : 'Ritira richiesta'}
+        {wState && <div className={wState.ok ? 'callout' : 'callout crit'} role="status">{wState.message}</div>}
+        <button type="submit" className="largo pericolo" disabled={withdrawing}>
+          {withdrawing ? 'Ritiro…' : 'Ritira la richiesta'}
         </button>
       </form>
     );
   }
 
   if (!props.canRequest) {
-    return <span className="tag muted" title={props.hint}>{props.hint}</span>;
+    return <p className="foglio-nota">Svincolo gratuito: {props.hint.toLowerCase()}.</p>;
   }
 
   return (
-    <>
-      <button type="button" onClick={() => ref.current?.showModal()}>
-        Richiedi svincolo gratuito
+    <form action={action}>
+      <p className="foglio-k">Svincolo gratuito</p>
+      <div className="esiti-due">
+        <div><span>Se approva</span><b className="num">{props.price} cr</b><small>cambio non consumato</small></div>
+        <div><span>Se rifiuta</span><b className="num">{props.refund} cr</b><small>cambio consumato</small></div>
+      </div>
+      <p className="foglio-nota">
+        Le prove portale nel gruppo: qui basta il bottone. Se hai già chiamato o aderito con
+        questo giocatore, l&apos;operazione resta congelata finché l&apos;admin non decide.
+      </p>
+      <input type="hidden" name="playerId" value={props.playerId} />
+      {state && <div className={state.ok ? 'callout' : 'callout crit'} role="status">{state.message}</div>}
+      <button type="submit" className="largo" disabled={sending || state?.ok}>
+        {sending ? 'Invio…' : 'Richiedi svincolo gratuito'}
       </button>
-
-      <dialog ref={ref}>
-        <div className="head">Svincolo gratuito · {props.playerName}</div>
-        <form action={action}>
-          <div className="body">
-            <p style={{ marginTop: 0, fontSize: '.9rem' }}>
-              Chiedi all'admin di considerare questo svincolo come cambio gratuito.
-              Le prove e le spiegazioni portale nel gruppo: qui basta il pulsante.
-            </p>
-
-            <table style={{ minWidth: 0, marginBottom: 4 }}>
-              <tbody>
-                <tr>
-                  <td style={{ paddingLeft: 0 }}>Se approva</td>
-                  <td className="num"><b>{props.price} cr</b></td>
-                  <td style={{ color: 'var(--muted)' }}>cambio non consumato</td>
-                </tr>
-                <tr>
-                  <td style={{ paddingLeft: 0 }}>Se rifiuta</td>
-                  <td className="num">{props.refund} cr</td>
-                  <td style={{ color: 'var(--muted)' }}>cambio consumato</td>
-                </tr>
-              </tbody>
-            </table>
-
-            <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
-              Se hai già chiamato o aderito con questo giocatore, l'operazione resta
-              congelata finché l'admin non decide. Può anche annullarla, così ne fai
-              un'altra con un giocatore diverso.
-            </p>
-
-            <input type="hidden" name="playerId" value={props.playerId} />
-            {state && <div className={state.ok ? 'callout' : 'callout crit'} role="status">{state.message}</div>}
-          </div>
-          <div className="foot">
-            <button type="button" onClick={() => ref.current?.close()}>Annulla</button>
-            <button type="submit" className="primary" disabled={sending}>
-              {sending ? 'Invio…' : 'Invia richiesta'}
-            </button>
-          </div>
-        </form>
-      </dialog>
-    </>
+    </form>
   );
 }

@@ -10,6 +10,7 @@ import {
 import { asteChiuse, astaDellArchivio } from '@/lib/asteArchivio';
 import { TopBar } from '../TopBar';
 import { NomeNelRegistro } from './NomeNelRegistro';
+import { BottoneFoglio } from '../BottoneFoglio';
 
 export const dynamic = 'force-dynamic';
 
@@ -57,10 +58,12 @@ export default async function RegistroPage({ searchParams }: {
         email={(mio?.email as string | null) ?? null}
       />
 
-      <div className="tabs">
-        <Link href="/registro" className={vista === 'azioni' ? 'on' : ''}>Azioni</Link>
-        <Link href="/registro?vista=aste" className={vista === 'aste' ? 'on' : ''}>Aste passate</Link>
-      </div>
+      <nav className="tabs" aria-label="Viste del registro">
+        <Link href="/registro" className={vista === 'azioni' ? 'on' : ''}
+              aria-current={vista === 'azioni' ? 'page' : undefined}>Azioni</Link>
+        <Link href="/registro?vista=aste" className={vista === 'aste' ? 'on' : ''}
+              aria-current={vista === 'aste' ? 'page' : undefined}>Aste passate</Link>
+      </nav>
 
       {vista === 'azioni'
         ? <Azioni ctx={ctx} sp={sp} />
@@ -87,45 +90,64 @@ async function Azioni({ ctx, sp }: {
   const filtri = queryDeiFiltri(sp);
   const quanti = filtri ? new URLSearchParams(filtri).size : 0;
 
+  // il tipo d'azione sta nelle chip; gli altri filtri nel foglio
+  const altriFiltri = (['da', 'a', 'giocatore', 'allenatore'] as const).filter((k) => sp[k]).length;
+  const conAzione = (azione: string) => {
+    const q = new URLSearchParams(filtri);
+    q.delete('azione');
+    if (azione) q.set('azione', azione);
+    const t = q.toString();
+    return `/registro${t ? `?${t}` : ''}`;
+  };
+
   return (
     <>
-      <form className="filters">
-        <div className="field">
-          <label htmlFor="azione">Azione</label>
-          <select id="azione" name="azione" defaultValue={sp.azione ?? ''}>
-            <option value="">Tutte</option>
-            {AZIONI.map((a) => (
-              <option key={a} value={a}>{ETICHETTA_AZIONE[a]}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="allenatore">Allenatore</label>
-          <select id="allenatore" name="allenatore" defaultValue={sp.allenatore ?? ''}>
-            <option value="">Tutti</option>
-            {allenatori.map((a) => (
-              <option key={a.userId} value={`${a.userId}:${a.teamId ?? ''}`}>{a.etichetta}</option>
-            ))}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="giocatore">Giocatore</label>
-          <select id="giocatore" name="giocatore" defaultValue={sp.giocatore ?? ''}>
-            <option value="">Tutti</option>
-            {giocatori.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
-          </select>
-        </div>
-        <div className="field">
-          <label htmlFor="da">Dal</label>
-          <input id="da" name="da" type="date" defaultValue={sp.da ?? ''} />
-        </div>
-        <div className="field">
-          <label htmlFor="a">Al</label>
-          <input id="a" name="a" type="date" defaultValue={sp.a ?? ''} />
-        </div>
-        <button className="primary">Filtra{quanti > 0 && <span className="pallino">{quanti}</span>}</button>
-        {quanti > 0 && <Link href="/registro" className="btn">Pulisci</Link>}
-      </form>
+      <div className="chips" role="group" aria-label="Tipo di azione">
+        <Link href={conAzione('')} className="chip" aria-current={!sp.azione ? 'page' : undefined}>Tutte</Link>
+        {AZIONI.map((a) => (
+          <Link key={a} href={conAzione(a)} className="chip" aria-current={sp.azione === a ? 'page' : undefined}>
+            {ETICHETTA_AZIONE[a]}
+          </Link>
+        ))}
+      </div>
+      <div className="chips" style={{ marginTop: -4 }}>
+        <BottoneFoglio etichetta="Altri filtri" titolo="Filtra il registro" conteggio={altriFiltri}>
+          <form>
+            {sp.azione && <input type="hidden" name="azione" value={sp.azione} />}
+            <div className="field" style={{ marginTop: 8 }}>
+              <label htmlFor="allenatore">Allenatore</label>
+              <select id="allenatore" name="allenatore" defaultValue={sp.allenatore ?? ''}>
+                <option value="">Tutti</option>
+                {allenatori.map((a) => (
+                  <option key={a.userId} value={`${a.userId}:${a.teamId ?? ''}`}>{a.etichetta}</option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="giocatore">Giocatore</label>
+              <select id="giocatore" name="giocatore" defaultValue={sp.giocatore ?? ''}>
+                <option value="">Tutti</option>
+                {giocatori.map((g) => <option key={g.id} value={g.id}>{g.nome}</option>)}
+              </select>
+            </div>
+            <div className="esiti-due" style={{ marginTop: 0 }}>
+              <div className="field" style={{ background: 'none', padding: 0 }}>
+                <label htmlFor="da">Dal</label>
+                <input id="da" name="da" type="date" defaultValue={sp.da ?? ''} />
+              </div>
+              <div className="field" style={{ background: 'none', padding: 0 }}>
+                <label htmlFor="a">Al</label>
+                <input id="a" name="a" type="date" defaultValue={sp.a ?? ''} />
+              </div>
+            </div>
+            <div className="foglio-piede">
+              <Link href={sp.azione ? `/registro?azione=${sp.azione}` : '/registro'} className="btn">Pulisci</Link>
+              <button className="primary">Filtra</button>
+            </div>
+          </form>
+        </BottoneFoglio>
+        {quanti > 0 && <Link href="/registro" className="chip">Azzera</Link>}
+      </div>
 
       {voci.length === 0 ? (
         <div className="panel">
@@ -136,8 +158,8 @@ async function Azioni({ ctx, sp }: {
           </div>
         </div>
       ) : (
-        <div className="panel" style={{ padding: 0 }}>
-          <ol className="reg">
+        <div>
+          <ol className="reg timeline">
             {voci.map((v) => (
               <li key={v.id}>
                 <span className="reg-quando">{quandoLeggibile(v.avvenutoIl)}</span>
@@ -189,91 +211,45 @@ async function Aste({ leagueId, sceltaId }: { leagueId: string; sceltaId?: strin
 
   return (
     <>
-      <form className="gaz-scelta-giornata">
-        <input type="hidden" name="vista" value="aste" />
-        <label>
-          Asta
-          <select name="asta" defaultValue={asta?.id ?? ''}>
-            {elenco.map((a) => (
-              <option key={a.id} value={a.id}>
-                Asta {a.numero} · {dataIta(a.quando)} · {a.assegnati} assegnati
-              </option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className="ghost">Guarda</button>
-      </form>
+      <div className="chips" role="group" aria-label="Asta">
+        {elenco.map((a) => (
+          <Link key={a.id} href={`/registro?vista=aste&asta=${a.id}`} className="chip"
+                aria-current={asta?.id === a.id ? 'page' : undefined}>
+            Asta {a.numero}
+          </Link>
+        ))}
+      </div>
 
       {asta && (
         <>
-          <p className="sub">
+          <p className="sub" style={{ marginTop: 6 }}>
             {dataIta(asta.quando)} · <b>{asta.assegnati}</b> lotti assegnati per{' '}
             <b>{asta.speso}</b> crediti in tutto
             {asta.annullati > 0 && <> · {asta.annullati} annullati</>}.
           </p>
 
-          <div className="panel" style={{ padding: 0 }}>
-            <div className="tablewrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Giocatore</th>
-                    <th>Chiamato da</th>
-                    <th>Se lo contendevano</th>
-                    <th>Come è finita</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {asta.lotti.map((l) => (
-                    <tr key={l.id} style={{ opacity: l.annullato ? .6 : 1 }}>
-                      <td className="num">{l.indice}</td>
-                      <td>
-                        <span className="role-badge">{l.giocatore.ruolo}</span>{' '}
-                        <b>{l.giocatore.nome}</b>{' '}
-                        <span style={{ color: 'var(--muted)' }}>{l.giocatore.club}</span>
-                      </td>
-                      <td>{l.chiamante}</td>
-                      <td style={{ fontSize: '.85rem' }}>
-                        {l.contendenti.length === 0
-                          ? <span style={{ color: 'var(--muted)' }}>nessuno</span>
-                          : l.contendenti.map((c) => (
-                            <div key={c.squadra}>
-                              {c.squadra}
-                              {c.svincolando && (
-                                <span style={{ color: 'var(--muted)' }}> — metteva {c.svincolando}</span>
-                              )}
-                            </div>
-                          ))}
-                      </td>
-                      <td>
-                        {l.annullato ? (
-                          <span className="tag muted">annullato</span>
-                        ) : l.vincitore ? (
-                          <>
-                            <b>{l.vincitore}</b> per {l.prezzo} cr
-                            {l.uscito && (
-                              <div style={{ color: 'var(--muted)', fontSize: '.85rem' }}>
-                                esce {l.uscito.nome}
-                                {l.uscito.rimborso != null && ` (+${l.uscito.rimborso})`}
-                              </div>
-                            )}
-                            {l.senzaContendenti && (
-                              <div style={{ color: 'var(--muted)', fontSize: '.85rem' }}>
-                                nessuno se lo contendeva
-                              </div>
-                            )}
-                          </>
-                        ) : (
-                          <span className="tag muted">non assegnato</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
+          <ol className="reg timeline">
+            {asta.lotti.map((l) => (
+              <li key={l.id} className={l.annullato || !l.vincitore ? 'spento' : 'fatto'}>
+                <span className="reg-quando">Lotto {l.indice}</span>
+                <span className="reg-riga">
+                  <span className="role-badge">{l.giocatore.ruolo}</span>{' '}
+                  <b>{l.giocatore.nome}</b> <span className="tenue">{l.giocatore.club}</span>
+                  {' · '}
+                  {l.annullato ? 'annullato'
+                    : l.vincitore ? <>a <b>{l.vincitore}</b> per <b className="num">{l.prezzo}</b> cr</>
+                    : 'non assegnato'}
+                  <span className="reg-dettaglio">
+                    chiamato da {l.chiamante}
+                    {l.contendenti.length > 0 && ` · in corsa ${l.contendenti.map((c) =>
+                      c.svincolando ? `${c.squadra} (metteva ${c.svincolando})` : c.squadra).join(', ')}`}
+                    {l.uscito && ` · esce ${l.uscito.nome}${l.uscito.rimborso != null ? ` (+${l.uscito.rimborso})` : ''}`}
+                    {l.senzaContendenti && ' · nessuno se lo contendeva'}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ol>
         </>
       )}
     </>

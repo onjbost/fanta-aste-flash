@@ -17,6 +17,8 @@ interface Props {
   credits: number;
   changes: { role: Role; left: number }[];
   chiamate?: Chiamata[];
+  /** arrivando da Svincolati con «Chiama», il giocatore già scelto */
+  preselezionato?: string;
 }
 
 /**
@@ -26,9 +28,11 @@ interface Props {
  * prima apriva un elenco di seicento nomi in un rullo. Qui si cerca, si tocca
  * una riga, e il secondo passo mostra solo i giocatori del ruolo giusto.
  */
-function ModuloChiamata({ sessionId, freeAgents, roster, credits, changes, chiamate = [] }: Props) {
+function ModuloChiamata({ sessionId, freeAgents, roster, credits, changes, chiamate = [], preselezionato }: Props) {
   const [state, action, pending] = useActionState<ActionState, FormData>(callPlayer, null);
-  const [targetId, setTargetId] = useState('');
+  const [targetId, setTargetId] = useState(
+    preselezionato && freeAgents.some((p) => p.id === preselezionato) ? preselezionato : '',
+  );
   const [releaseId, setReleaseId] = useState('');
   const [q, setQ] = useState('');
 
@@ -137,7 +141,9 @@ function ModuloChiamata({ sessionId, freeAgents, roster, credits, changes, chiam
 
 /** «Chiama uno svincolato»: il bottone d'oro della fase delle chiamate. */
 export function CallForm(props: Props) {
-  const [aperto, setAperto] = useState(false);
+  const [aperto, setAperto] = useState(
+    Boolean(props.preselezionato && props.freeAgents.some((p) => p.id === props.preselezionato)),
+  );
   return (
     <>
       <button type="button" className="primary largo" onClick={() => setAperto(true)}>

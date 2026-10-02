@@ -1533,3 +1533,81 @@ details[open] > summary .giu{transform:rotate(180deg)}
 .quota.popolare.forte{color:var(--on-accent)}
 .quota.popolare .sel small{font-weight:400;opacity:.8}
 .quota.popolare .volte{font-size:.68rem;opacity:.8}
+
+/* =====================================================================
+   Rosa e Svincolati: card giocatore, tocco → foglio azioni
+   ===================================================================== */
+.chips .chip{text-transform:capitalize}
+.chip .livello{
+  display:inline-flex;align-items:center;justify-content:center;margin-left:5px;
+  min-width:16px;height:16px;border-radius:99px;font-size:.66rem;
+  background:var(--on-accent);color:var(--accent);
+}
+.titoletto-ruolo{
+  font-family:var(--font-display);font-size:.95rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.06em;color:var(--muted);margin:18px 2px 8px;
+}
+.titoletto-ruolo .num{color:var(--accent);margin-left:4px}
+.carte{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px}
+.carta{
+  width:100%;display:flex;align-items:center;gap:12px;text-align:left;
+  background:var(--surface);border:1px solid transparent;border-radius:var(--r);
+  padding:10px 14px;min-height:60px;font-weight:400;
+}
+.carta:hover{border-color:var(--surface-3);color:var(--ink)}
+.carta:not(:disabled):active{transform:scale(.99)}
+.carta .chi-col small{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.carta .tag{font-size:.6rem;padding:2px 6px}
+.carta-cifre{display:flex;flex-direction:column;align-items:flex-end;line-height:1.1}
+.carta-cifre b{font-size:1.35rem;color:var(--accent)}
+.carta-cifre small{font-size:.7rem;color:var(--muted)}
+
+.cerca-riga{display:flex;gap:8px;margin:12px 0 0}
+.cerca-riga input{flex:1;border-radius:var(--pill);padding-left:16px}
+.cerca-riga button{flex:0 0 auto;min-height:44px}
+.conteggio{font-size:.8rem;color:var(--muted);margin:0 2px 8px}
+
+.esiti-due{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:12px 0 0}
+.esiti-due > div{background:var(--surface-2);border-radius:var(--r-sm);padding:10px 12px;display:flex;flex-direction:column}
+.esiti-due span{font-size:.72rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.esiti-due b{font-family:var(--font-num);font-size:1.5rem;color:var(--ink);line-height:1.15}
+.esiti-due small{font-size:.74rem;color:var(--muted)}
+.foglio-piede{display:flex;gap:10px;margin-top:16px}
+.foglio-piede button{flex:1;min-height:46px}
+
+/* il registro come timeline: un filo verticale, un punto per azione */
+.reg.timeline{position:relative;padding-left:22px;margin-top:8px}
+.reg.timeline::before{content:"";position:absolute;left:6px;top:8px;bottom:8px;width:2px;background:var(--surface-2)}
+.reg.timeline li{position:relative;padding:10px 0 12px;border-bottom:none;grid-template-columns:1fr}
+.reg.timeline li::before{
+  content:"";position:absolute;left:-20px;top:15px;width:10px;height:10px;border-radius:50%;
+  background:var(--accent);box-shadow:0 0 0 4px var(--bg);
+}
+.reg.timeline li.spento::before{background:var(--surface-3)}
+.reg.timeline .reg-quando{color:var(--accent)}
+.reg.timeline li.spento .reg-quando{color:var(--muted)}
+.reg-dettaglio{display:block;font-size:.8rem;color:var(--muted);margin-top:2px}
+.tenue{color:var(--muted)}
+@media (min-width:620px){ .reg.timeline li{grid-template-columns:1fr} }
+
+/* il regolamento: schede col numero in grande */
+.schede-regola,.calendario{list-style:none;margin:12px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}
+.scheda-regola{
+  display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:start;
+  background:var(--surface);border-radius:var(--r);padding:14px 14px 14px 10px;
+}
+.scheda-n{
+  font-family:var(--font-display);font-weight:700;font-size:2.6rem;line-height:.9;
+  color:var(--accent);text-align:center;
+}
+.scheda-regola h3{margin:2px 0 4px;font-size:1rem}
+.scheda-testo{font-size:.92rem;line-height:1.5}
+.scheda-regola .tag{margin-top:8px}
+.calendario li{
+  display:grid;grid-template-columns:44px 1fr auto;gap:10px;align-items:center;
+  background:var(--surface);border-radius:var(--r);padding:10px 12px 10px 6px;border:1px solid transparent;
+}
+.calendario .scheda-n{font-size:1.8rem}
+.calendario li.passata{opacity:.55}
+.calendario li.prossima{border-color:var(--accent)}
+.calendario .avviso{color:var(--warn)}

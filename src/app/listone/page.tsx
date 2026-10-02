@@ -1,4 +1,5 @@
 import { loadFreeAgents, requireTeamContext } from '@/lib/queries';
+import { expectedStatus } from '@/lib/rules';
 import { TopBar } from '../TopBar';
 import { Svincolati } from './Svincolati';
 
@@ -18,9 +19,8 @@ export default async function SvincolatiPage() {
       <p className="eyebrow">Mercato</p>
       <h1>Svincolati</h1>
       <p className="sub">
-        {players.length} giocatori liberi. Chi è uscito da una rosa nell&apos;ultima asta
-        torna chiamabile dalla prossima. I fuori lista non compaiono: la società non
-        li ha iscritti, quindi non prendono voto.
+        Chi è uscito da una rosa nell&apos;ultima asta torna chiamabile dalla prossima. I fuori
+        lista non compaiono: non prendono voto.
       </p>
 
       {error && (
@@ -30,13 +30,16 @@ export default async function SvincolatiPage() {
         </div>
       )}
 
-      <Svincolati players={players} />
+      <Svincolati
+        players={players}
+        chiamateAperte={ctx.nextSession ? expectedStatus(ctx.nextSession, new Date(), ctx.cfg) === 'calls_open' : false}
+      />
 
-      <div className="callout">
+      <p className="nota-piede">
         Nelle aste di gennaio (#7, #8, #9) i giocatori arrivati in Serie A nel mercato
         invernale non si possono chiamare — art. 11.2. L&apos;app li segnala e blocca
         la chiamata.
-      </div>
+      </p>
     </div>
   );
 }

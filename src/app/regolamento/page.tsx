@@ -2,7 +2,10 @@ import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { callsCloseAt, joinsCloseAt, ROLE_LABEL, type Role, type SessionInfo } from '@/lib/rules';
 import { longDate, shortDeadline } from '@/lib/messages';
+import Link from 'next/link';
 import { TopBar } from '../TopBar';
+import type { LeagueConfig } from '@/lib/rules';
+import type { ReactNode } from 'react';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,8 +18,86 @@ const STATO: Record<string, { label: string; cls: string }> = {
   closed: { label: 'Conclusa', cls: 'muted' },
 };
 
-export default async function RegolamentoPage() {
+type Sezione = 'come' | 'regole' | 'calendario';
+
+const SEZIONI: { key: Sezione; label: string }[] = [
+  { key: 'come', label: 'Come funziona' },
+  { key: 'regole', label: 'Le regole' },
+  { key: 'calendario', label: 'Calendario' },
+];
+
+/** Le cinque tappe di un'asta flash, in ordine. */
+function passi(): ReactNode[] {
+  return [
+    <><b>Chiami un giocatore</b> entro cinque giorni dall&apos;asta, indicando anche
+          il tuo giocatore da svincolare. La chiamata diventa subito pubblica — serve
+          perché gli altri possano aderire — mentre il tuo svincolando resta segreto.</>,
+    <><b>Chi vuole contendertelo aderisce</b> entro il giorno prima, dichiarando a
+          sua volta un giocatore da mettere sul piatto. Può lasciare un&apos;offerta
+          massima, che il sistema userà al posto suo se non riesce a collegarsi.</>,
+    <><b>Il giorno dell&apos;asta si apre la sala.</b> Svincolandi e budget vengono
+          svelati tutti insieme. I lotti senza contendenti sono già assegnati al
+          chiamante, al 75% del valore del suo svincolando: un&apos;operazione a saldo
+          neutro, quello che rientra è esattamente quello che esce.</>,
+    <><b>I lotti contesi vanno all&apos;asta uno alla volta</b>, in ordine di
+          chiamata. Base un credito, rilancio minimo un credito, e ogni offerta
+          riporta il timer a dieci secondi.</>,
+    <><b>Chi vince</b> svincola il giocatore dichiarato, incassa il rimborso, paga
+          il prezzo e consuma un cambio nel ruolo. <b>Chi perde non subisce nulla</b>:
+          il suo giocatore resta in rosa al prezzo d&apos;acquisto originario.</>,
+  ];
+}
+
+/** Le regole in numeri, ognuna con l'articolo da cui viene. */
+function regole(cfg: LeagueConfig): { titolo: ReactNode; testo: ReactNode; fonte: string }[] {
+  const ctx = { cfg };
+  return [
+    { titolo: <>Rimborso ordinario</>, testo: <>75% del prezzo pagato, arrotondato per difetto, <b>ma mai meno di
+                1 credito</b>: uno svincolo non può rendere zero. Consuma un cambio
+                nel ruolo.</>, fonte: 'art. 8.4' },
+    { titolo: <>Rimborso pieno</>, testo: <>100% e nessun cambio consumato per chi ha lasciato la Serie A, per chi è
+                squalificato dalla Lega e per gli infortuni oltre 60 giorni approvati
+                dall&apos;admin. Si chiede con il pulsante in rosa; finché l&apos;admin non
+                decide, l&apos;operazione resta congelata.</>, fonte: 'art. 8.3 · 11.2' },
+    { titolo: <>Cambi a disposizione</>, testo: <>Girone di andata: {ctx.cfg.changes.P} POR · {ctx.cfg.changes.D} DIF ·{' '}
+                {ctx.cfg.changes.C} CEN · {ctx.cfg.changes.A} ATT.
+                Dal 1° febbraio si aggiunge {ctx.cfg.returnBonus} cambio per ruolo, che si
+                somma a quelli non usati.</>, fonte: 'art. 10.2' },
+    { titolo: <>Budget d&apos;asta</>, testo: <>Crediti residui più il rimborso del giocatore che metti sul piatto.
+                Dopo ogni aggiudicazione i crediti si aggiornano: il lotto successivo
+                parte dal saldo nuovo.</>, fonte: 'art. 10.2' },
+    { titolo: <>Stesso ruolo</>, testo: <>Chi entra e chi esce sono dello stesso ruolo: la rosa resta 3-8-8-6.</>, fonte: 'integrativa' },
+    { titolo: <>Uno svincolando per operazione</>, testo: <>Puoi chiamare più giocatori nella stessa asta, ma ogni chiamata e ogni
+                adesione vuole un giocatore diverso sul piatto.</>, fonte: 'integrativa' },
+    { titolo: <>Tetto di partecipazioni</>, testo: <>Non puoi partecipare a più lotti di un ruolo di quanti cambi ti restano
+                in quel ruolo.</>, fonte: 'integrativa' },
+    { titolo: <>Ritiro</>, testo: <>Chiamate e adesioni si modificano o si ritirano fino alla chiusura delle chiamate.</>, fonte: 'integrativa' },
+    { titolo: <>Giocatori svincolati</>, testo: <>Chi esce da una rosa in asta torna chiamabile solo dall&apos;asta successiva.</>, fonte: 'art. 10.2' },
+  ];
+}
+
+/** Una scheda regola: il numero in grande, il titolo, il testo, la fonte. */
+function Scheda({ n, titolo, fonte, children }: {
+  n: number; titolo?: ReactNode; fonte?: string; children: ReactNode;
+}) {
+  return (
+    <li className="scheda-regola">
+      <span className="scheda-n num" aria-hidden="true">{n}</span>
+      <div>
+        {titolo && <h3>{titolo}</h3>}
+        <div className="scheda-testo">{children}</div>
+        {fonte && <span className="tag muted">{fonte}</span>}
+      </div>
+    </li>
+  );
+}
+
+export default async function RegolamentoPage({
+  searchParams,
+}: { searchParams: Promise<{ s?: string }> }) {
   const ctx = await requireTeamContext();
+  const { s: sp } = await searchParams;
+  const sezione: Sezione = sp === 'regole' || sp === 'calendario' ? sp : 'come';
 
   const db = await supabaseServer();
   const { data: sessions } = await db.from('auction_sessions')
@@ -39,184 +120,68 @@ export default async function RegolamentoPage() {
 
       <p className="eyebrow">Lega Fanta Mansarda · 2ª edizione</p>
       <h1>Regolamento aste flash</h1>
-      <p className="sub">
-        Le regole del mercato svincolati, quelle che l&apos;app applica da sola, e il
-        calendario delle quindici aste della stagione.
-      </p>
 
-      {/* ------------------------------------------------------ calendario */}
-      <h2>Calendario</h2>
-      <div className="panel">
-        <div className="tablewrap">
-          <table>
-            <thead>
-              <tr>
-                <th>#</th><th>Asta</th>
-                <th>Chiamate entro</th><th>Adesioni entro</th>
-                <th>Stato</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => {
-                const passata = new Date(r.auction_at) < now;
-                const stato = STATO[r.status] ?? STATO.scheduled;
-                return (
-                  <tr key={r.id} style={{
-                    opacity: passata && r.status === 'closed' ? .55 : 1,
-                    fontWeight: prossima?.id === r.id ? 700 : 400,
-                  }}>
-                    <td className="num">{r.number}</td>
-                    <td>
-                      {longDate(r.auction_at)}
-                      {r.excludes_new_signings && (
-                        <span className="tag warn" style={{ marginLeft: 8 }}>Nuovi acquisti esclusi</span>
-                      )}
-                      {prossima?.id === r.id && (
-                        <span className="tag ok" style={{ marginLeft: 8 }}>Prossima</span>
-                      )}
-                    </td>
-                    <td style={{ color: 'var(--muted)', fontSize: '.86rem' }}>
-                      {shortDeadline(callsCloseAt(r.info, ctx.cfg).toISOString())}
-                    </td>
-                    <td style={{ color: 'var(--muted)', fontSize: '.86rem' }}>
-                      {shortDeadline(joinsCloseAt(r.info, ctx.cfg).toISOString())}
-                    </td>
-                    <td><span className={`tag ${stato.cls}`}>{stato.label}</span></td>
-                  </tr>
-                );
-              })}
-              {rows.length === 0 && (
-                <tr><td colSpan={5}><div className="empty">Calendario non ancora caricato.</div></td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
-        Le aste di gennaio sono le uniche in cui non si possono chiamare i giocatori
-        arrivati in Serie A nel mercato invernale (art. 11.2). A febbraio non ci sono
-        aste flash: c&apos;è l&apos;asta di riparazione, che si fa fuori dall&apos;app.
-      </p>
+      <nav className="chips" aria-label="Sezioni del regolamento">
+        {SEZIONI.map((x) => (
+          <Link key={x.key} href={x.key === 'come' ? '/regolamento' : `/regolamento?s=${x.key}`} className="chip"
+                aria-current={sezione === x.key ? 'page' : undefined}>
+            {x.label}
+          </Link>
+        ))}
+      </nav>
 
-      {/* ------------------------------------------------------ come funziona */}
-      <h2>Come funziona un&apos;asta flash</h2>
-      <ol className="rules">
-        <li>
-          <b>Chiami un giocatore</b> entro cinque giorni dall&apos;asta, indicando anche
-          il tuo giocatore da svincolare. La chiamata diventa subito pubblica — serve
-          perché gli altri possano aderire — mentre il tuo svincolando resta segreto.
-        </li>
-        <li>
-          <b>Chi vuole contendertelo aderisce</b> entro il giorno prima, dichiarando a
-          sua volta un giocatore da mettere sul piatto. Può lasciare un&apos;offerta
-          massima, che il sistema userà al posto suo se non riesce a collegarsi.
-        </li>
-        <li>
-          <b>Il giorno dell&apos;asta si apre la sala.</b> Svincolandi e budget vengono
-          svelati tutti insieme. I lotti senza contendenti sono già assegnati al
-          chiamante, al 75% del valore del suo svincolando: un&apos;operazione a saldo
-          neutro, quello che rientra è esattamente quello che esce.
-        </li>
-        <li>
-          <b>I lotti contesi vanno all&apos;asta uno alla volta</b>, in ordine di
-          chiamata. Base un credito, rilancio minimo un credito, e ogni offerta
-          riporta il timer a dieci secondi.
-        </li>
-        <li>
-          <b>Chi vince</b> svincola il giocatore dichiarato, incassa il rimborso, paga
-          il prezzo e consuma un cambio nel ruolo. <b>Chi perde non subisce nulla</b>:
-          il suo giocatore resta in rosa al prezzo d&apos;acquisto originario.
-        </li>
-      </ol>
+      {sezione === 'come' && (
+        <ol className="schede-regola">
+          {passi().map((p, i) => <Scheda key={i} n={i + 1}>{p}</Scheda>)}
+        </ol>
+      )}
 
-      {/* ------------------------------------------------------ le regole */}
-      <h2>Le regole in numeri</h2>
-      <div className="tablewrap">
-        <table>
-          <thead><tr><th>Regola</th><th>Come funziona</th><th>Fonte</th></tr></thead>
-          <tbody>
-            <tr>
-              <td><b>Rimborso ordinario</b></td>
-              <td>
-                75% del prezzo pagato, arrotondato per difetto, <b>ma mai meno di
-                1 credito</b>: uno svincolo non può rendere zero. Consuma un cambio
-                nel ruolo.
-              </td>
-              <td className="num">art. 8.4</td>
-            </tr>
-            <tr>
-              <td><b>Rimborso pieno</b></td>
-              <td>
-                100% e nessun cambio consumato per chi ha lasciato la Serie A, per chi è
-                squalificato dalla Lega e per gli infortuni oltre 60 giorni approvati
-                dall&apos;admin. Si chiede con il pulsante in rosa; finché l&apos;admin non
-                decide, l&apos;operazione resta congelata.
-              </td>
-              <td className="num">art. 8.3 · 11.2</td>
-            </tr>
-            <tr>
-              <td><b>Cambi a disposizione</b></td>
-              <td>
-                Girone di andata: {ctx.cfg.changes.P} POR · {ctx.cfg.changes.D} DIF ·{' '}
-                {ctx.cfg.changes.C} CEN · {ctx.cfg.changes.A} ATT.
-                Dal 1° febbraio si aggiunge {ctx.cfg.returnBonus} cambio per ruolo, che si
-                somma a quelli non usati.
-              </td>
-              <td className="num">art. 10.2</td>
-            </tr>
-            <tr>
-              <td><b>Budget d&apos;asta</b></td>
-              <td>
-                Crediti residui più il rimborso del giocatore che metti sul piatto.
-                Dopo ogni aggiudicazione i crediti si aggiornano: il lotto successivo
-                parte dal saldo nuovo.
-              </td>
-              <td className="num">art. 10.2</td>
-            </tr>
-            <tr>
-              <td><b>Stesso ruolo</b></td>
-              <td>Chi entra e chi esce sono dello stesso ruolo: la rosa resta 3-8-8-6.</td>
-              <td className="num">integrativa</td>
-            </tr>
-            <tr>
-              <td><b>Uno svincolando per operazione</b></td>
-              <td>
-                Puoi chiamare più giocatori nella stessa asta, ma ogni chiamata e ogni
-                adesione vuole un giocatore diverso sul piatto.
-              </td>
-              <td className="num">integrativa</td>
-            </tr>
-            <tr>
-              <td><b>Tetto di partecipazioni</b></td>
-              <td>
-                Non puoi partecipare a più lotti di un ruolo di quanti cambi ti restano
-                in quel ruolo.
-              </td>
-              <td className="num">integrativa</td>
-            </tr>
-            <tr>
-              <td><b>Ritiro</b></td>
-              <td>Chiamate e adesioni si modificano o si ritirano fino alla chiusura delle chiamate.</td>
-              <td className="num">integrativa</td>
-            </tr>
-            <tr>
-              <td><b>Giocatori svincolati</b></td>
-              <td>Chi esce da una rosa in asta torna chiamabile solo dall&apos;asta successiva.</td>
-              <td className="num">art. 10.2</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
+      {sezione === 'regole' && (
+        <>
+          <ol className="schede-regola">
+            {regole(ctx.cfg).map((r, i) => (
+              <Scheda key={i} n={i + 1} titolo={r.titolo} fonte={r.fonte}>{r.testo}</Scheda>
+            ))}
+          </ol>
+          <p className="nota-piede">
+            <b>Quello che l&apos;app non fa:</b> l&apos;asta di riparazione di febbraio resta
+            fuori, si continua a fare come sempre.
+            {' '}Ruoli: {(['P', 'D', 'C', 'A'] as Role[]).map((r) => `${r} = ${ROLE_LABEL[r]}`).join(' · ')}.
+          </p>
+        </>
+      )}
 
-      <div className="callout">
-        <b>Quello che l&apos;app non fa:</b> scambi diretti tra squadre e asta di
-        riparazione di febbraio restano fuori, si continuano a fare come sempre.
-        Qui c&apos;è solo il mercato degli svincolati.
-      </div>
-
-      <p style={{ fontSize: '.86rem', color: 'var(--muted)' }}>
-        Ruoli: {(['P', 'D', 'C', 'A'] as Role[]).map((r) => `${r} = ${ROLE_LABEL[r]}`).join(' · ')}
-      </p>
+      {sezione === 'calendario' && (
+        <>
+          <ol className="calendario">
+            {rows.map((r) => {
+              const stato = STATO[r.status] ?? STATO.scheduled;
+              return (
+                <li key={r.id} className={`${r.status === 'closed' ? 'passata' : ''}${prossima?.id === r.id ? ' prossima' : ''}`}>
+                  <span className="scheda-n num">{r.number}</span>
+                  <div className="chi-col">
+                    <b>{longDate(r.auction_at)}</b>
+                    <small>
+                      chiamate entro {shortDeadline(callsCloseAt(r.info, ctx.cfg).toISOString())} ·
+                      adesioni entro {shortDeadline(joinsCloseAt(r.info, ctx.cfg).toISOString())}
+                    </small>
+                    {r.excludes_new_signings && <small className="avviso">nuovi acquisti esclusi</small>}
+                  </div>
+                  <span className={`tag ${prossima?.id === r.id ? 'ok' : stato.cls}`}>
+                    {prossima?.id === r.id && r.status !== 'live' ? 'Prossima' : stato.label}
+                  </span>
+                </li>
+              );
+            })}
+            {rows.length === 0 && <li><div className="empty">Calendario non ancora caricato.</div></li>}
+          </ol>
+          <p className="nota-piede">
+            Le aste di gennaio sono le uniche in cui non si possono chiamare i giocatori
+            arrivati in Serie A nel mercato invernale (art. 11.2). A febbraio non ci sono
+            aste flash: c&apos;è l&apos;asta di riparazione, che si fa fuori dall&apos;app.
+          </p>
+        </>
+      )}
     </div>
   );
 }

@@ -24,8 +24,11 @@ const PHASE_LABEL: Record<string, string> = {
   closed: 'Chiusa',
 };
 
-export default async function AstaPage() {
+export default async function AstaPage({
+  searchParams,
+}: { searchParams: Promise<{ chiama?: string }> }) {
   const ctx = await requireTeamContext();
+  const { chiama } = await searchParams;
   if (!ctx.nextSession) {
     return (
       <div className="shell">
@@ -206,6 +209,7 @@ export default async function AstaPage() {
             credits={ctx.credits}
             changes={ctx.changes}
             chiamate={chiamate}
+            preselezionato={chiama}
           />
         </div>
       )}

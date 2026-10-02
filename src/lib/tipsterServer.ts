@@ -4,7 +4,7 @@ import { nonSchierabili } from './infortuni/infortuniServer';
 import { formaGiocatori, quotazioniAggiornate } from './fonti/fontiServer';
 import { supabaseAdmin } from './supabase';
 import {
-  forzaClub, stimaSquadra, quoteSfida, risolviSchedina,
+  forzaClub, priorita, stimaSquadra, quoteSfida, risolviSchedina,
   type ContestoClub, type GiocatoreTipster, type GiornataGiocata,
   type Mercato, type StimaSquadra,
 } from './tipster';
@@ -161,6 +161,37 @@ async function roseVive(leagueId: string, serieA: number | null): Promise<Map<st
     rose.set(r.team_id as string, l);
   });
   return rose;
+}
+
+export interface Probabile extends GiocatoreTipster {
+  titolare: boolean;
+  /** posto in panchina, dalla prima riserva */
+  ordine: number;
+}
+
+/**
+ * La formazione probabile di ogni squadra per la giornata `serieA` di Serie A:
+ * l'undici che il motore delle quote considera (3-4-3, chi è disponibile,
+ * per quotazione, forma e titolarità) e dietro la panchina nello stesso
+ * ordine. Serve alla diretta quando la formazione vera non è ancora stata
+ * importata dalla lega.
+ */
+export async function formazioniProbabili(
+  leagueId: string, serieA: number,
+): Promise<Map<string, Probabile[]>> {
+  const rose = await roseVive(leagueId, serieA);
+  const esito = new Map<string, Probabile[]>();
+  for (const [teamId, rosa] of rose) {
+    const undici = new Set(stimaSquadra(rosa, {}).undici.map((p) => p.playerId));
+    const panchina = rosa
+      .filter((p) => !undici.has(p.playerId) && p.disponibile !== false)
+      .sort((a, b) => priorita(b) - priorita(a));
+    esito.set(teamId, [
+      ...rosa.filter((p) => undici.has(p.playerId)).map((p) => ({ ...p, titolare: true, ordine: 0 })),
+      ...panchina.map((p, i) => ({ ...p, titolare: false, ordine: i + 1 })),
+    ]);
+  }
+  return esito;
 }
 
 /** Chi affronta chi in Serie A quella giornata, con i rinvii già applicati. */

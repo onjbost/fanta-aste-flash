@@ -13,6 +13,9 @@ export interface SlidePartita {
   etichetta: string;
   /** null: nessuna partita in programma in questa competizione */
   partita: {
+    id: string;
+    /** la giornata è cominciata: la card apre la diretta */
+    live: boolean;
     titolo: string;
     quando: string;
     casa: SquadraBanner;
@@ -38,6 +41,20 @@ function RigaStorico({ x }: { x: SlidePartita['storico'][number]['partite'][numb
       <span className="ris num">{x.golCasa}–{x.golOspite}</span>
       <span className={vince === 'ospite' ? 'vince' : undefined}>{x.ospite}</span>
     </div>
+  );
+}
+
+/**
+ * La card della partita: a giornata cominciata è un link alla diretta, prima
+ * è solo una card. Un link che porta a una pagina vuota sarebbe peggio di
+ * nessun link.
+ */
+function CardPartita({ id, live, children }: { id: string; live: boolean; children: React.ReactNode }) {
+  if (!live) return <div className="banner">{children}</div>;
+  return (
+    <Link href={`/partita/${id}`} className="banner" style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
+      {children}
+    </Link>
   );
 }
 
@@ -97,7 +114,7 @@ export function BannerPartite({ slides }: { slides: SlidePartita[] }) {
         {slides.map((s) => (
           <div key={s.comp} role="tabpanel" aria-label={s.etichetta}>
             {s.partita ? (
-              <div className="banner">
+              <CardPartita id={s.partita.id} live={s.partita.live}>
                 <div className="banner-testa"><span>{s.partita.titolo}</span><span>{s.partita.quando}</span></div>
                 <div className="banner-sfida">
                   <div className="banner-squadra">
@@ -111,7 +128,8 @@ export function BannerPartite({ slides }: { slides: SlidePartita[] }) {
                   </div>
                 </div>
                 {s.partita.nota && <div className="banner-nota">{s.partita.nota}</div>}
-              </div>
+                {s.partita.live && <div className="banner-nota"><b>In diretta · tocca per seguirla ›</b></div>}
+              </CardPartita>
             ) : (
               <div className="banner vuoto">
                 {s.comp === 'coppa'

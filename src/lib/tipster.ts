@@ -312,7 +312,7 @@ export function fantavotoAtteso(p: GiocatoreTipster): number {
  * probabile che giochi. Senza voti è la quotazione, come prima; con i voti,
  * chi non prende voto da tre giornate scivola dietro chi gioca.
  */
-function priorita(p: GiocatoreTipster): number {
+export function priorita(p: GiocatoreTipster): number {
   const t = p.forma?.titolarita;
   return fantavotoAtteso(p) * (t == null ? 1 : 0.4 + 0.6 * t);
 }

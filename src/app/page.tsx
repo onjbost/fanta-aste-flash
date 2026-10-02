@@ -66,6 +66,9 @@ function slide(
   return {
     comp, etichetta, storico,
     partita: {
+      id: p.id,
+      // la diretta si apre dal calcio d'inizio della prima partita vera
+      live: Date.parse(p.kickoff) <= Date.now(),
       titolo: titoloPartita(p),
       quando: dataBreve(p.kickoff),
       casa: { nome: casa.nome, stemma: casa.stemma, posizione: pc ? `${pc}°` : null, forma: formaUltime(sfide, p.homeId, 5, comp) },

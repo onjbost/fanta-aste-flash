@@ -34,6 +34,16 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
 - **Chi non gioca scivola fuori dall'undici stimato**: un titolare che non
   prende voto da tre giornate lascia il posto a chi gioca davvero.
 
+### In diretta
+- **La partita del fanta in diretta.** A giornata cominciata, la card della
+  partita nel banner della Home apre la diretta: voti live di fantacalcio.it,
+  bonus e malus, fantavoto per fantavoto, totale e gol, con le riserve che
+  entrano per chi finisce senza voto. Si aggiorna da sola ogni minuto.
+- **Simula partita**: chi non ha ancora voto prende 6, più quello che ha già
+  fatto in campo. Dice dove sta andando la partita prima che finisca.
+- La formazione è quella vera quando la lega l'ha importata; altrimenti la
+  probabile del motore delle quote, e la pagina lo dice.
+
 ## v5.0 — 2 ottobre 2026
 
 L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,

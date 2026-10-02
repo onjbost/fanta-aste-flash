@@ -79,8 +79,10 @@ button .icona:only-child{margin-right:0}
   position:sticky;top:0;z-index:40;
   display:grid;grid-template-columns:44px 1fr auto;align-items:center;gap:8px;
   margin:0 -16px 18px;padding:calc(10px + env(safe-area-inset-top)) 16px 10px;
-  background:color-mix(in srgb,var(--bg) 88%,transparent);
-  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+  /* fondo quasi pieno e niente backdrop-filter: la sfocatura renderebbe la
+     testata il contenitore dei figli `position:fixed`, e il cassetto ☰ che
+     vive qui dentro resterebbe alto 64px invece che tutto lo schermo */
+  background:color-mix(in srgb,var(--bg) 96%,transparent);
 }
 .topbar .brand{
   font-family:var(--font-display);font-weight:700;font-size:1.25rem;
@@ -153,6 +155,9 @@ tr:last-child td{border-bottom:none}
 td.num,th.num{font-family:var(--font-num);font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
 td.num{font-weight:600;font-size:1rem}
 tbody tr:hover{background:color-mix(in srgb,var(--surface-2) 55%,transparent)}
+/* dentro una riga il bottone è un'azione accanto ai dati, non un bersaglio a
+   sé: compatto e su una riga, o fa alta il triplo ogni riga della tabella */
+td button,td .btn{min-height:0;padding:6px 12px;font-size:.8rem;white-space:nowrap}
 
 .role-badge{
   display:inline-flex;width:22px;height:22px;align-items:center;justify-content:center;

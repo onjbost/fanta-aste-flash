@@ -87,8 +87,12 @@ export interface LatoDiretta {
   teamId: string;
   nome: string;
   stemma: string | null;
-  /** «lega»: la formazione vera importata; «probabile»: quella stimata dall'app */
-  fonte: 'lega' | 'probabile';
+  /**
+   * «lega»: la formazione vera importata; «probabile»: quella stimata
+   * dall'app, solo a giornata cominciata se la lega non l'ha ancora data;
+   * «nascosta»: prima del calcio d'inizio le formazioni non si vedono.
+   */
+  fonte: 'lega' | 'probabile' | 'nascosta';
   live: SquadraLive;
 }
 
@@ -280,11 +284,19 @@ export async function diretta(fixtureId: string, leagueId: string): Promise<Dire
     return x;
   });
 
-  const lato = async (teamId: string, t: { name: string; logo_url: string | null }, vera: Schierato[] | null): Promise<LatoDiretta> => ({
-    teamId, nome: t.name, stemma: t.logo_url,
-    fonte: vera ? 'lega' : 'probabile',
-    live: squadraLive(conArchivio(vera ?? await probabile(teamId), Boolean(vera)), ctx),
-  });
+  /*
+   * Prima del calcio d'inizio della giornata le formazioni sono segrete anche
+   * sulla lega: niente probabile al loro posto, che sembrerebbe una soffiata.
+   * Dall'apertura si leggono quelle vere; la probabile resta solo il ripiego
+   * se la lega, a giornata cominciata, non risponde.
+   */
+  const aperta = Date.parse(md.first_kickoff_at) <= Date.now();
+  const lato = async (teamId: string, t: { name: string; logo_url: string | null }, vera: Schierato[] | null): Promise<LatoDiretta> => {
+    const base = { teamId, nome: t.name, stemma: t.logo_url };
+    if (vera) return { ...base, fonte: 'lega', live: squadraLive(conArchivio(vera, true), ctx) };
+    if (!aperta) return { ...base, fonte: 'nascosta', live: squadraLive([], ctx) };
+    return { ...base, fonte: 'probabile', live: squadraLive(conArchivio(await probabile(teamId), false), ctx) };
+  };
 
   const [casa, ospite] = await Promise.all([
     lato(f.home_team_id as string, casaT, fCasa),

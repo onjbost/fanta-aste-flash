@@ -73,7 +73,8 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
 
 ### La diretta
 - **Anteprima**: la card della partita nel banner apre la diretta anche prima
-  del calcio d'inizio, con le formazioni probabili. Dagli «Ultimi incontri»
+  del calcio d'inizio: «Formazioni non ancora visibili» finché la giornata
+  non comincia, poi le formazioni vere e i voti live. Dagli «Ultimi incontri»
   si riapre la diretta di ogni partita già giocata.
 - **Si rilegge ogni minuto** mentre c'è una partita in campo, ogni cinque fra
   una partita e l'altra di una giornata lunga, e subito quando si torna

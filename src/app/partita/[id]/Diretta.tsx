@@ -84,17 +84,30 @@ function Formazione({ lato, simula }: { lato: LatoDiretta; simula: boolean }) {
       <h2 style={{ margin: '0 0 2px', display: 'flex', alignItems: 'center', gap: 8 }}>
         <Stemma nome={lato.nome} url={lato.stemma} size={28} />{lato.nome}
       </h2>
+      {lato.fonte === 'nascosta' ? (
+        <div className="empty" style={{ padding: '18px 8px' }}>
+          Formazioni non ancora visibili.
+          <div className="sub" style={{ margin: '4px 0 0' }}>
+            Compaiono all&apos;inizio della giornata, quando la lega le rende pubbliche.
+          </div>
+        </div>
+      ) : (
       <p className="sub" style={{ margin: '0 0 8px' }}>
         {lato.fonte === 'lega'
           ? 'Formazione schierata nella lega.'
-          : 'Formazione probabile: quella vera non è ancora stata importata dalla lega.'}
+          : 'Formazione probabile: quella vera non è ancora arrivata dalla lega.'}
         {' '}{lato.live.conVoto}/11 con voto{lato.live.sostituzioni ? ` · ${lato.live.sostituzioni} cambi` : ''}
       </p>
+      )}
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>
         {titolari.map((r) => <Riga key={`t${r.ordine}-${r.nome}`} r={r} simula={simula} />)}
       </ul>
-      <BonusRiga nome="Modificatore difesa" b={simula ? lato.live.modificatoreSimulato : lato.live.modificatore} />
-      <BonusRiga nome="Fattore capitano" b={simula ? lato.live.capitanoSimulato : lato.live.capitano} />
+      {lato.fonte !== 'nascosta' && (
+        <>
+          <BonusRiga nome="Modificatore difesa" b={simula ? lato.live.modificatoreSimulato : lato.live.modificatore} />
+          <BonusRiga nome="Fattore capitano" b={simula ? lato.live.capitanoSimulato : lato.live.capitano} />
+        </>
+      )}
       {panchina.length > 0 && (
         <details style={{ marginTop: 8 }}>
           <summary className="sub" style={{ cursor: 'pointer' }}>Panchina ({panchina.length})</summary>
@@ -128,25 +141,29 @@ export function Diretta({ d }: { d: DatiDiretta }) {
   const o = d.ospite.live;
   const tot = (l: typeof c) => (simula ? l.totaleSimulato : l.totale);
   const gol = (l: typeof c) => (simula ? l.golSimulati : l.gol);
+  // prima del calcio d'inizio non c'è niente da contare: niente punteggio né simulazione
+  const nascoste = d.casa.fonte === 'nascosta' && d.ospite.fonte === 'nascosta';
 
   return (
     <>
       <div className="banner">
         <div className="banner-testa">
-          <span>{simula ? 'Simulata' : 'Adesso'}</span>
+          <span>{nascoste ? 'Anteprima' : simula ? 'Simulata' : 'Adesso'}</span>
           <span>aggiornata alle {new Date(d.aggiornatoIl).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' })}</span>
         </div>
         <div className="banner-sfida">
           <div className="banner-squadra">
             <Stemma nome={d.casa.nome} url={d.casa.stemma} size={52} />
             <span className="nome">{d.casa.nome}</span>
-            <span className="num" style={{ fontSize: '.85rem', color: 'var(--muted)' }}>{fmt(tot(c))}</span>
+            {!nascoste && <span className="num" style={{ fontSize: '.85rem', color: 'var(--muted)' }}>{fmt(tot(c))}</span>}
           </div>
-          <span className="banner-vs num" style={{ fontSize: '2rem' }}>{gol(c)}–{gol(o)}</span>
+          {nascoste
+            ? <span className="banner-vs">VS</span>
+            : <span className="banner-vs num" style={{ fontSize: '2rem' }}>{gol(c)}–{gol(o)}</span>}
           <div className="banner-squadra">
             <Stemma nome={d.ospite.nome} url={d.ospite.stemma} size={52} />
             <span className="nome">{d.ospite.nome}</span>
-            <span className="num" style={{ fontSize: '.85rem', color: 'var(--muted)' }}>{fmt(tot(o))}</span>
+            {!nascoste && <span className="num" style={{ fontSize: '.85rem', color: 'var(--muted)' }}>{fmt(tot(o))}</span>}
           </div>
         </div>
         {d.ufficiale && (
@@ -154,6 +171,13 @@ export function Diretta({ d }: { d: DatiDiretta }) {
         )}
       </div>
 
+      {nascoste ? (
+        <p className="sub" style={{ margin: '12px 0' }}>
+          La diretta comincia col calcio d&apos;inizio della prima partita della giornata: da lì
+          arrivano le formazioni schierate e i voti live.
+        </p>
+      ) : (
+      <>
       <div className="segmento" role="tablist" aria-label="Lettura" style={{ marginTop: 12 }}>
         <button type="button" role="tab" aria-selected={!simula} onClick={() => setSimula(false)}>Com&apos;è adesso</button>
         <button type="button" role="tab" aria-selected={simula} onClick={() => setSimula(true)}>Simula partita</button>
@@ -164,6 +188,8 @@ export function Diretta({ d }: { d: DatiDiretta }) {
           : 'Contano solo i voti già usciti. Le riserve entrano per chi ha finito la sua partita senza voto, fino a tre cambi.'}
         {' '}Modificatore difesa e fattore capitano usano i voti puri, senza bonus.
       </p>
+      </>
+      )}
 
       {d.fonteVoti === 'tabellino' && (
         <div className="callout">Partita conclusa: voti e fantavoti sono quelli del tabellino della lega.</div>

@@ -105,5 +105,5 @@ verifica in preview.
 - **Classifica tipster per giornata** (com'era nella vecchia pagina schedine):
   per ora la tab Tipster di `/classifica` mostra solo il totale. Da rimettere in
   un secondo momento.
-- **Novità nel CHANGELOG** per il redesign: da scrivere quando si porta in produzione.
+- **Novità nel CHANGELOG** per il redesign: scritte in v5.0 al passaggio in produzione.
 

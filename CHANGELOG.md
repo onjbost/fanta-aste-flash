@@ -1,5 +1,47 @@
 # Aste Flash · Fanta Mansarda
 
+## v5.0 — 2 ottobre 2026
+
+L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,
+cambia tutto quello che si vede e si tocca.
+
+### Il nuovo aspetto
+- **Un tema solo, scuro**: verde notte di campo, un solo oro, i numeri in
+  caratteri condensati da tabellone.
+- **La barra in basso** ha cinque voci, con l'**Asta** in una bolla d'oro al
+  centro. Quando la sala è aperta diventa «Sala live» con un pallino rosso.
+- **Il cassetto ☰** raccoglie Registro, Regolamento e, per l'admin, tutti gli
+  strumenti. In testata c'è sempre la pillola dei crediti.
+- **Gli stemmi** delle squadre: li carica l'admin, e compaiono ovunque.
+- I dettagli si aprono in **fogli dal basso** invece di cambiare pagina.
+
+### Home e classifiche
+- La prossima partita in campionato e in Coppa Mansarda, in un banner che scorre.
+- «Ultimi incontri»: la forma a pallini, i precedenti e lo storico della competizione.
+- Le quattro scadenze con il conto alla rovescia.
+- Una pagina sola per le classifiche: Campionato, Coppa e Tipster.
+
+### Asta e sala
+- La linea delle fasi e un solo countdown grande. «Aderisci» e «Chiama» si
+  fanno da un foglio, con lo svincolando da scegliere a pillole e il budget in
+  chiaro.
+- In sala: l'anello del timer intorno all'offerta, gli stemmi dei contendenti
+  col pallino di presenza, e un pannello di rilancio con +1/+5/+10, − / + e
+  «Rilancia a X». Se l'offerta supera la cifra scelta, la cifra si rimette al
+  minimo valido da sola.
+- La regia dell'admin è un cassetto da tirare su dal fondo.
+
+### Schedine
+- L'1X2 sempre in vista, gli altri mercati a tendina, e in fondo quanto vale la
+  schedina se le prendi tutte.
+- Le schedine giocate diventano biglietti. In «Altri» c'è anche **Cosa gioca la
+  lega**: le caselle più giocate sono le più dorate.
+
+### Rosa, Svincolati, Registro, Regolamento
+- Giocatori in card: un tocco apre il foglio con le azioni. Da uno svincolato,
+  «Chiama all'asta» apre la chiamata già compilata.
+- Il registro è una timeline, anche per le aste passate. Il regolamento è a schede.
+
 ## v4.1 — 1 ottobre 2026
 
 La coda operativa smette di essere un elenco che si guarda e basta.

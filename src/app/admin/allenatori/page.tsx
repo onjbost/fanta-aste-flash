@@ -42,7 +42,7 @@ export default async function AllenatoriPage() {
     <div className="shell">
       <TopBar teamName={ctx.team.name} isAdmin active="admin" />
 
-      <p className="eyebrow">Pannello admin</p>
+      <p className="eyebrow">Gestione squadre</p>
       <h1>Allenatori e stemmi</h1>
       <p className="sub">
         Ogni squadra può averne due: vedono la stessa rosa, gli stessi crediti e gli

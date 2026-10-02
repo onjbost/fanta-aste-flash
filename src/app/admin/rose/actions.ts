@@ -164,6 +164,7 @@ export async function impostaCrediti(_prev: EditState, form: FormData): Promise<
     admin.userId,
     String(form.get('note') ?? '').trim(),
   );
+  revalidatePath('/admin/crediti');
   revalidatePath('/admin/rose');
   revalidatePath('/');
   revalidatePath('/asta');

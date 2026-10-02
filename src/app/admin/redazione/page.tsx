@@ -170,9 +170,9 @@ export default async function AdminRedazionePage() {
       </p>
 
       <div className="filters" style={{ marginTop: 0 }}>
-        <a className="btn" href="/admin">Pannello admin</a>
+        <a className="btn" href="/admin">Coda operativa</a>
         <a className="btn" href="/admin/schedine">Tipster</a>
-        <a className="btn" href="/admin/messaggi">Centro messaggi</a>
+        <a className="btn" href="/admin/messaggi">Testi per il gruppo</a>
       </div>
 
       {!modello && (

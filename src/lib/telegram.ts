@@ -224,7 +224,7 @@ export function tgSessionClosed(sessionNumber: number, assigned: number): string
     `${assigned} ${assigned === 1 ? 'lotto assegnato' : 'lotti assegnati'}\\.`,
     'Genera il messaggio dei risultati quando vuoi\\.',
     '',
-    link('Centro messaggi', '/admin/messaggi'),
+    link('Testi per il gruppo', '/admin/messaggi'),
   ].join('\n');
 }
 

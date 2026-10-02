@@ -101,6 +101,16 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   richiude le schedine con i punti nuovi. Con la casella, prima ricalcola la
   giornata su Leghe Fantacalcio.
 
+### Il menu admin, riordinato
+- **Coda operativa** (era «Da decidere»), senza le scorciatoie in cima: il
+  menu le ha già tutte.
+- **Gestione squadre**: Gestione rose (era «Rose e import»), Gestione crediti
+  (nuova pagina: il form dei crediti residui, uscito dalle rose), Allenatori
+  e stemmi, Scambi, Indisponibili.
+- **Comunicazione**: Testi per il gruppo (era «Centro messaggi»), La Gazzetta,
+  La redazione.
+- In fondo Tipster, Sala di prova, Novità dell'app ed Esci.
+
 ## v5.0 — 2 ottobre 2026
 
 L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,

@@ -29,7 +29,7 @@ export default async function MessaggiPage() {
     <div className="shell">
       <TopBar teamName={ctx.team.name} isAdmin active="admin" />
 
-      <p className="eyebrow">Centro messaggi</p>
+      <p className="eyebrow">Comunicazione</p>
       <h1>Testi per il gruppo</h1>
       <p className="sub">
         {session

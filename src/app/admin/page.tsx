@@ -3,9 +3,7 @@ import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { freeReleaseScenarios, type Role, type PlayerStatus } from '@/lib/rules';
 import { leggiLaCoda } from '@/lib/codaLettura';
-import Link from 'next/link';
 import { Coda } from './Coda';
-import { VOCI_ADMIN } from '../vociAdmin';
 import { TopBar } from '../TopBar';
 import { DecideForm } from './DecideForm';
 import { TelegramCheck } from './TelegramCheck';
@@ -69,14 +67,8 @@ export default async function AdminPage() {
       <TopBar teamName={ctx.team.name} isAdmin active="admin" />
 
       <p className="eyebrow">Pannello admin</p>
-      <h1>Da decidere</h1>
+      <h1>Coda operativa</h1>
       <TelegramCheck configured={telegramConfigured()} />
-
-      <nav className="scorciatoie" aria-label="Strumenti admin">
-        {VOCI_ADMIN.filter((v) => v.href !== '/admin').map((v) => (
-          <Link key={v.href} href={v.href}>{v.testo}</Link>
-        ))}
-      </nav>
 
       <h2>
         Svincoli gratuiti <span className="h2-conta">{requests.length}</span>

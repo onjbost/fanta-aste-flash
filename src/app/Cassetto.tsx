@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import { signOut } from './actions';
 import { ICONE } from './BottomNav';
 import { Stemma } from './Stemma';
-import { VOCI_ADMIN as ADMIN } from './vociAdmin';
+import { GRUPPI_ADMIN } from './vociAdmin';
 
 /**
  * Il cassetto ☰, uno solo per tutti.
@@ -127,16 +127,21 @@ export function Cassetto({ squadra, crediti, stemma, isAdmin, indietro, children
         {isAdmin && (
           <>
             <div className="cassetto-sezione">Admin</div>
-            <ul>
-              {ADMIN.map((v) => (
-                <li key={v.href}>
-                  <Link href={v.href} tabIndex={tab} aria-current={attiva(pathname, v.href) ? 'page' : undefined}
-                        style={{ paddingLeft: 42 }}>
-                    {v.testo}
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            {GRUPPI_ADMIN.map((g, i) => (
+              <div key={g.titolo ?? `gruppo-${i}`}>
+                {g.titolo && <div className="cassetto-gruppo">{g.titolo}</div>}
+                <ul>
+                  {g.voci.map((v) => (
+                    <li key={v.href}>
+                      <Link href={v.href} tabIndex={tab} aria-current={attiva(pathname, v.href) ? 'page' : undefined}
+                            style={{ paddingLeft: g.titolo ? 54 : 42 }}>
+                        {v.testo}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
           </>
         )}
 

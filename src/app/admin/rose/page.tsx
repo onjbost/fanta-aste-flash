@@ -6,7 +6,6 @@ import { refundValue, ROLE_LABEL, type Role, type PlayerStatus } from '@/lib/rul
 import { TopBar } from '../../TopBar';
 import { RosterEditor } from './RosterEditor';
 import { SyncForm } from './SyncForm';
-import { CreditiEditor } from './CreditiEditor';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,7 +24,7 @@ export default async function RosePage({
   const sp = await searchParams;
   const selected = sp.team ?? teams?.[0]?.id ?? '';
 
-  const [{ data: contracts }, { data: credits }, { data: freeAgents }, { data: creditiLega }] = await Promise.all([
+  const [{ data: contracts }, { data: credits }, { data: freeAgents }] = await Promise.all([
     db.from('contracts')
       .select('id, price, acquisition_type, players(id, name, role, club, status)')
       .eq('team_id', selected).is('released_at', null),
@@ -33,8 +32,6 @@ export default async function RosePage({
     db.from('v_free_agents').select('id, name, role, club, quotation')
       .eq('out_of_list', false)
       .order('quotation', { ascending: false }).limit(600),
-    db.from('v_team_credits').select('team_id, name, credits')
-      .eq('league_id', ctx.team.leagueId).order('name'),
   ]);
 
   type Row = {
@@ -67,8 +64,8 @@ export default async function RosePage({
     <div className="shell">
       <TopBar teamName={ctx.team.name} isAdmin active="admin" />
 
-      <p className="eyebrow">Pannello admin</p>
-      <h1>Rose</h1>
+      <p className="eyebrow">Gestione squadre</p>
+      <h1>Gestione rose</h1>
       <p className="sub">
         Correzioni a mano o ri-sincronizzazione da un nuovo export della lega.
         Ogni modifica genera il movimento di credito che la compensa e finisce nel registro.
@@ -107,13 +104,6 @@ export default async function RosePage({
         roster={roster}
         freeAgents={(freeAgents ?? []).map((p) => ({
           id: p.id, name: p.name, role: p.role as Role, club: p.club, quotation: p.quotation,
-        }))}
-      />
-
-      <h2>Crediti residui</h2>
-      <CreditiEditor
-        squadre={(creditiLega ?? []).map((t) => ({
-          id: String(t.team_id), name: String(t.name), credits: Number(t.credits ?? 0),
         }))}
       />
 

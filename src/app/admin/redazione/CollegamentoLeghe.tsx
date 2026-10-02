@@ -1,7 +1,9 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { importaDaLegheAction, salvaTokenLegheAction, type ActionState } from './actions';
+import {
+  importaDaLegheAction, reimportaGiornataAction, salvaTokenLegheAction, type ActionState,
+} from './actions';
 
 /**
  * Il comando da incollare nella console del browser, su leghe.fantacalcio.it
@@ -27,6 +29,7 @@ function giorni(iso: string | null): number | null {
 export function CollegamentoLeghe({ stato }: { stato: StatoLeghe | null }) {
   const [sTok, aTok, pTok] = useActionState<ActionState, FormData>(salvaTokenLegheAction, null);
   const [sImp, aImp, pImp] = useActionState<ActionState, FormData>(async () => importaDaLegheAction(), null);
+  const [sRe, aRe, pRe] = useActionState<ActionState, FormData>(reimportaGiornataAction, null);
   const [copiato, setCopiato] = useState(false);
   const restano = giorni(stato?.scadeIl ?? null);
 
@@ -35,7 +38,9 @@ export function CollegamentoLeghe({ stato }: { stato: StatoLeghe | null }) {
       <p className="sub" style={{ marginTop: 0 }}>
         Con il collegamento l&apos;app legge da sola, senza preferito: le <b>formazioni</b> della
         giornata in corso (quando si apre una partita in diretta), la <b>giornata conclusa</b> e
-        le <b>classifiche</b> (ogni mattina, appena la lega l&apos;ha calcolata). Passa dagli stessi
+        le <b>classifiche</b> il mattino del <b>giorno dopo l&apos;ultima partita di Serie A</b> della
+        giornata, col calendario aggiornato (anticipi, posticipi, rinvii). Se la lega a quel punto
+        non ha ancora calcolato, te lo dice su Telegram e riprova la mattina dopo. Passa dagli stessi
         controlli del preferito: se i conti non tornano, non scrive niente e te lo dice.
       </p>
 
@@ -76,10 +81,37 @@ export function CollegamentoLeghe({ stato }: { stato: StatoLeghe | null }) {
       </form>
 
       {stato && (
-        <form action={aImp} style={{ marginTop: 14 }}>
-          <button type="submit" disabled={pImp}>{pImp ? 'Leggo dalla lega…' : 'Importa adesso'}</button>
-          {sImp && <div className={`callout${sImp.ok ? '' : ' crit'}`} style={{ marginTop: 10 }}>{sImp.message}</div>}
-        </form>
+        <>
+          <form action={aImp} style={{ marginTop: 14 }}>
+            <p className="sub" style={{ margin: '0 0 6px' }}>
+              Legge subito le giornate calcolate che mancano, senza aspettare domattina.
+            </p>
+            <button type="submit" disabled={pImp}>{pImp ? 'Leggo dalla lega…' : 'Importa adesso'}</button>
+            {sImp && <div className={`callout${sImp.ok ? '' : ' crit'}`} style={{ marginTop: 10 }}>{sImp.message}</div>}
+          </form>
+
+          <form action={aRe} style={{ marginTop: 18 }}>
+            <p className="sub" style={{ margin: '0 0 6px' }}>
+              <b>Reimporta una giornata</b>: se la lega l&apos;ha ricalcolata dopo, o l&apos;hai calcolata
+              tardi. Riscrive tabellino, risultati e classifiche e richiude le schedine coi punti nuovi.
+            </p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="re-tipo">Competizione</label>
+                <select id="re-tipo" name="tipo" defaultValue="campionato">
+                  <option value="campionato">Campionato</option>
+                  <option value="coppa">Coppa</option>
+                </select>
+              </div>
+              <div className="field" style={{ marginBottom: 0 }}>
+                <label htmlFor="re-giornata">Giornata</label>
+                <input id="re-giornata" name="giornata" inputMode="numeric" style={{ width: 90 }} placeholder="es. 4" />
+              </div>
+              <button type="submit" disabled={pRe}>{pRe ? 'Rileggo…' : 'Reimporta'}</button>
+            </div>
+            {sRe && <div className={`callout${sRe.ok ? '' : ' crit'}`} style={{ marginTop: 10 }}>{sRe.message}</div>}
+          </form>
+        </>
       )}
 
       <p className="sub">

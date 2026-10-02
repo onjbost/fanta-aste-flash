@@ -24,6 +24,8 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabase';
 import { importaGiornata, type EsitoImport } from '@/lib/redazione/importaServer';
 import type { PayloadImport, SfidaGrezza, TipoCompetizione } from '@/lib/redazione/tabellino';
+import { liveGiornata } from '@/lib/live/liveServer';
+import { giornataPronta, giornoDelCalcolo, type PartitaCalendario } from './quando';
 import {
   capitaniApi, classificaApi, risultatoApi, squadraApi, tipoApi, votoApi,
   type Anagrafica, type CompetizioneApi, type DettaglioApi, type TurnoApi,
@@ -278,6 +280,41 @@ export async function formazioniLetteDaPoco(minuti = 3): Promise<boolean> {
 export interface EsitoGiornate {
   importate: { competizione: TipoCompetizione; giornata: number; esito: EsitoImport }[];
   problemi: string[];
+  /** giornate ancora da aspettare, con il giorno in cui si leggeranno */
+  inAttesa: { serieA: number; giorno: string }[];
+}
+
+/**
+ * Le partite di una giornata di Serie A con le date di adesso.
+ *
+ * Prima il live di fantacalcio.it, che ha il calendario aggiornato (anticipi,
+ * posticipi, rinvii); se non risponde, il nostro `serie_a_fixtures`.
+ */
+export async function calendarioSerieA(serieA: number): Promise<PartitaCalendario[]> {
+  const live = await liveGiornata(serieA);
+  if ('partite' in live && live.partite.length) {
+    return live.partite.map((p) => ({ kickoff: p.matchDate || null, rinviata: p.status === 6 }));
+  }
+  const db = supabaseAdmin();
+  const { data } = await db.from('serie_a_fixtures')
+    .select('kickoff_at, status, matchdays!inner(serie_a)').eq('matchdays.serie_a', serieA);
+  return (data ?? []).map((r) => ({
+    kickoff: r.kickoff_at ? Date.parse(r.kickoff_at as string) : null,
+    rinviata: r.status === 'postponed',
+  }));
+}
+
+export interface OpzioniImport {
+  /**
+   * Il giro automatico: una giornata si legge solo dal giorno dopo la sua
+   * ultima partita di Serie A. Il pulsante manuale non aspetta.
+   */
+  aspettaIlCalcolo?: boolean;
+  /**
+   * Rileggi questa giornata anche se l'abbiamo già: per un ricalcolo fatto
+   * dalla lega in un secondo momento.
+   */
+  forza?: { tipo: TipoCompetizione; giornata: number };
 }
 
 /**
@@ -288,10 +325,25 @@ export interface EsitoGiornate {
  * preferito e passano da `importaGiornata`: è lui che verifica i conti,
  * scrive tabellino e classifiche e chiude le schedine.
  */
-export async function importaGiornateConcluse(): Promise<EsitoGiornate> {
+export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<EsitoGiornate> {
   const db = supabaseAdmin();
   const leagueId = await lega();
-  const esito: EsitoGiornate = { importate: [], problemi: [] };
+  const esito: EsitoGiornate = { importate: [], problemi: [], inAttesa: [] };
+  const pronte = new Map<number, boolean>();
+  // le giornate non ancora cominciate non sono pronte: niente rete per saperlo
+  const { data: inizi } = await db.from('matchdays').select('serie_a, first_kickoff_at').eq('league_id', leagueId);
+  const inizio = new Map((inizi ?? []).map((m) => [Number(m.serie_a), Date.parse(m.first_kickoff_at as string)]));
+  const pronta = async (serieA: number) => {
+    if ((inizio.get(serieA) ?? Infinity) > Date.now()) return false;
+    if (!pronte.has(serieA)) {
+      const cal = await calendarioSerieA(serieA);
+      const ok = giornataPronta(cal, Date.now());
+      pronte.set(serieA, ok);
+      const giorno = giornoDelCalcolo(cal);
+      if (!ok && giorno) esito.inAttesa.push({ serieA, giorno });
+    }
+    return pronte.get(serieA)!;
+  };
 
   const [comps, squadre, anag] = await Promise.all([competizioniLega(), squadreLega(), anagrafica(leagueId)]);
   const nomi = new Map([...squadre].map(([id, s]) => [id, s.nome]));
@@ -322,9 +374,23 @@ export async function importaGiornateConcluse(): Promise<EsitoGiornate> {
       ? [...perGruppo].map(([nome, sq]) => classificaApi(turni, nomi, { id: c.id, nome: c.name, tipo: c.tipo }, { nome, squadre: sq }))
       : [classificaApi(turni, nomi, { id: c.id, nome: c.name, tipo: c.tipo })];
 
-    for (const t of turni.filter((x) => x.calculated)) {
-      if (esito.importate.length >= GIORNATE_PER_GIRO) break;
-      if (await giaNostra(leagueId, c.tipo, t)) continue;
+    for (const t of turni) {
+      const forzata = opt.forza?.tipo === c.tipo && opt.forza.giornata === t.matchDay;
+      if (opt.forza && !forzata) continue;
+      if (!forzata) {
+        if (esito.importate.length >= GIORNATE_PER_GIRO) break;
+        if (await giaNostra(leagueId, c.tipo, t)) continue;
+        if (opt.aspettaIlCalcolo && !await pronta(t.championshipMatchDay)) continue;
+      }
+      if (!t.calculated) {
+        // il giorno è arrivato (o l'hai chiesta tu) ma la lega non ha ancora
+        // calcolato: lo si dice, e si riprova al giro dopo
+        const quale = c.tipo === 'coppa' ? `il ${t.matchDay}° turno di coppa` : `la giornata ${t.matchDay}`;
+        if (forzata || opt.aspettaIlCalcolo) {
+          esito.problemi.push(`${quale} (Serie A ${t.championshipMatchDay}) è finita ma su Leghe Fantacalcio non risulta ancora calcolata`);
+        }
+        continue;
+      }
 
       const sfide: SfidaGrezza[] = [];
       for (const [i, p] of (t.matches ?? []).entries()) {
@@ -362,6 +428,9 @@ export async function importaGiornateConcluse(): Promise<EsitoGiornate> {
         esito.problemi.push(`${c.name}, giornata ${t.matchDay}: ${(e as Error).message}`);
       }
     }
+  }
+  if (opt.forza && !esito.importate.length && !esito.problemi.length) {
+    esito.problemi.push(`${opt.forza.tipo === 'coppa' ? 'turno di coppa' : 'giornata'} ${opt.forza.giornata}: non la trovo nel calendario della lega`);
   }
   await registra('giornata', esito.importate.length, esito.problemi.join(' · ') || null);
   return esito;

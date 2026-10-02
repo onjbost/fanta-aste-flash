@@ -79,6 +79,16 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   una partita e l'altra di una giornata lunga, e subito quando si torna
   sulla scheda.
 
+### La giornata conclusa, al momento giusto
+- I risultati e le classifiche si leggono da Leghe Fantacalcio **il giorno
+  dopo l'ultima partita di Serie A** della giornata, col calendario
+  aggiornato del live (anticipi, posticipi; i rinvii non si aspettano). Se a
+  quel punto la lega non ha ancora calcolato, Telegram lo dice e si riprova
+  la mattina dopo.
+- **Reimporta una giornata** in /admin/redazione: per un ricalcolo fatto dopo,
+  o un calcolo arrivato tardi. Riscrive tabellino, risultati e classifiche e
+  richiude le schedine con i punti nuovi.
+
 ## v5.0 — 2 ottobre 2026
 
 L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,

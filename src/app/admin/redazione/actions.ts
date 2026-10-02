@@ -268,7 +268,7 @@ export async function importaDaLegheAction(): Promise<ActionState> {
   try {
     const { leagueId } = await requireAdmin();
     const { importaGiornateConcluse, importaFormazioni } = await import('@/lib/leghe/legheServer');
-    const g = await importaGiornateConcluse();
+    const g = await importaGiornateConcluse();   // il pulsante non aspetta il giorno del calcolo
 
     // la giornata in corso: la prima di oggi o di domani, se c'è
     const oggi = new Date().toISOString().slice(0, 10);
@@ -284,6 +284,31 @@ export async function importaDaLegheAction(): Promise<ActionState> {
       message: (fatte ? `Giornate importate: ${fatte}.` : 'Nessuna giornata conclusa da importare.')
         + (f ? ` Formazioni della ${md!.serie_a}ª di Serie A: ${f.sfide} sfide.` : '')
         + (problemi.length ? ` — ${problemi.join(' · ')}` : ''),
+    };
+  } catch (e) { return esito(e); }
+}
+
+/**
+ * Rilegge una giornata precisa anche se l'abbiamo già: per un ricalcolo
+ * fatto dalla lega in un secondo momento. L'import riscrive tabellino,
+ * risultati e classifiche e richiude le schedine con i punti nuovi.
+ */
+export async function reimportaGiornataAction(_p: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    await requireAdmin();
+    const tipo = form.get('tipo') === 'coppa' ? 'coppa' : 'campionato';
+    const giornata = Number(form.get('giornata'));
+    if (!Number.isInteger(giornata) || giornata < 1) return { ok: false, message: 'Scrivi il numero della giornata.' };
+    const { importaGiornateConcluse } = await import('@/lib/leghe/legheServer');
+    const g = await importaGiornateConcluse({ forza: { tipo, giornata } });
+    revalidatePath('/admin/redazione');
+    const fatta = g.importate[0];
+    if (!fatta) return { ok: false, message: g.problemi.join(' · ') || 'Non importata.' };
+    return {
+      ok: true,
+      message: `${tipo === 'coppa' ? 'Turno di coppa' : 'Giornata'} ${giornata} riletta: `
+        + `${fatta.esito.sfideScritte}/${fatta.esito.sfideLette} sfide scritte${classifiche(fatta.esito.classificheScritte)}`
+        + (fatta.esito.problemi.length ? ` — ${fatta.esito.problemi.join(' · ')}` : '.'),
     };
   } catch (e) { return esito(e); }
 }

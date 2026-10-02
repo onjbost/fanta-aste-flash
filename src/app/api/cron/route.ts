@@ -84,13 +84,16 @@ export async function GET(request: NextRequest) {
   ];
   if (guasti.length && new Date().getUTCDay() === 3) await notifyAdminPlain(guasti.join('\n'));
 
-  // Le giornate concluse da Leghe Fantacalcio, senza preferito: quelle che
-  // la lega ha calcolato e noi non abbiamo ancora. Ogni mattina, così il
-  // lunedì o il martedì il tabellino arriva da solo. Il token che sta per
-  // scadere si dice per tempo.
+  // Le giornate concluse da Leghe Fantacalcio, senza preferito: si guardano
+  // ogni mattina, ma una giornata si legge solo dal giorno dopo la sua ultima
+  // partita di Serie A, col calendario aggiornato. Se la lega a quel punto non
+  // l'ha ancora calcolata, lo si dice e si riprova la mattina dopo. Il token
+  // che sta per scadere si dice per tempo.
   let giornate: Awaited<ReturnType<typeof importaGiornateConcluse>> | null = null;
   try {
-    giornate = await importaGiornateConcluse();
+    // solo dal giorno dopo l'ultima partita di Serie A della giornata: prima
+    // la lega non può averla calcolata, e leggere non serve a niente
+    giornate = await importaGiornateConcluse({ aspettaIlCalcolo: true });
     for (const g of giornate.importate) {
       await notifyAdminPlain(
         `📥 Giornata ${g.giornata} di ${g.competizione} importata da Leghe Fantacalcio: `

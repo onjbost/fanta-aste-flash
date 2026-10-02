@@ -13,12 +13,13 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   in nessuna rosa della lega.
 - **Nella pagina Svincolati tutti vedono l'etichetta** «Infortunato»,
   «Squalificato», «In dubbio» o «Diffidato», con il rientro stimato.
-  Toccandola si legge la didascalia.
+  Nel foglio del giocatore si legge la didascalia.
 
 ### Quotazioni e voti
 - **Le quotazioni aggiornate** di fantacalcio.it, lette ogni mattina, accanto
-  a quelle del listone (che restano quelle delle aste). Negli Svincolati c'è
-  la colonna «Qt. attuale», ordinabile, con la freccia se è salita o scesa.
+  a quelle del listone (che restano quelle delle aste). Negli Svincolati la
+  carta mostra la quotazione attuale con la freccia se è salita o scesa, e
+  si può ordinare per «Qt. attuale».
 - **I voti di ogni giornata di Serie A**, letti ogni mattina; le giornate
   arretrate si recuperano tre alla volta.
 - Tutte e due si possono rileggere subito da Indisponibili → «Aggiorna

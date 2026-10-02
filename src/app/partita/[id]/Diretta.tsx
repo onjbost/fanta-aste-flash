@@ -165,7 +165,16 @@ export function Diretta({ d }: { d: DatiDiretta }) {
         {' '}Modificatore difesa e fattore capitano usano i voti puri, senza bonus.
       </p>
 
-      {d.errore && <div className="callout crit">{d.errore}</div>}
+      {d.fonteVoti === 'tabellino' && (
+        <div className="callout">Partita conclusa: voti e fantavoti sono quelli del tabellino della lega.</div>
+      )}
+      {d.fonteVoti === 'pagelle' && (
+        <div className="callout">
+          Il live di questa giornata non è più disponibile: voti e fantavoti vengono dalle pagelle
+          di Serie A raccolte da fantacalcio.it. Il conto esatto arriva col tabellino della lega.
+        </div>
+      )}
+      {d.errore && d.fonteVoti === 'live' && <div className="callout crit">{d.errore}</div>}
       {d.sconosciuti.length > 0 && (
         <div className="callout">
           Il live contiene eventi che il conto non sa ancora valutare (codici {d.sconosciuti.join(', ')}):

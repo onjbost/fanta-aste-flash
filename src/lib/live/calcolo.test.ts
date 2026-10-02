@@ -174,3 +174,19 @@ describe('modificatore e capitano in diretta', () => {
     expect(r.capitanoSimulato.punti).toBe(0);
   });
 });
+
+describe('partite già giocate: comandano i voti archiviati', () => {
+  it('il tabellino della lega vince sul live che non c\'è', () => {
+    const s = (id: number, ruolo: Schierato['ruolo'], archivio: Schierato['archivio'], titolare = true): Schierato =>
+      ({ playerId: String(id), extId: String(id), nome: `G${id}`, ruolo, club: 'Inter', titolare, ordine: id, archivio });
+    const r = squadraLive([
+      s(1, 'A', { voto: 7, fantavoto: 10, eventi: ['gol'] }),
+      s(2, 'C', { voto: null, fantavoto: null }),
+      s(3, 'C', { voto: 6, fantavoto: 6 }, false),
+    ], { partite: [], ora: 0, stessoClub: () => false });
+    expect(r.righe[0]).toMatchObject({ stato: 'voto', fantavoto: 10, bonus: 3, eventi: ['gol'], conta: true });
+    expect(r.righe[1].stato).toBe('sv');
+    expect(r.righe[2].conta).toBe(true);
+    expect(r.totale).toBe(16);
+  });
+});

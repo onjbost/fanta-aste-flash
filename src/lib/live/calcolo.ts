@@ -102,6 +102,12 @@ export interface Schierato {
   ordine: number;
   /** la fascia: capitano o vicecapitano */
   fascia?: 'C' | 'V' | null;
+  /**
+   * I voti già archiviati, per una partita giocata: quelli del tabellino della
+   * lega (fantavoto con le nostre regole) o, in mancanza, le pagelle di Serie A.
+   * Quando c'è, comanda lui: il live di una giornata vecchia può non esserci più.
+   */
+  archivio?: { voto: number | null; fantavoto: number | null; eventi?: string[] } | null;
 }
 
 export type StatoRiga =
@@ -180,6 +186,19 @@ function etichettaPartita(p: PartitaLive | null, ora: number): string | null {
 }
 
 function riga(s: Schierato, ctx: ContestoLive): RigaLive & { _eventi: number[] } {
+  if (s.archivio) {
+    const { voto, fantavoto } = s.archivio;
+    const conVoto = fantavoto != null;
+    return {
+      ...s, stato: conVoto ? 'voto' : 'sv', voto, fantavoto,
+      bonus: conVoto && voto != null ? Math.round((fantavoto - voto) * 100) / 100 : 0,
+      simulato: fantavoto,
+      eventi: s.archivio.eventi ?? [],
+      conta: false, contaSimulato: false,
+      partita: 'finita',
+      _eventi: [],
+    };
+  }
   const { partita, g } = statoGiocatore(s, ctx);
   const eventi = g?.events ?? [];
   const { bonus } = bonusDaEventi(eventi);

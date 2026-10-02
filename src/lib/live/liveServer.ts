@@ -103,6 +103,8 @@ export interface Diretta {
   ospite: LatoDiretta;
   serieAPartite: { casa: string; ospite: string; gol: string; stato: string }[];
   sconosciuti: number[];
+  /** da dove vengono i voti: il live, il tabellino della lega o le pagelle archiviate */
+  fonteVoti: 'live' | 'tabellino' | 'pagelle';
   errore: string | null;
   aggiornatoIl: string;
 }
@@ -112,10 +114,26 @@ const STATO: Record<number, string> = {
 };
 
 /** La formazione vera, se la lega l'ha già fatta importare per questa giornata. */
-async function formazioneDellaLega(fixtureId: string, matchdayId: string, teamId: string): Promise<Schierato[] | null> {
+/** «gol ×2», «assist»: gli eventi archiviati nel tabellino, con i nomi della diretta. */
+const NOMI_BONUS: Record<string, string> = {
+  gol: 'gol', golVittoria: 'gol vittoria', autogol: 'autogol', assist: 'assist', assistSoft: 'assist',
+  ammonizioni: 'ammonizione', espulsioni: 'espulsione', portaInviolata: 'porta inviolata',
+  golSubiti: 'gol subito', rigoriParati: 'rigore parato', rigoriSegnati: 'gol su rigore',
+  rigoriSbagliati: 'rigore sbagliato',
+};
+function eventiArchiviati(bonus: unknown): string[] {
+  if (!bonus || typeof bonus !== 'object') return [];
+  return Object.entries(bonus as Record<string, unknown>)
+    .filter(([k, v]) => typeof v === 'number' && v > 0 && NOMI_BONUS[k])
+    .map(([k, v]) => `${NOMI_BONUS[k]}${(v as number) > 1 ? ` ×${v}` : ''}`);
+}
+
+type SchieratoArchiviato = Schierato & { tabellino: { voto: number | null; fantavoto: number | null; eventi: string[] } };
+
+async function formazioneDellaLega(fixtureId: string, matchdayId: string, teamId: string): Promise<SchieratoArchiviato[] | null> {
   const db = supabaseAdmin();
   const leggi = async (ids: string[]) => {
-    const campi = 'slot, player_name, player_id, role, starter, is_captain, players(ext_id, club)';
+    const campi = 'slot, player_name, player_id, role, starter, is_captain, voto, fantavoto, bonus, players(ext_id, club)';
     const conVice = await db.from('lineup_entries')
       .select(`${campi}, is_vice`).in('fixture_id', ids).eq('team_id', teamId).order('slot');
     if (!conVice.error) return (conVice.data ?? []) as Record<string, unknown>[];
@@ -145,8 +163,29 @@ async function formazioneDellaLega(fixtureId: string, matchdayId: string, teamId
         titolare: Boolean(r.starter),
         ordine: Number(r.slot),
         fascia: r.is_captain ? 'C' as const : r.is_vice ? 'V' as const : null,
+        tabellino: {
+          voto: r.voto == null ? null : Number(r.voto),
+          fantavoto: r.fantavoto == null ? null : Number(r.fantavoto),
+          eventi: eventiArchiviati(r.bonus),
+        },
       };
     });
+}
+
+/**
+ * Le pagelle di Serie A di una giornata, per id di fantacalcio.it: il
+ * ripiego quando il live non c'è più e la lega non ha ancora un tabellino.
+ * Vuota se quella giornata non l'abbiamo raccolta.
+ */
+async function pagelle(serieA: number): Promise<Map<string, { voto: number | null; fantavoto: number | null }>> {
+  const { data } = await supabaseAdmin().from('player_votes')
+    .select('ext_id, voto, fantavoto, stagione').eq('giornata', serieA)
+    .order('stagione', { ascending: false }).limit(2000);
+  const stagione = data?.[0]?.stagione;
+  return new Map((data ?? []).filter((r) => r.stagione === stagione).map((r) => [String(r.ext_id), {
+    voto: r.voto == null ? null : Number(r.voto),
+    fantavoto: r.fantavoto == null ? null : Number(r.fantavoto),
+  }]));
 }
 
 export async function diretta(fixtureId: string, leagueId: string): Promise<Diretta | null> {
@@ -212,10 +251,34 @@ export async function diretta(fixtureId: string, leagueId: string): Promise<Dire
 
   const partite = 'partite' in live ? live.partite : [];
   const ctx = { partite, ora: Date.now(), stessoClub: (a: string, b: string) => stessoClub(a, b) };
+
+  /*
+   * Da dove vengono i voti.
+   *  - Sfida già chiusa con il tabellino della lega: comanda il tabellino,
+   *    che ha i fantavoti calcolati con le nostre regole.
+   *  - Live che non risponde o vuoto (una giornata vecchia, che il sito
+   *    non tiene più in diretta): le pagelle di Serie A raccolte ogni
+   *    mattina, se quella giornata l'abbiamo.
+   *  - Altrimenti il live.
+   */
+  const chiusa = f.home_goals != null;
+  const senzaLive = partite.length === 0;
+  const archivioPagelle = !chiusa && senzaLive ? await pagelle(md.serie_a) : null;
+  let fonteVoti: Diretta['fonteVoti'] = 'live';
+  const conArchivio = (lista: Schierato[], tab: boolean): Schierato[] => lista.map((x) => {
+    const t = (x as Partial<SchieratoArchiviato>).tabellino;
+    if (tab && chiusa && t) { fonteVoti = 'tabellino'; return { ...x, archivio: t }; }
+    if (archivioPagelle?.size && x.extId) {
+      fonteVoti = 'pagelle';
+      return { ...x, archivio: archivioPagelle.get(x.extId) ?? { voto: null, fantavoto: null } };
+    }
+    return x;
+  });
+
   const lato = async (teamId: string, t: { name: string; logo_url: string | null }, vera: Schierato[] | null): Promise<LatoDiretta> => ({
     teamId, nome: t.name, stemma: t.logo_url,
     fonte: vera ? 'lega' : 'probabile',
-    live: squadraLive(vera ?? await probabile(teamId), ctx),
+    live: squadraLive(conArchivio(vera ?? await probabile(teamId), Boolean(vera)), ctx),
   });
 
   const [casa, ospite] = await Promise.all([
@@ -236,6 +299,7 @@ export async function diretta(fixtureId: string, leagueId: string): Promise<Dire
       stato: STATO[p.status] ?? '',
     })),
     sconosciuti: eventiSconosciuti(partite),
+    fonteVoti,
     errore: 'errore' in live ? live.errore : null,
     aggiornatoIl: new Date().toISOString(),
   };

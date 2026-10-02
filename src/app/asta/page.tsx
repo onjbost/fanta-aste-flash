@@ -1,4 +1,7 @@
 import Link from 'next/link';
+import { schedeGiocatori } from '@/lib/schedeServer';
+import type { Scheda } from '@/lib/schede';
+import { NotaIndisponibile, NumeriBrevi, TagIndisponibile } from '../SchedaGiocatore';
 import { supabaseServer } from '@/lib/supabase';
 import { requireTeamContext } from '@/lib/queries';
 import {
@@ -55,6 +58,7 @@ export default async function AstaPage({
     { data: counts },
     { data: allTeams },
     { data: freeAgents, error: freeAgentsError },
+    schede,
   ] = await Promise.all([
     db.from('lots')
       .select('id, order_index, status, player_id, caller_team_id, players(name, role, club), teams:caller_team_id(name)')
@@ -73,6 +77,9 @@ export default async function AstaPage({
       .select('id, name, role, club, quotation, signing_window, locked_until_number')
       .eq('out_of_list', false)
       .order('quotation', { ascending: false }).limit(600),
+    // chi è fermo e i numeri della stagione, per la scelta e per i lotti:
+    // tutti insieme, gli svincolati sono troppi per filtrarli per id
+    schedeGiocatori(db, { leagueId: ctx.team.leagueId }).catch(() => new Map<string, Scheda>()),
   ]);
 
   type LotRow = {
@@ -204,6 +211,8 @@ export default async function AstaPage({
             sessionId={s.id}
             freeAgents={callable.map((p) => ({
               id: p.id, name: p.name, role: p.role as Role, club: p.club, quotation: p.quotation,
+              indisponibile: schede.get(p.id)?.indisponibile ?? null,
+              statistiche: schede.get(p.id)?.statistiche ?? null,
             }))}
             roster={rosterOptions}
             credits={ctx.credits}
@@ -226,6 +235,7 @@ export default async function AstaPage({
             const scadenzaMia = my?.is_caller ? callsCloseAt(s, ctx.cfg) : joinsCloseAt(s, ctx.cfg);
             const modificabile = new Date() < scadenzaMia;
             const puoAderire = !my && ['calls_open', 'calls_closed'].includes(effective);
+            const scheda = schede.get(l.player_id);
 
             return (
               <li key={l.id} className={`lotto${my ? ' mio' : ''}`}>
@@ -237,6 +247,7 @@ export default async function AstaPage({
                       {l.players?.club} · da {l.teams?.name}
                       {altri.length > 0 && ` · con ${altri.map((p) => p.name).join(', ')}`}
                     </small>
+                    {scheda?.indisponibile && <span><TagIndisponibile ind={scheda.indisponibile} /></span>}
                   </div>
                   <span className="lotto-n num" title="partecipanti">
                     {partecipanti.length}
@@ -253,6 +264,13 @@ export default async function AstaPage({
                     />
                   )}
                 </div>
+
+                {(scheda?.indisponibile || scheda?.statistiche?.presenze) && (
+                  <div className="lotto-nota">
+                    <NotaIndisponibile ind={scheda.indisponibile} compatta />
+                    {l.players && <NumeriBrevi st={scheda.statistiche} ruolo={l.players.role} />}
+                  </div>
+                )}
 
                 {my && (
                   <MyParticipation

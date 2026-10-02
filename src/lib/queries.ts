@@ -6,6 +6,8 @@ import {
   type LeagueConfig, type ReleaseRecord, type Role, type RosterPlayer,
   type PlayerStatus, type SessionInfo,
 } from './rules';
+import { schedeGiocatori } from './schedeServer';
+import type { Indisponibile, Scheda, Statistiche } from './schede';
 
 export interface TeamContext {
   team: {
@@ -154,11 +156,9 @@ export interface FreeAgent {
   /** la quotazione aggiornata di fantacalcio.it, se è stata letta */
   qtAttuale: number | null;
   /** l'ultima raccolta degli indisponibili, se il giocatore c'è */
-  indisponibile: {
-    categoria: 'infortunato' | 'squalificato' | 'in_dubbio' | 'diffidato';
-    descrizione: string;
-    rientroStimato: string | null;
-  } | null;
+  indisponibile: Indisponibile | null;
+  /** fantamedia, presenze, bonus e malus della stagione */
+  statistiche: Statistiche | null;
 }
 
 /**
@@ -170,6 +170,7 @@ export interface FreeAgent {
  */
 export async function loadFreeAgents(
   filter: { role?: Role; q?: string; fuoriLista?: boolean } = {},
+  leagueId: string | null = null,
 ): Promise<{ players: FreeAgent[]; error: string | null }> {
   const db = await supabaseServer();
   let query = db.from('v_free_agents')
@@ -183,32 +184,18 @@ export async function loadFreeAgents(
   if (!filter.fuoriLista) query = query.eq('out_of_list', false);
   if (filter.role) query = query.eq('role', filter.role);
   if (filter.q) query = query.ilike('name', `%${filter.q}%`);
-  // indisponibili e quotazioni aggiornate li legge chiunque sia dentro:
-  // l'etichetta «Infortunato» negli svincolati deve vederla ogni allenatore,
-  // non solo l'admin. Se una delle due letture fallisce, la tabella si
+  // indisponibili, statistiche e quotazioni aggiornate li legge chiunque sia
+  // dentro: l'etichetta «Infortunato» negli svincolati deve vederla ogni
+  // allenatore, non solo l'admin. Se una lettura fallisce, la tabella si
   // mostra lo stesso senza quel dato.
-  const [{ data, error }, { data: fermi }, { data: prezzi }] = await Promise.all([
+  const [{ data, error }, schede, { data: prezzi }] = await Promise.all([
     query,
-    db.from('v_indisponibili_ultimi')
-      .select('player_id, categoria, descrizione, rientro_stimato').not('player_id', 'is', null),
+    schedeGiocatori(db, { leagueId }).catch(() => new Map<string, Scheda>()),
     db.from('player_prices').select('player_id, qt_attuale').not('player_id', 'is', null).limit(2000),
   ]);
   if (error) {
     console.error('[listone] query fallita:', error.message);
     return { players: [], error: error.message };
-  }
-  // un giocatore può comparire due volte (infortunato e diffidato): vince la
-  // categoria che pesa di più
-  const GRAVITA = ['infortunato', 'squalificato', 'in_dubbio', 'diffidato'];
-  const stato = new Map<string, FreeAgent['indisponibile']>();
-  for (const f of fermi ?? []) {
-    const prima = stato.get(f.player_id as string);
-    if (prima && GRAVITA.indexOf(prima.categoria) <= GRAVITA.indexOf(f.categoria as string)) continue;
-    stato.set(f.player_id as string, {
-      categoria: f.categoria as NonNullable<FreeAgent['indisponibile']>['categoria'],
-      descrizione: String(f.descrizione ?? ''),
-      rientroStimato: (f.rientro_stimato as string | null) ?? null,
-    });
   }
   const qt = new Map((prezzi ?? []).map((p) => [p.player_id as string, Number(p.qt_attuale)]));
 
@@ -219,7 +206,8 @@ export async function loadFreeAgents(
     outOfList: !!p.out_of_list,
     lockedUntilNumber: p.locked_until_number ?? null,
     qtAttuale: qt.get(p.id) ?? null,
-    indisponibile: stato.get(p.id) ?? null,
+    indisponibile: schede.get(p.id)?.indisponibile ?? null,
+    statistiche: schede.get(p.id)?.statistiche ?? null,
   })), error: null };
 }
 

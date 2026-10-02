@@ -5,6 +5,10 @@ import Link from 'next/link';
 import { ROLE_LABEL, ROLE_PLURAL, type Role } from '@/lib/rules';
 import { FreeReleaseButton } from '../FreeReleaseButton';
 import { Foglio } from '../Foglio';
+import {
+  INDISPONIBILE, NotaIndisponibile, NumeriBrevi, NumeriGiocatore, TagIndisponibile,
+} from '../SchedaGiocatore';
+import type { Indisponibile, Statistiche } from '@/lib/schede';
 
 export interface CartaRosa {
   playerId: string; name: string; role: Role; club: string; price: number; refund: number;
@@ -12,6 +16,18 @@ export interface CartaRosa {
   stato: { cls: string; label: string } | null;
   pending: boolean; approved: boolean;
   canRequest: boolean; hint: string;
+  /** l'ultima raccolta degli indisponibili di fantacalcio.it */
+  indisponibile: Indisponibile | null;
+  statistiche: Statistiche | null;
+}
+
+/**
+ * L'etichetta della fonte, se non ripete quella che ha già messo l'admin:
+ * «Infortunato» due volte di fila non dice niente di più.
+ */
+function TagFonte({ c }: { c: CartaRosa }) {
+  if (!c.indisponibile || c.stato?.label === INDISPONIBILE[c.indisponibile.categoria].testo) return null;
+  return <TagIndisponibile ind={c.indisponibile} />;
 }
 
 const RUOLI: Role[] = ['P', 'D', 'C', 'A'];
@@ -56,9 +72,11 @@ export function RosaCarte({ carte, chiamateAperte }: { carte: CartaRosa[]; chiam
                       <small>
                         {c.club}
                         {c.stato && <span className={`tag ${c.stato.cls}`}>{c.stato.label}</span>}
+                        <TagFonte c={c} />
                         {c.pending && <span className="tag warn">In attesa</span>}
                         {c.approved && <span className="tag ok">Gratuito</span>}
                       </small>
+                      <NumeriBrevi st={c.statistiche} ruolo={c.role} />
                     </span>
                     <span className="carta-cifre">
                       <b className="num">{c.price}</b>
@@ -78,7 +96,9 @@ export function RosaCarte({ carte, chiamateAperte }: { carte: CartaRosa[]; chiam
             <p className="foglio-nota" style={{ marginTop: 2 }}>
               {ROLE_LABEL[aperto.role]} · {aperto.club}
               {aperto.stato && <> · <span className={`tag ${aperto.stato.cls}`}>{aperto.stato.label}</span></>}
+              {' '}<TagFonte c={aperto} />
             </p>
+            <NotaIndisponibile ind={aperto.indisponibile} />
             <div className="esiti-due">
               <div><span>Pagato</span><b className="num">{aperto.price} cr</b></div>
               <div>
@@ -86,6 +106,7 @@ export function RosaCarte({ carte, chiamateAperte }: { carte: CartaRosa[]; chiam
                 <small>{aperto.refundFree ? 'al 100%, cambio gratuito' : '75% del prezzo'}</small>
               </div>
             </div>
+            <NumeriGiocatore st={aperto.statistiche} ruolo={aperto.role} />
 
             {chiamateAperte && (
               <Link href="/asta" className="btn primary largo">Chiama qualcuno al suo posto</Link>

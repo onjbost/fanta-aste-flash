@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { raccogliIndisponibili, svincoliProponibili } from '@/lib/infortuni/infortuniServer';
-import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
+import { raccogliQuotazioni, raccogliStatistiche, raccogliVoti } from '@/lib/fonti/fontiServer';
 
 export type InfState = { ok: boolean; message: string } | null;
 
@@ -63,21 +63,24 @@ export async function proponiSvincolo(_prev: InfState, form: FormData): Promise<
 }
 
 /**
- * Rilegge quotazioni e voti adesso, senza aspettare il cron della mattina.
+ * Rilegge quotazioni, voti e statistiche adesso, senza aspettare il cron della mattina.
  * Utile la prima volta, per riempire le giornate arretrate (tre per volta).
  */
 export async function aggiornaFonti(): Promise<InfState> {
   if (!await requireAdmin()) return { ok: false, message: 'Serve essere admin.' };
 
-  const [q, v] = [await raccogliQuotazioni(), await raccogliVoti()];
+  const [q, v, st] = [await raccogliQuotazioni(), await raccogliVoti(), await raccogliStatistiche()];
   revalidatePath('/admin/infortuni');
   revalidatePath('/admin/pannello');
   revalidatePath('/listone');
-  const problemi = [...q.problemi, ...v.problemi];
+  revalidatePath('/rosa');
+  revalidatePath('/asta');
+  const problemi = [...q.problemi, ...v.problemi, ...st.problemi];
   return {
-    ok: q.righe > 0 || v.giornate.length > 0,
+    ok: q.righe > 0 || v.giornate.length > 0 || st.righe > 0,
     message: `Quotazioni: ${q.righe} lette, ${q.agganciate} agganciate. `
-      + `Voti: ${v.giornate.length ? `giornate ${v.giornate.join(', ')}` : 'nessuna giornata nuova'}.`
+      + `Voti: ${v.giornate.length ? `giornate ${v.giornate.join(', ')}` : 'nessuna giornata nuova'}. `
+      + `Statistiche: ${st.righe} lette, ${st.agganciate} agganciate.`
       + (problemi.length ? ` — ${problemi.join(' · ')}` : ''),
   };
 }

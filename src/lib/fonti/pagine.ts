@@ -243,6 +243,71 @@ function trDi(html: string): string[] {
 }
 
 // =====================================================================
+// le statistiche di stagione
+// =====================================================================
+
+export interface RigaStatistiche extends LinkGiocatore {
+  ruolo: Role | null;
+  club: string;
+  /** partite a voto */
+  presenze: number | null;
+  mediaVoto: number | null;
+  fantamedia: number | null;
+  gol: number | null;
+  golSubiti: number | null;
+  rigoriSegnati: number | null;
+  rigoriCalciati: number | null;
+  rigoriParati: number | null;
+  assist: number | null;
+  ammonizioni: number | null;
+  espulsioni: number | null;
+}
+
+/** «2 / 3» → segnati 2 su 3 calciati. */
+function rigori(s: string | null): { segnati: number | null; calciati: number | null } {
+  const m = s == null ? null : testo(s).match(/^(\d+)\s*\/\s*(\d+)$/);
+  return m ? { segnati: Number(m[1]), calciati: Number(m[2]) } : { segnati: null, calciati: null };
+}
+
+/**
+ * Dalla pagina «Statistiche Serie A» alle righe.
+ *
+ * Stessa tabella a `tr.player-row` delle quotazioni, con le colonne
+ * riconoscibili dal `data-col-key`: pg (partite a voto), mv, mfv
+ * (fantamedia), gol, gs, rig («segnati / tirati»), rp, ass, amm, esp.
+ * Un giocatore senza partite a voto ha medie vuote: restano null.
+ */
+export function leggiStatistiche(html: string): RigaStatistiche[] {
+  const esito: RigaStatistiche[] = [];
+  const visti = new Set<string>();
+  for (const riga of blocchi(html, 'tr', 'player-row')) {
+    const link = linkGiocatore(riga);
+    if (!link || visti.has(link.extId)) continue;
+    const presenze = numero(cella(riga, 'pg'));
+    if (presenze == null) continue;
+    visti.add(link.extId);
+    const rig = rigori(cella(riga, 'rig'));
+    esito.push({
+      ...link,
+      ruolo: ruolo(riga),
+      club: testo(cella(riga, 'sq', 'player-team') ?? '') || link.clubSlug,
+      presenze,
+      mediaVoto: voto(testo(cella(riga, 'mv') ?? ''), 0, 10),
+      fantamedia: voto(testo(cella(riga, 'mfv') ?? ''), -10, 30),
+      gol: numero(cella(riga, 'gol')),
+      golSubiti: numero(cella(riga, 'gs')),
+      rigoriSegnati: rig.segnati,
+      rigoriCalciati: rig.calciati,
+      rigoriParati: numero(cella(riga, 'rp')),
+      assist: numero(cella(riga, 'ass')),
+      ammonizioni: numero(cella(riga, 'amm')),
+      espulsioni: numero(cella(riga, 'esp')),
+    });
+  }
+  return esito;
+}
+
+// =====================================================================
 // l'aggancio ai nostri giocatori
 // =====================================================================
 

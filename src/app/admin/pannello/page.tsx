@@ -75,8 +75,9 @@ export default async function PannelloPage() {
       <h2>Fonti</h2>
       <div className="panel" style={{ padding: 16 }}>
         <p className="sub" style={{ marginTop: 0 }}>
-          Quotazioni e voti: {raccolte.quotazioni ? `quotazioni ${quando(raccolte.quotazioni.fetchedAt)}` : 'quotazioni mai lette'}
+          Quotazioni, voti e statistiche: {raccolte.quotazioni ? `quotazioni ${quando(raccolte.quotazioni.fetchedAt)}` : 'quotazioni mai lette'}
           {' · '}{raccolte.voti ? `voti ${quando(raccolte.voti.fetchedAt)}${raccolte.voti.nota ? ` (${raccolte.voti.nota})` : ''}` : 'voti mai letti'}
+          {' · '}{raccolte.statistiche ? `statistiche ${quando(raccolte.statistiche.fetchedAt)} (${raccolte.statistiche.agganciate} giocatori)` : 'statistiche mai lette'}
         </p>
         <AggiornaFonti />
         <p className="sub" style={{ marginTop: 0 }}>

@@ -15,11 +15,12 @@ import {
   formaGiocatore, fondiVoti, type Forma, type VotoGiornata,
 } from '@/lib/forma';
 import {
-  agganciatore, leggiQuotazioni, leggiVoti, type GiocatoreNostro,
+  agganciatore, leggiQuotazioni, leggiStatistiche, leggiVoti, type GiocatoreNostro,
 } from './pagine';
 
 const QUOTAZIONI = 'https://www.fantacalcio.it/quotazioni-fantacalcio';
 const VOTI = 'https://www.fantacalcio.it/voti-fantacalcio-serie-a';
+const STATISTICHE = 'https://www.fantacalcio.it/statistiche-serie-a';
 
 /** Quante giornate arretrate recuperare a ogni giro, al massimo. */
 const RECUPERO_PER_GIRO = 3;
@@ -74,7 +75,7 @@ async function nostriGiocatori(): Promise<GiocatoreNostro[]> {
   return righe.map((p) => ({ id: p.id, extId: String(p.ext_id), name: p.name, club: p.club }));
 }
 
-async function registra(fonte: 'quotazioni' | 'voti', e: EsitoFonte, nota?: string) {
+async function registra(fonte: 'quotazioni' | 'voti' | 'statistiche', e: EsitoFonte, nota?: string) {
   await supabaseAdmin().from('source_runs').insert({
     fonte, righe: e.righe, agganciate: e.agganciate,
     nota: [nota, ...e.problemi].filter(Boolean).join(' · ') || null,
@@ -134,6 +135,70 @@ export async function raccogliQuotazioni(): Promise<EsitoFonte> {
 
   const e = { righe: righe.length, agganciate, problemi };
   await registra('quotazioni', e);
+  return e;
+}
+
+// =====================================================================
+// le statistiche di stagione
+// =====================================================================
+
+/**
+ * Fantamedia, partite a voto, gol, assist, rigori e cartellini della
+ * stagione, dalla pagina «Statistiche Serie A». Si sovrascrive tutto a ogni
+ * giro: della stagione serve l'ultima fotografia.
+ */
+export async function raccogliStatistiche(): Promise<EsitoFonte> {
+  const pagina = await scarica(STATISTICHE);
+  if ('errore' in pagina) {
+    const e = { righe: 0, agganciate: 0, problemi: [pagina.errore] };
+    await registra('statistiche', e);
+    return e;
+  }
+
+  const righe = leggiStatistiche(pagina.html);
+  if (!righe.length) {
+    const e = { righe: 0, agganciate: 0, problemi: ['la pagina delle statistiche non ha prodotto righe: probabilmente è cambiata'] };
+    await registra('statistiche', e);
+    return e;
+  }
+
+  const aggancia = agganciatore(await nostriGiocatori());
+  const stagione = stagioneCorrente();
+  const adesso = new Date().toISOString();
+  const daScrivere = righe.map((r) => ({
+    ext_id: r.extId,
+    player_id: aggancia(r),
+    stagione,
+    nome_fonte: r.nome,
+    club_fonte: r.club,
+    ruolo: r.ruolo,
+    presenze: r.presenze,
+    media_voto: r.mediaVoto,
+    fantamedia: r.fantamedia,
+    gol: r.gol,
+    gol_subiti: r.golSubiti,
+    rigori_segnati: r.rigoriSegnati,
+    rigori_calciati: r.rigoriCalciati,
+    rigori_parati: r.rigoriParati,
+    assist: r.assist,
+    ammonizioni: r.ammonizioni,
+    espulsioni: r.espulsioni,
+    updated_at: adesso,
+  }));
+  const agganciate = daScrivere.filter((r) => r.player_id).length;
+
+  const problemi: string[] = [];
+  for (let i = 0; i < daScrivere.length; i += 500) {
+    const { error } = await supabaseAdmin().from('player_stats')
+      .upsert(daScrivere.slice(i, i + 500), { onConflict: 'ext_id' });
+    if (error) { problemi.push(error.message); break; }
+  }
+  if (agganciate / righe.length < 0.5) {
+    problemi.push(`agganciate solo ${agganciate} statistiche su ${righe.length}: controlla gli id del listone`);
+  }
+
+  const e = { righe: righe.length, agganciate, problemi };
+  await registra('statistiche', e);
   return e;
 }
 
@@ -344,7 +409,7 @@ export interface UltimaRaccolta {
 }
 
 /** Quando è stata letta l'ultima volta ciascuna pagina. */
-export async function ultimeRaccolte(): Promise<Record<'quotazioni' | 'voti', UltimaRaccolta | null>> {
+export async function ultimeRaccolte(): Promise<Record<'quotazioni' | 'voti' | 'statistiche', UltimaRaccolta | null>> {
   const db = supabaseAdmin();
   const leggi = async (fonte: string) => {
     const { data } = await db.from('source_runs')
@@ -355,6 +420,6 @@ export async function ultimeRaccolte(): Promise<Record<'quotazioni' | 'voti', Ul
       agganciate: Number(data.agganciate), nota: (data.nota as string | null) ?? null,
     } : null;
   };
-  const [quotazioni, voti] = await Promise.all([leggi('quotazioni'), leggi('voti')]);
-  return { quotazioni, voti };
+  const [quotazioni, voti, statistiche] = await Promise.all([leggi('quotazioni'), leggi('voti'), leggi('statistiche')]);
+  return { quotazioni, voti, statistiche };
 }

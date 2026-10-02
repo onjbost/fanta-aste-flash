@@ -48,7 +48,7 @@ function Bottone({ testo, inCorsoTesto, azione: fai }: {
 }
 
 export function AggiornaFonti() {
-  return <Bottone testo="Aggiorna quotazioni e voti" inCorsoTesto="Leggo quotazioni e voti…" azione={aggiornaFonti} />;
+  return <Bottone testo="Aggiorna quotazioni, voti e statistiche" inCorsoTesto="Leggo quotazioni, voti e statistiche…" azione={aggiornaFonti} />;
 }
 
 export function AggiornaIndisponibili() {

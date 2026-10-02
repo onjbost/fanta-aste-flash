@@ -6,8 +6,14 @@ import { ROLE_LABEL, type Role } from '@/lib/rules';
 import { chiamatoDa, daMostrare, esitoDellaScelta, type Chiamata } from '@/lib/chiamate';
 import { Foglio } from '../Foglio';
 import { SceltaSvincolo, type Svincolabile } from './SceltaSvincolo';
+import { NotaIndisponibile, NumeriBrevi, NumeriGiocatore, TagIndisponibile } from '../SchedaGiocatore';
+import type { Indisponibile, Statistiche } from '@/lib/schede';
 
-interface FreeAgent { id: string; name: string; role: Role; club: string; quotation: number }
+interface FreeAgent {
+  id: string; name: string; role: Role; club: string; quotation: number;
+  indisponibile: Indisponibile | null;
+  statistiche: Statistiche | null;
+}
 type RosterOption = Svincolabile & { committed: boolean };
 
 interface Props {
@@ -73,7 +79,8 @@ function ModuloChiamata({ sessionId, freeAgents, roster, credits, changes, chiam
                   <span className="role-badge">{p.role}</span>
                   <span className="chi-col">
                     <b>{p.name}</b>
-                    <small>{p.club}{gia ? ` · già chiamato da ${gia}` : ''}</small>
+                    <small>{p.club}{gia ? ` · già chiamato da ${gia}` : ''} <TagIndisponibile ind={p.indisponibile} /></small>
+                    <NumeriBrevi st={p.statistiche} ruolo={p.role} />
                   </span>
                   <span className="num qt">{p.quotation}</span>
                 </button>
@@ -97,6 +104,11 @@ function ModuloChiamata({ sessionId, freeAgents, roster, credits, changes, chiam
           Cambia
         </button>
       </div>
+      <NotaIndisponibile ind={target.indisponibile} />
+      <details className="numeri-piega">
+        <summary>Numeri della stagione</summary>
+        <NumeriGiocatore st={target.statistiche} ruolo={target.role} />
+      </details>
 
       {esito.tipo === 'adesione' && (
         <div className="callout crit" role="status">

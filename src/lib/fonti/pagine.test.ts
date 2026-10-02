@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { agganciatore, leggiQuotazioni, leggiVoti, stessoClub } from './pagine';
+import { agganciatore, leggiQuotazioni, leggiStatistiche, leggiVoti, stessoClub } from './pagine';
 
 // La forma delle righe delle quotazioni è quella della pagina vera
 // (fantacalcio.it/quotazioni-fantacalcio, agosto 2026): classi delle celle e
@@ -150,5 +150,59 @@ describe('aggancio', () => {
     expect(stessoClub('Inter', 'INT')).toBe(true);
     expect(stessoClub('Verona', 'VER', 'hellas-verona')).toBe(true);
     expect(stessoClub('Lazio', 'NAP', 'napoli')).toBe(false);
+  });
+});
+
+// due righe vere della pagina «Statistiche Serie A», asciugate
+const riga = (o: { id: string; club: string; nome: string; r: string; sq: string; pg: string; mv: string; mfv: string; gol: string; gs: string; rig: string; rp: string; ass: string; amm: string; esp: string }) => `
+<tr class="player-row filter-box-filtered-item" data-index="0" data-filter-role-classic="${o.r}">
+  <th class="player-championship"></th>
+  <th class="player-role-classic player-role"><span class="role" data-value="${o.r}"></span></th>
+  <th class="player-role-mantra player-role"><div class="pill"><span class="role role-mantra" data-value="por"></span></div></th>
+  <th class="player-name"><a class="player-name player-link" href="https://www.fantacalcio.it/serie-a/squadre/${o.club}/${o.nome.toLowerCase()}/${o.id}"><span>${o.nome}</span></a></th>
+  <td class="player-team" data-col-key="sq">${o.sq}</td>
+  <td class="player-match-playeds" data-col-key="pg">${o.pg}</td>
+  <td class="player-grade-avg" data-col-key="mv">${o.mv}</td>
+  <td class="player-fanta-grade-avg" data-col-key="mfv">${o.mfv}</td>
+  <td class="player-scoreds" data-col-key="gol">${o.gol}</td>
+  <td class="player-scoreds collapse" data-col-key="gs">${o.gs}</td>
+  <td class="player-scoreds collapse" data-col-key="rig">${o.rig}</td>
+  <td class="player-scoreds collapse" data-col-key="rp">${o.rp}</td>
+  <td class="player-assists" data-col-key="ass">${o.ass}</td>
+  <td class="player-yellows collapse" data-col-key="amm">${o.amm}</td>
+  <td class="player-reds collapse" data-col-key="esp">${o.esp}</td>
+  <td class="tail"></td>
+</tr>`;
+
+const STATISTICHE = `<table id="stats"><thead class="compact"><tr>
+  <th class="sticky-header player-championship">Calciatore</th>
+  <th data-col-key="pg" class="sorter-header"><a title="Partite a voto">PV</a></th>
+  <th data-col-key="mv" class="sorter-header"><a title="Media voto">MV</a></th>
+</tr></thead><tbody>
+${riga({ id: '5585', club: 'roma', nome: 'Malen', r: 'a', sq: 'ROM', pg: '5', mv: '7,1', mfv: '10,6', gol: '6', gs: '0', rig: '2 / 3', rp: '0', ass: '1', amm: '1', esp: '0' })}
+${riga({ id: '6482', club: 'lazio', nome: 'Mandas', r: 'p', sq: 'LAZ', pg: '5', mv: '6,6', mfv: '6,6', gol: '0', gs: '3', rig: '0 / 0', rp: '1', ass: '0', amm: '0', esp: '1' })}
+${riga({ id: '9999', club: 'inter', nome: 'Panca', r: 'd', sq: 'INT', pg: '0', mv: '-', mfv: '-', gol: '0', gs: '0', rig: '0 / 0', rp: '0', ass: '0', amm: '0', esp: '0' })}
+</tbody></table>`;
+
+describe('leggiStatistiche', () => {
+  const righe = leggiStatistiche(STATISTICHE);
+
+  it('legge le righe dei giocatori e non le intestazioni', () => {
+    expect(righe.map((r) => r.extId)).toEqual(['5585', '6482', '9999']);
+  });
+
+  it('distingue medie, gol, assist e cartellini', () => {
+    expect(righe[0]).toMatchObject({
+      nome: 'Malen', ruolo: 'A', club: 'ROM', presenze: 5, mediaVoto: 7.1, fantamedia: 10.6,
+      gol: 6, assist: 1, ammonizioni: 1, espulsioni: 0, rigoriSegnati: 2, rigoriCalciati: 3,
+    });
+  });
+
+  it('per i portieri tiene gol subiti e rigori parati', () => {
+    expect(righe[1]).toMatchObject({ ruolo: 'P', golSubiti: 3, rigoriParati: 1, espulsioni: 1 });
+  });
+
+  it('senza partite a voto le medie restano vuote', () => {
+    expect(righe[2]).toMatchObject({ presenze: 0, mediaVoto: null, fantamedia: null });
   });
 });

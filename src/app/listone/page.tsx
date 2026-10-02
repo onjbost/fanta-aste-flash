@@ -10,7 +10,7 @@ export default async function SvincolatiPage() {
 
   // Si caricano tutti una volta sola: ordinare e filtrare avviene nel browser,
   // così ogni click è immediato invece di essere un giro al server.
-  const { players, error } = await loadFreeAgents();
+  const { players, error } = await loadFreeAgents({}, ctx.team.leagueId);
 
   return (
     <div className="shell">

@@ -1632,3 +1632,20 @@ button.ghost,.btn.ghost{background:transparent;border-color:var(--surface-3)}
 .decidi-bottoni{display:flex;gap:8px;flex-wrap:wrap}
 .decidi-bottoni button{flex:1 1 auto}
 .decisione .callout{margin:10px 0 0}
+
+/* la scheda di un giocatore: medie, bonus e malus della stagione */
+.numeri-giocatore{margin:12px 0 0}
+.numeri-medie{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.numeri-medie > div{background:var(--surface-2);border-radius:var(--r-sm);padding:8px 10px;display:flex;flex-direction:column}
+.numeri-medie span{font-size:.68rem;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+.numeri-medie b{font-family:var(--font-num);font-size:1.3rem;color:var(--ink);line-height:1.15}
+.numeri-gruppo{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:10px 0 0}
+.numeri-titolo{font-size:.68rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);width:100%}
+.numeri-gruppo > div{display:flex;gap:6px;align-items:baseline;background:var(--surface-2);border-radius:999px;padding:4px 10px;font-size:.8rem}
+.numeri-gruppo > div span{color:var(--muted)}
+.numeri-gruppo > div b{font-family:var(--font-num)}
+.numeri-brevi{font-size:.74rem;color:var(--muted);white-space:nowrap}
+.numeri-piega{margin:8px 0 4px}
+.numeri-piega summary{cursor:pointer;font-size:.82rem;color:var(--muted)}
+.lotto-nota{padding:0 0 4px 44px}
+.lotto-nota .numeri-brevi{display:block;margin-top:2px}

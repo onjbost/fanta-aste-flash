@@ -1,4 +1,6 @@
 import { requireTeamContext } from '@/lib/queries';
+import { supabaseServer } from '@/lib/supabase';
+import { schedeGiocatori } from '@/lib/schedeServer';
 import { expectedStatus, freeReleaseEligibility, type Role } from '@/lib/rules';
 import { RosaCarte } from './RosaCarte';
 import { TopBar } from '../TopBar';
@@ -24,6 +26,11 @@ export async function RosaVista({ active }: { active: NavKey }) {
   const { team, credits, roster, changes, nextSession } = ctx;
   const byRole = (r: Role) => roster.filter((p) => p.role === r);
   const rosterValue = roster.reduce((s, p) => s + p.price, 0);
+  // chi è fermo secondo fantacalcio.it e i numeri della stagione: se la
+  // lettura fallisce, la rosa si mostra lo stesso senza
+  const schede = await schedeGiocatori(await supabaseServer(), {
+    leagueId: team.leagueId, ids: roster.map((p) => p.playerId),
+  }).catch(() => new Map());
 
   return (
     <div className="shell">
@@ -82,6 +89,8 @@ export async function RosaVista({ active }: { active: NavKey }) {
             pending: !!p.freeReleasePending, approved: !!p.freeReleaseApproved,
             canRequest: el.canRequest && !p.refundFree,
             hint: p.refundFree ? 'Già al 100%' : el.reason,
+            indisponibile: schede.get(p.playerId)?.indisponibile ?? null,
+            statistiche: schede.get(p.playerId)?.statistiche ?? null,
           };
         })}
       />

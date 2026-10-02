@@ -1,5 +1,30 @@
 # Aste Flash · Fanta Mansarda
 
+## v5.2 — 2 ottobre 2026
+
+Chi è fermo e quanto rende, dappertutto si sceglie un giocatore.
+
+### Indisponibili in rosa e all'asta
+- **Nella rosa** ogni carta ha l'etichetta «Infortunato», «Squalificato»,
+  «In dubbio» o «Diffidato» dell'ultima raccolta di fantacalcio.it; nel
+  foglio del giocatore ci sono il rientro stimato e la didascalia della fonte.
+- **Nella chiamata di uno svincolato** l'etichetta compare già nell'elenco
+  da cui si sceglie, e scelto il giocatore si legge la nota per esteso.
+- **Sui lotti chiamati** l'etichetta e la nota ci sono per tutti: chi aderisce
+  a un'asta sa prima se il giocatore è fermo.
+
+### I numeri della stagione
+- **Fantamedia, media voto e partite a voto**, poi i **bonus** (gol, assist,
+  rigori segnati su calciati; per i portieri rigori parati) e i **malus**
+  (ammonizioni, espulsioni, autogol, rigori sbagliati; per i portieri gol
+  subiti). Nel foglio del giocatore in rosa, negli Svincolati e nella
+  chiamata; in una riga breve sulle carte e sui lotti.
+- Vengono dalla pagina «Statistiche Serie A» di fantacalcio.it, letta ogni
+  mattina col cron insieme a quotazioni e voti, o subito dal Pannello
+  amministratore → «Aggiorna quotazioni, voti e statistiche».
+- Gli autogol la pagina non li ha: compaiono quando li registra un tabellino
+  della lega (quindi solo per chi era schierato da qualcuno).
+
 ## v5.1 — 2 ottobre 2026
 
 Infortuni più leggibili, e due fonti nuove da fantacalcio.it: le quotazioni

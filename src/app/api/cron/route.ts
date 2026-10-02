@@ -5,7 +5,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { notifyAdmin, notifyAdminPlain, tgPhaseChange } from '@/lib/telegram';
 import { raccogliIndisponibili } from '@/lib/infortuni/infortuniServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
-import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
+import { raccogliQuotazioni, raccogliStatistiche, raccogliVoti } from '@/lib/fonti/fontiServer';
 import {
   calcoloAutomaticoAcceso, importaGiornateConcluse, LegheNonCollegata, statoCollegamento,
 } from '@/lib/leghe/legheServer';
@@ -21,7 +21,8 @@ export const maxDuration = 60;
  *   1. allinea lo stato delle sessioni al calendario
  *   2. prepara i riepiloghi di T−5 e T−1 come bozze da controllare
  *   3. il mercoledì, raccoglie gli indisponibili di Serie A e le foto delle news
- *   4. ogni giorno, le quotazioni aggiornate e i voti dell'ultima giornata
+ *   4. ogni giorno, le quotazioni aggiornate, i voti dell'ultima giornata e le
+ *      statistiche di stagione (fantamedia, presenze, bonus e malus)
  *   5. tocca il database, così il progetto Supabase gratuito non va in pausa
  *
  * Le fasi vengono comunque ricalcolate dall'orologio a ogni pagina: se il cron
@@ -75,16 +76,18 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Quotazioni e voti tutti i giorni: sono una pagina ciascuna, la scrittura
+  // Quotazioni, voti e statistiche tutti i giorni: sono una pagina ciascuna, la scrittura
   // sovrascrive e non duplica, e i voti escono fra lunedì e martedì ma i
   // recuperi arrivano quando arrivano. Se qualcosa non torna lo dice una
   // volta a settimana, il mercoledì con gli indisponibili: un guasto della
   // pagina non deve diventare un messaggio ogni mattina.
   const quotazioni = await raccogliQuotazioni();
   const voti = await raccogliVoti();
+  const statistiche = await raccogliStatistiche();
   const guasti = [
     ...quotazioni.problemi.map((p) => `Quotazioni: ${p}`),
     ...voti.problemi.map((p) => `Voti: ${p}`),
+    ...statistiche.problemi.map((p) => `Statistiche: ${p}`),
   ];
   if (guasti.length && new Date().getUTCDay() === 3) await notifyAdminPlain(guasti.join('\n'));
 
@@ -139,7 +142,7 @@ export async function GET(request: NextRequest) {
   const { count } = await db.from('players').select('id', { count: 'exact', head: true });
 
   return NextResponse.json({
-    ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti,
+    ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti, statistiche,
     giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
     calendario,
     at: new Date().toISOString(),

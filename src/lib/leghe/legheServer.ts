@@ -25,6 +25,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { importaGiornata, type EsitoImport } from '@/lib/redazione/importaServer';
 import type { PayloadImport, SfidaGrezza, TipoCompetizione } from '@/lib/redazione/tabellino';
 import { liveGiornata } from '@/lib/live/liveServer';
+import { allineaCalendario } from '@/lib/live/calendarioServer';
 import { giornataPronta, giornoDelCalcolo, type PartitaCalendario } from './quando';
 import {
   capitaniApi, classificaApi, risultatoApi, squadraApi, tipoApi, votoApi,
@@ -293,6 +294,7 @@ export interface EsitoGiornate {
 export async function calendarioSerieA(serieA: number): Promise<PartitaCalendario[]> {
   const live = await liveGiornata(serieA);
   if ('partite' in live && live.partite.length) {
+    await allineaCalendario(serieA, live.partite).catch(() => null);
     return live.partite.map((p) => ({ kickoff: p.matchDate || null, rinviata: p.status === 6 }));
   }
   const db = supabaseAdmin();

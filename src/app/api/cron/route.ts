@@ -7,6 +7,8 @@ import { raccogliIndisponibili } from '@/lib/infortuni/infortuniServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
 import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
 import { importaGiornateConcluse, LegheNonCollegata, statoCollegamento } from '@/lib/leghe/legheServer';
+import { liveGiornata } from '@/lib/live/liveServer';
+import { allineaCalendario } from '@/lib/live/calendarioServer';
 
 // le pagine di fantacalcio.it si leggono in fila: il tempo standard di una
 // funzione non basta quando c'è da recuperare qualche giornata di voti
@@ -84,6 +86,22 @@ export async function GET(request: NextRequest) {
   ];
   if (guasti.length && new Date().getUTCDay() === 3) await notifyAdminPlain(guasti.join('\n'));
 
+  // Il calendario di Serie A delle giornate vicine (quella appena giocata e
+  // le due che vengono), allineato col live di fantacalcio.it: anticipi,
+  // posticipi e rinvii arrivano qui prima che servano a quote e import.
+  const calendario: { serieA: number; esito: Awaited<ReturnType<typeof allineaCalendario>> }[] = [];
+  {
+    const da = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+    const { data: vicine } = await db.from('matchdays').select('serie_a')
+      .gte('match_date', da).order('match_date').limit(3);
+    for (const m of vicine ?? []) {
+      const live = await liveGiornata(Number(m.serie_a));
+      if ('partite' in live) {
+        calendario.push({ serieA: Number(m.serie_a), esito: await allineaCalendario(Number(m.serie_a), live.partite, true).catch(() => null) });
+      }
+    }
+  }
+
   // Le giornate concluse da Leghe Fantacalcio, senza preferito: si guardano
   // ogni mattina, ma una giornata si legge solo dal giorno dopo la sua ultima
   // partita di Serie A, col calendario aggiornato. Se la lega a quel punto non
@@ -116,6 +134,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti,
     giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
+    calendario,
     at: new Date().toISOString(),
   });
 }

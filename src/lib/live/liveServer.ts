@@ -204,6 +204,11 @@ export async function diretta(fixtureId: string, leagueId: string): Promise<Dire
     formazioneDellaLega(fixtureId, f.matchday_id as string, f.away_team_id as string),
   ]);
   const [live, prime] = await Promise.all([liveGiornata(md.serie_a), leggiFormazioni()]);
+  // il live ha il calendario di adesso: se ne approfitta per allineare il nostro
+  if ('partite' in live) {
+    const { allineaCalendario } = await import('./calendarioServer');
+    await allineaCalendario(md.serie_a, live.partite).catch(() => null);
+  }
   let [fCasa, fOspite] = prime;
 
   /*

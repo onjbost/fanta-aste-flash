@@ -29,10 +29,12 @@ async function siteOrigin(): Promise<string> {
   if (host) {
     const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
     const fromRequest = `${proto}://${host}`;
-    // in produzione la richiesta ha sempre ragione su una variabile dimenticata;
-    // in locale anche, al contrario: con l'indirizzo di Vercel nel `.env.local`
-    // il link portava in produzione e non si riusciva a entrare su localhost
-    if (!configured || host.startsWith('localhost')
+    // In produzione la richiesta ha sempre ragione su una variabile dimenticata.
+    // In locale e sulle preview di Vercel anche, al contrario: la variabile
+    // punta al sito vero (in Vercel è la stessa voce per Production e Preview),
+    // e il link riportava in produzione invece che dove l'avevi chiesto.
+    const anteprima = process.env.VERCEL_ENV === 'preview';
+    if (!configured || anteprima || host.startsWith('localhost')
         || configured.includes('localhost')) {
       return fromRequest;
     }

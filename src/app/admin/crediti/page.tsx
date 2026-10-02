@@ -3,6 +3,7 @@ import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { TopBar } from '../../TopBar';
 import { CreditiEditor } from '../rose/CreditiEditor';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,6 +26,7 @@ export default async function CreditiPage() {
 
       <p className="eyebrow">Gestione squadre</p>
       <h1>Gestione crediti</h1>
+      <AzioniGruppo pagina="/admin/crediti" />
       <p className="sub">
         I crediti residui di ogni squadra secondo l&apos;app. Se non coincidono con quelli
         dell&apos;app ufficiale, scrivi il numero giusto: la differenza diventa un movimento

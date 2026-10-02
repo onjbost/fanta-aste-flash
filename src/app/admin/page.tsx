@@ -8,6 +8,7 @@ import { TopBar } from '../TopBar';
 import { DecideForm } from './DecideForm';
 import { TelegramCheck } from './TelegramCheck';
 import { telegramConfigured } from '@/lib/telegram';
+import { AzioniGruppo } from './AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,7 @@ export default async function AdminPage() {
 
       <p className="eyebrow">Pannello admin</p>
       <h1>Coda operativa</h1>
+      <AzioniGruppo pagina="/admin" />
       <TelegramCheck configured={telegramConfigured()} />
 
       <h2>

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { inBlocchi, type Blocco, type Pezzo } from '@/lib/changelog';
 import { TopBar } from '../../TopBar';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,6 +97,7 @@ export default async function ChangelogPage() {
 
       <p className="eyebrow">Solo admin</p>
       <h1>Cos&apos;è cambiato nell&apos;app</h1>
+      <AzioniGruppo pagina="/admin/changelog" />
       <p className="sub">
         Il registro degli aggiornamenti, versione per versione. Lo scrive chi
         tocca il codice, e arriva qui con il codice: se una cosa è scritta sotto

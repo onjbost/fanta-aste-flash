@@ -3,6 +3,7 @@ import { requireTeamContext } from '@/lib/queries';
 import { supabaseServer } from '@/lib/supabase';
 import { TopBar } from '../../TopBar';
 import { SalaDiProva } from './SalaDiProva';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,6 +29,7 @@ export default async function ProvaPage() {
 
       <p className="eyebrow">Pannello admin · prova</p>
       <h1>Sala d&apos;asta di prova</h1>
+      <AzioniGruppo pagina="/admin/prova" />
       <p className="sub">
         Una serata inventata per vedere come si comporta la sala: si apre, si
         aprono i lotti uno alla volta, si rilancia e il timer riparte. Puoi

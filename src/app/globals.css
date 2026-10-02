@@ -1616,8 +1616,15 @@ details[open] > summary .giu{transform:rotate(180deg)}
 .calendario .avviso{color:var(--warn)}
 
 /* =====================================================================
-   Admin: decisioni in card
+   Admin: azioni rapide del gruppo, decisioni in card
    ===================================================================== */
+.azioni-gruppo{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin:12px 0 18px}
+.azioni-gruppo a{
+  background:var(--surface);border-radius:var(--r-sm);padding:12px 14px;
+  color:var(--ink);font-weight:600;font-size:.9rem;
+}
+.azioni-gruppo a:hover{background:var(--surface-2);color:var(--accent);text-decoration:none}
+@media (min-width:620px){ .azioni-gruppo{grid-template-columns:repeat(3,1fr)} }
 button.ghost,.btn.ghost{background:transparent;border-color:var(--surface-3)}
 .decisioni{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
 .decisione{background:var(--surface);border-radius:var(--r);padding:14px}

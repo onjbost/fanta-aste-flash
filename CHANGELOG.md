@@ -110,6 +110,9 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
 - **Comunicazione**: Testi per il gruppo (era «Centro messaggi»), La Gazzetta,
   La redazione.
 - In fondo Tipster, Sala di prova, Novità dell'app ed Esci.
+- **Azioni rapide di gruppo** in ogni pagina admin: sotto il titolo, le altre
+  voci dello stesso gruppo del menu (su Gestione rose: Gestione crediti,
+  Allenatori e stemmi, Scambi, Indisponibili).
 
 ### Pannello amministratore
 - **Prima voce del menu admin**, accanto alla Coda operativa. Tre pulsanti:

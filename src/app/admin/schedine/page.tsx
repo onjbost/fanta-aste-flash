@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { giornataDaRiga, sfideDiGiornata } from '@/lib/tipsterServer';
 import { TopBar } from '../../TopBar';
 import { Quote, Orario, Rinvio, Risultato, Chiusura, Accoppiamento } from './Pannelli';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export default async function AdminSchedinePage({
       <div className="shell">
         <TopBar teamName={ctx.team.name} isAdmin active="admin" />
         <h1>Tipster</h1>
+        <AzioniGruppo pagina="/admin/schedine" />
         <div className="callout crit">
           Calendario non caricato. Esegui <code>npm run calendari</code>.
         </div>
@@ -65,6 +67,7 @@ export default async function AdminSchedinePage({
 
       <p className="eyebrow">Admin · torneo dei tipster</p>
       <h1>Giornata {giornata.fanta}</h1>
+      <AzioniGruppo pagina="/admin/schedine" />
       <p className="sub">
         Serie A {giornata.serieA} · {new Date(giornata.matchDate).toLocaleDateString('it-IT', {
           weekday: 'long', day: 'numeric', month: 'long',

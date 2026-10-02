@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { TopBar } from '../../TopBar';
 import { LinkForm, MemberRow } from './LinkForm';
 import { StemmaForm } from './StemmaForm';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -44,6 +45,7 @@ export default async function AllenatoriPage() {
 
       <p className="eyebrow">Gestione squadre</p>
       <h1>Allenatori e stemmi</h1>
+      <AzioniGruppo pagina="/admin/allenatori" />
       <p className="sub">
         Ogni squadra può averne due: vedono la stessa rosa, gli stessi crediti e gli
         stessi cambi, e possono entrambi chiamare, aderire e rilanciare. Per il mercato

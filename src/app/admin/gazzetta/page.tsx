@@ -7,6 +7,7 @@ import { TopBar } from '../../TopBar';
 import { Editor, type FotoScelta } from './Editor';
 import { AggiornaFoto, Genera, GeneraChiusura, GeneraRumors } from './Genera';
 import { scambiPerLaGazzetta } from '@/lib/gazzetta/mercatoChiusoServer';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -120,6 +121,7 @@ export default async function GazzettaPage({ searchParams }: {
 
       <p className="eyebrow">La Gazzetta della Mansarda</p>
       <h1>La prima pagina</h1>
+      <AzioniGruppo pagina="/admin/gazzetta" />
       <p className="sub">
         Sostituisce il messaggione: stesso tono, impaginato perché si capisca in
         tre secondi. I testi li puoi correggere qui, e il PNG si disegna da

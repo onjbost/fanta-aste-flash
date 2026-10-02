@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase';
 import { MESSAGE_LABEL, type MessageKind } from '@/lib/messages';
 import { TopBar } from '../../TopBar';
 import { MessageCard } from './MessageCard';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,6 +32,7 @@ export default async function MessaggiPage() {
 
       <p className="eyebrow">Comunicazione</p>
       <h1>Testi per il gruppo</h1>
+      <AzioniGruppo pagina="/admin/messaggi" />
       <p className="sub">
         {session
           ? <>Asta flash #{session.number} · generati dai dati veri della sessione. Controlli, copi, incolli su WhatsApp.</>

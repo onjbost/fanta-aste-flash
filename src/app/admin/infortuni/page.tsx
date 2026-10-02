@@ -8,6 +8,7 @@ import { quotazioniAggiornate } from '@/lib/fonti/fontiServer';
 import { TopBar } from '../../TopBar';
 import { BottoneAggiorna, BottoneProponi } from './Pannello';
 import { RigheIndisponibile } from './Righe';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -72,6 +73,7 @@ export default async function InfortuniPage() {
 
       <p className="eyebrow">Indisponibili</p>
       <h1>Chi è fuori</h1>
+      <AzioniGruppo pagina="/admin/infortuni" />
       <p className="sub">
         Letti da fantacalcio.it ogni mercoledì. Servono a tre cose: le quote del
         Torneo dei Tipster escludono dall&apos;undici chi non può giocare, gli svincoli

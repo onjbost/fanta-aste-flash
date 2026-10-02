@@ -6,6 +6,7 @@ import type { PassoGiro } from '@/lib/leghe/legheServer';
 import { TopBar } from '../../TopBar';
 import { AggiornaFonti, AggiornaIndisponibili, ImportaGiornata } from './Pannello';
 import { Passi, SEGNO } from './Passi';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 // calcolo sulla lega e import possono prendersi qualche decina di secondi
@@ -55,6 +56,7 @@ export default async function PannelloPage() {
 
       <p className="eyebrow">Admin</p>
       <h1>Pannello amministratore</h1>
+      <AzioniGruppo pagina="/admin/pannello" />
       <p className="sub">
         Le operazioni che il cron fa da solo ogni mattina, quando servono subito, e il registro di
         ogni giro sulla giornata. Se un giro del cron va storto, ti arriva anche su Telegram.

@@ -9,6 +9,7 @@ import {
   AzioniImport, Giornata, Impostazioni, Preferito, SchedaFlavour,
   type ArticoloVista, type GiornataVista, type ImportVista, type SfidaVista,
 } from './Pannelli';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -164,16 +165,12 @@ export default async function AdminRedazionePage() {
 
       <p className="eyebrow">Admin · la redazione</p>
       <h1>La giornata, raccontata</h1>
+      <AzioniGruppo pagina="/admin/redazione" />
       <p className="sub">
         Importi il tabellino dalla lega, l&apos;app trova gli spunti e scrive il pezzo.
         Niente parte senza che tu l&apos;abbia letto.
       </p>
 
-      <div className="filters" style={{ marginTop: 0 }}>
-        <a className="btn" href="/admin">Coda operativa</a>
-        <a className="btn" href="/admin/schedine">Tipster</a>
-        <a className="btn" href="/admin/messaggi">Testi per il gruppo</a>
-      </div>
 
       {!modello && (
         <div className="callout">

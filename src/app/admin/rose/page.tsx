@@ -6,6 +6,7 @@ import { refundValue, ROLE_LABEL, type Role, type PlayerStatus } from '@/lib/rul
 import { TopBar } from '../../TopBar';
 import { RosterEditor } from './RosterEditor';
 import { SyncForm } from './SyncForm';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -66,6 +67,7 @@ export default async function RosePage({
 
       <p className="eyebrow">Gestione squadre</p>
       <h1>Gestione rose</h1>
+      <AzioniGruppo pagina="/admin/rose" />
       <p className="sub">
         Correzioni a mano o ri-sincronizzazione da un nuovo export della lega.
         Ogni modifica genera il movimento di credito che la compensa e finisce nel registro.

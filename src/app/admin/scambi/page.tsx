@@ -4,6 +4,7 @@ import { supabaseServer } from '@/lib/supabase';
 import { giocatoriBloccati, rosePerScambio } from '@/lib/mercato/scambioServer';
 import { TopBar } from '../../TopBar';
 import { TradeForm } from './TradeForm';
+import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,6 +28,7 @@ export default async function ScambiPage() {
 
       <p className="eyebrow">Fantacalciomercato</p>
       <h1>Scambi fra allenatori</h1>
+      <AzioniGruppo pagina="/admin/scambi" />
       <p className="sub">
         Uno scambio fra due squadre, raccontato al gruppo e registrato sul serio.
         Si fa in due tempi: prima l&apos;annuncio e le rose come resteranno, poi la

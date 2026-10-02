@@ -75,6 +75,12 @@ alter table player_prices enable row level security;
 alter table player_votes  enable row level security;
 alter table source_runs   enable row level security;
 
+-- Postgres non ha «create policy if not exists»: si cancella e si ricrea,
+-- così la migrazione si può rieseguire senza errori.
+drop policy if exists "le quotazioni le legge chi è dentro" on player_prices;
+drop policy if exists "i voti li legge chi è dentro" on player_votes;
+drop policy if exists "le raccolte le legge chi è dentro" on source_runs;
+
 create policy "le quotazioni le legge chi è dentro" on player_prices
   for select using (auth.uid() is not null);
 create policy "i voti li legge chi è dentro" on player_votes

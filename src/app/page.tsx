@@ -1,6 +1,6 @@
 import { requireTeamContext } from '@/lib/queries';
 import {
-  esitoPer, formaUltime, precedenti, prossimaPartita, scadenzeDellaHome, titoloPartita,
+  esitoPer, formaUltime, precedenti, prossimaPartita, scadenzeDellaHome, storicoCompetizione, titoloPartita,
   type Competizione, type Partita,
 } from '@/lib/home';
 import {
@@ -37,10 +37,24 @@ function slide(
   comp: Competizione, etichetta: string, mia: string,
   sfide: Partita[], squadre: Map<string, Squadra>, cl: Classifiche,
 ): SlidePartita {
-  const p = prossimaPartita(sfide, mia, comp);
-  if (!p || !p.homeId || !p.awayId) return { comp, etichetta, partita: null };
-
   const sq = (id: string) => squadre.get(id) ?? { id, nome: '?', stemma: null };
+  // tutta la competizione, non solo la partita: c'è anche a calendario finito
+  const storico = storicoCompetizione(sfide, comp).map((g) => ({
+    chiave: g.chiave,
+    titolo: g.titolo,
+    partite: g.partite.map((x) => ({
+      id: x.id,
+      casa: sq(x.homeId!).nome,
+      ospite: sq(x.awayId!).nome,
+      golCasa: x.homeGoals!,
+      golOspite: x.awayGoals!,
+      mia: x.homeId === mia || x.awayId === mia,
+    })),
+  }));
+
+  const p = prossimaPartita(sfide, mia, comp);
+  if (!p || !p.homeId || !p.awayId) return { comp, etichetta, partita: null, storico };
+
   const casa = sq(p.homeId);
   const ospite = sq(p.awayId);
   const pc = posizione(cl, p, p.homeId);
@@ -50,16 +64,16 @@ function slide(
     ? `${pc}° contro ${po}° ${dove}` : null;
 
   return {
-    comp, etichetta,
+    comp, etichetta, storico,
     partita: {
       titolo: titoloPartita(p),
       quando: dataBreve(p.kickoff),
-      casa: { nome: casa.nome, stemma: casa.stemma, posizione: pc ? `${pc}°` : null, forma: formaUltime(sfide, p.homeId) },
-      ospite: { nome: ospite.nome, stemma: ospite.stemma, posizione: po ? `${po}°` : null, forma: formaUltime(sfide, p.awayId) },
+      casa: { nome: casa.nome, stemma: casa.stemma, posizione: pc ? `${pc}°` : null, forma: formaUltime(sfide, p.homeId, 5, comp) },
+      ospite: { nome: ospite.nome, stemma: ospite.stemma, posizione: po ? `${po}°` : null, forma: formaUltime(sfide, p.awayId, 5, comp) },
       nota,
-      precedenti: precedenti(sfide, p.homeId, p.awayId).map((x) => ({
+      precedenti: precedenti(sfide, p.homeId, p.awayId, comp).map((x) => ({
         id: x.id,
-        quando: x.competition === 'coppa' ? `Coppa · ${titoloPartita(x)}` : titoloPartita(x),
+        quando: titoloPartita(x),
         risultato: `${sq(x.homeId!).nome} ${x.homeGoals}–${x.awayGoals} ${sq(x.awayId!).nome}`,
         esito: esitoPer(x, mia),
       })),

@@ -21,6 +21,24 @@ export interface SlidePartita {
     nota: string | null;
     precedenti: { id: string; quando: string; risultato: string; esito: Esito | null }[];
   } | null;
+  /** tutte le partite giocate della competizione, per giornata, dalla più recente */
+  storico: {
+    chiave: string;
+    titolo: string;
+    partite: { id: string; casa: string; ospite: string; golCasa: number; golOspite: number; mia: boolean }[];
+  }[];
+}
+
+/** Una riga dello storico: chi vince è in grassetto, la propria squadra è evidenziata. */
+function RigaStorico({ x }: { x: SlidePartita['storico'][number]['partite'][number] }) {
+  const vince = x.golCasa > x.golOspite ? 'casa' : x.golCasa < x.golOspite ? 'ospite' : null;
+  return (
+    <div className={`storico-riga${x.mia ? ' mia' : ''}`}>
+      <span className={vince === 'casa' ? 'vince' : undefined}>{x.casa}</span>
+      <span className="ris num">{x.golCasa}–{x.golOspite}</span>
+      <span className={vince === 'ospite' ? 'vince' : undefined}>{x.ospite}</span>
+    </div>
+  );
 }
 
 const NOME_ESITO: Record<Esito, string> = { V: 'vinta', N: 'pareggiata', P: 'persa' };
@@ -115,7 +133,7 @@ export function BannerPartite({ slides }: { slides: SlidePartita[] }) {
         <Link className="azione" href={`/classifica?c=${attuale?.comp ?? 'campionato'}`}>
           {ICONE.classifica}Classifica
         </Link>
-        <button type="button" className="azione" disabled={!p} onClick={() => foglio.current?.showModal()}>
+        <button type="button" className="azione" disabled={!p && !attuale?.storico.length} onClick={() => foglio.current?.showModal()}>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7" /><path d="M3 4v4h4" /><path d="M12 8v4l3 2" /></svg>
           Ultimi incontri
         </button>
@@ -130,14 +148,14 @@ export function BannerPartite({ slides }: { slides: SlidePartita[] }) {
       >
         <div className="foglio-maniglia" aria-hidden="true" />
         <div className="foglio-testa">
-          <h2 id="ultimi-titolo">Ultimi incontri</h2>
+          <h2 id="ultimi-titolo">Ultimi incontri · {attuale?.etichetta}</h2>
           <button type="button" className="icon-btn" aria-label="Chiudi" onClick={() => foglio.current?.close()}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12" /><path d="M18 6L6 18" /></svg>
           </button>
         </div>
         {p && (
           <>
-            <p className="titoletto" style={{ marginTop: 14 }}>Forma · ultime cinque</p>
+            <p className="titoletto" style={{ marginTop: 14 }}>Forma · ultime cinque in {attuale?.etichetta.toLowerCase()}</p>
             {[p.casa, p.ospite].map((sq) => (
               <div className="forma-riga" key={sq.nome}>
                 <span className="chi"><Stemma nome={sq.nome} url={sq.stemma} size={30} />{sq.nome}</span>
@@ -157,6 +175,18 @@ export function BannerPartite({ slides }: { slides: SlidePartita[] }) {
               ))}
           </>
         )}
+
+        <p className="titoletto">Storico · {attuale?.etichetta}</p>
+        {!attuale?.storico.length
+          ? <p className="sub">Nessuna partita ancora giocata in questa competizione.</p>
+          : attuale.storico.map((g, i) => (
+            // una sezione per giornata: a fine stagione sono trentotto, e
+            // aperte tutte il foglio diventerebbe una pergamena
+            <details key={g.chiave} className="storico-giornata" open={i === 0}>
+              <summary>{g.titolo}<span className="sub">{g.partite.length} partite</span></summary>
+              {g.partite.map((x) => <RigaStorico key={x.id} x={x} />)}
+            </details>
+          ))}
       </dialog>
     </section>
   );

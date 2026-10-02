@@ -1109,7 +1109,7 @@ th.ordinabile .livello{
 .carosello::-webkit-scrollbar{display:none}
 .carosello > *{scroll-snap-align:start;min-width:0}
 .pallini{display:flex;justify-content:center;gap:5px;margin:10px 0 0}
-.pallini span{width:6px;height:6px;border-radius:99px;background:var(--surface-3);transition:width .2s ease,background .2s ease}
+.pallini span{width:6px;height:6px;border-radius:99px;background:var(--surface-3);transition:background .2s ease}
 .pallini span.on{width:18px;background:var(--accent)}
 
 .banner{
@@ -1194,3 +1194,23 @@ dialog.foglio[open]{animation:foglio-sale .24s cubic-bezier(.22,1,.36,1)}
 .classifica td.pos{color:var(--accent);font-family:var(--font-num);font-weight:700}
 .classifica td.pt{color:var(--ink);font-size:1.1rem}
 .classifica-nota{font-size:.8rem;color:var(--muted);margin:8px 2px 0}
+
+/* lo storico di una competizione nel foglio «Ultimi incontri» */
+.storico-giornata{border-top:1px solid var(--border)}
+.storico-giornata summary{
+  list-style:none;cursor:pointer;display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  padding:11px 0;font-weight:600;
+}
+.storico-giornata summary::-webkit-details-marker{display:none}
+.storico-giornata summary .sub{margin:0;font-size:.8rem;font-weight:400}
+.storico-giornata[open] summary{color:var(--accent)}
+.storico-riga{
+  display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;
+  padding:7px 8px;border-radius:10px;font-size:.88rem;
+}
+.storico-riga span:first-child{text-align:right}
+.storico-riga .ris{font-size:1rem;color:var(--ink);min-width:42px;text-align:center}
+.storico-riga .vince{font-weight:600}
+.storico-riga:not(.mia) span:not(.vince):not(.ris){color:var(--muted)}
+.storico-riga.mia{background:var(--surface-2)}
+.storico-giornata:last-child{padding-bottom:4px}

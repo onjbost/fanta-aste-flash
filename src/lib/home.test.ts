@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  esitoPer, formaUltime, precedenti, prossimaPartita, scadenzeDellaHome, titoloPartita,
+  esitoPer, formaUltime, precedenti, prossimaPartita, scadenzeDellaHome, storicoCompetizione, titoloPartita,
   type Partita,
 } from './home';
 
@@ -149,5 +149,46 @@ describe('scadenzeDellaHome', () => {
       ],
     });
     expect(s[2].quando).toBe('2026-10-11T10:15:00.000Z');
+  });
+});
+
+describe('forma e precedenti per competizione', () => {
+  const lista = [
+    partita({ kickoff: '2026-09-01T13:00:00Z', homeGoals: 2, awayGoals: 0 }),
+    partita({ kickoff: '2026-09-08T13:00:00Z', homeGoals: 0, awayGoals: 1, competition: 'coppa', phase: 'gruppi' }),
+    partita({ kickoff: '2026-09-15T13:00:00Z', homeGoals: 1, awayGoals: 1, competition: 'coppa', phase: 'gruppi' }),
+  ];
+
+  it('la forma conta solo la competizione richiesta', () => {
+    expect(formaUltime(lista, NOI, 5, 'campionato')).toEqual(['V']);
+    expect(formaUltime(lista, NOI, 5, 'coppa')).toEqual(['N', 'P']);
+  });
+
+  it('anche i precedenti', () => {
+    expect(precedenti(lista, NOI, LORO, 'coppa')).toHaveLength(2);
+    expect(precedenti(lista, NOI, LORO, 'campionato')).toHaveLength(1);
+  });
+});
+
+describe('storicoCompetizione', () => {
+  it('tutte le partite giocate della competizione, per giornata, dalla più recente', () => {
+    const lista = [
+      partita({ id: 'a1', fanta: 1, serieA: 2, kickoff: '2026-08-30T13:00:00Z', homeGoals: 1, awayGoals: 0 }),
+      partita({ id: 'a2', fanta: 1, serieA: 2, kickoff: '2026-08-30T13:00:00Z', homeId: ALTRI, awayId: 'quarti', homeGoals: 2, awayGoals: 2 }),
+      partita({ id: 'b1', fanta: 2, serieA: 3, kickoff: '2026-09-06T13:00:00Z', homeId: ALTRI, awayId: LORO, homeGoals: 0, awayGoals: 3 }),
+      partita({ id: 'futura', fanta: 3, serieA: 4, kickoff: '2026-09-13T13:00:00Z' }),
+      partita({ id: 'coppa', competition: 'coppa', phase: 'gruppi', homeGoals: 1, awayGoals: 0 }),
+    ];
+    const s = storicoCompetizione(lista, 'campionato');
+    expect(s.map((g) => g.titolo)).toEqual(['2ª giornata', '1ª giornata']);
+    expect(s[1].partite.map((p) => p.id)).toEqual(['a1', 'a2']);
+  });
+
+  it('in coppa separa i gironi dello stesso turno', () => {
+    const lista = [
+      partita({ id: 'A', competition: 'coppa', phase: 'gruppi', groupName: 'A', round: 1, homeGoals: 1, awayGoals: 0 }),
+      partita({ id: 'B', competition: 'coppa', phase: 'gruppi', groupName: 'B', round: 1, homeGoals: 0, awayGoals: 0 }),
+    ];
+    expect(storicoCompetizione(lista, 'coppa').map((g) => g.titolo)).toEqual(['Girone A · 1° turno', 'Girone B · 1° turno']);
   });
 });

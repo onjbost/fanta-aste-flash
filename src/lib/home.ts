@@ -49,20 +49,45 @@ export function prossimaPartita(lista: Partita[], teamId: string, comp: Competiz
     .sort(perData)[0] ?? null;
 }
 
-/** Le ultime `quante` giocate dalla squadra, dalla più recente, campionato e coppa insieme. */
-export function formaUltime(lista: Partita[], teamId: string, quante = 5): Esito[] {
+/**
+ * Le ultime `quante` giocate dalla squadra, dalla più recente.
+ * Con `comp` solo quella competizione: la forma in coppa non è quella in
+ * campionato, e il foglio le mostra ciascuna sulla sua slide.
+ */
+export function formaUltime(lista: Partita[], teamId: string, quante = 5, comp?: Competizione): Esito[] {
   return lista
-    .filter((p) => giocata(p) && tocca(p, teamId))
+    .filter((p) => giocata(p) && tocca(p, teamId) && (!comp || p.competition === comp))
     .sort((a, b) => perData(b, a))
     .slice(0, quante)
     .map((p) => esitoPer(p, teamId)!);
 }
 
-/** Gli scontri diretti già giocati fra due squadre, dal più recente. */
-export function precedenti(lista: Partita[], a: string, b: string): Partita[] {
+/** Gli scontri diretti già giocati fra due squadre, dal più recente; con `comp` solo in quella competizione. */
+export function precedenti(lista: Partita[], a: string, b: string, comp?: Competizione): Partita[] {
   return lista
-    .filter((p) => giocata(p) && tocca(p, a) && tocca(p, b))
+    .filter((p) => giocata(p) && tocca(p, a) && tocca(p, b) && (!comp || p.competition === comp))
     .sort((x, y) => perData(y, x));
+}
+
+export interface GiornataStorica { chiave: string; titolo: string; partite: Partita[] }
+
+/**
+ * Lo storico di una competizione: tutte le partite giocate, di tutte le
+ * squadre, raggruppate per giornata (o per turno e girone in coppa), dalla
+ * giornata più recente. Dentro la giornata l'ordine è quello del calendario.
+ */
+export function storicoCompetizione(lista: Partita[], comp: Competizione): GiornataStorica[] {
+  const gruppi = new Map<string, GiornataStorica & { quando: number }>();
+  for (const p of lista) {
+    if (p.competition !== comp || !giocata(p)) continue;
+    const chiave = `${p.serieA}|${p.phase}|${p.groupName ?? ''}|${p.round}`;
+    const g = gruppi.get(chiave) ?? { chiave, titolo: titoloPartita(p), partite: [], quando: Date.parse(p.kickoff) };
+    g.partite.push(p);
+    gruppi.set(chiave, g);
+  }
+  return [...gruppi.values()]
+    .sort((a, b) => b.quando - a.quando || a.titolo.localeCompare(b.titolo))
+    .map(({ chiave, titolo, partite }) => ({ chiave, titolo, partite }));
 }
 
 /** «6ª giornata», «Girone A · 3° turno», «Semifinale». */

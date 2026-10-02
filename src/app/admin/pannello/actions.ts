@@ -62,9 +62,10 @@ export async function aggiornaListoneAction(): Promise<StatoListone> {
 export type StatoRose = (AnteprimaRose & { applicate?: boolean; dettagli?: string[] }) | null;
 
 /**
- * Le rose da Leghe Fantacalcio. Senza conferma mostra soltanto le
- * differenze; con la conferma le scrive, anche quelle che riguardano
- * giocatori mossi di recente nell'app (che il cron invece salta).
+ * Le rose da Leghe Fantacalcio: chi c'è, a che costo, con quanti crediti.
+ * Senza conferma mostra soltanto le differenze; con la conferma le copia,
+ * anche quelle che riguardano giocatori mossi di recente nell'app (che il
+ * cron invece salta).
  */
 export async function aggiornaRoseAction(_p: StatoRose, form: FormData): Promise<StatoRose> {
   const chi = await admin();
@@ -75,7 +76,7 @@ export async function aggiornaRoseAction(_p: StatoRose, form: FormData): Promise
       // al browser solo l'anteprima, non il listone intero
       const a = await anteprimaRoseDallaLega();
       return {
-        ok: a.ok, messaggio: a.messaggio, preview: a.preview, checks: a.checks,
+        ok: a.ok, messaggio: a.messaggio, differenze: a.differenze, checks: a.checks,
         conflitti: a.conflitti, problemi: a.problemi, cambi: a.cambi,
       };
     }

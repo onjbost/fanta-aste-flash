@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MINIMO_LISTONE, traduciListoneERose, type GiocatoreApi } from './rose';
+import { MINIMO_LISTONE, differenzeRose, traduciListoneERose, type GiocatoreApi } from './rose';
 
 const nostri = [
   { extId: '5585', name: 'MALEN', role: 'A' as const, club: 'Roma', quotation: 38, outOfList: false },
@@ -70,5 +70,36 @@ describe('traduciListoneERose', () => {
     const t = traduciListoneERose(pool([{ id: 777, name: 'Nuovo', stnme: 'NAP', quotd: 5 }]), [], nostri, squadre,
       new Map([['777', { ruolo: 'C' as const }]]));
     expect(t.giocatori.find((g) => g.extId === '777')).toMatchObject({ role: 'C', name: 'NUOVO' });
+  });
+});
+
+describe('differenzeRose', () => {
+  const nostri = [
+    { contractId: 'c1', extId: '1', nome: 'UNO', teamName: 'A', price: 10 },
+    { contractId: 'c2', extId: '2', nome: 'DUE', teamName: 'A', price: 20 },
+    { contractId: 'c3', extId: '3', nome: 'TRE', teamName: 'B', price: 30 },
+  ];
+  const g = (extId: string, teamName: string | null, price: number | null) => ({
+    extId, name: `G${extId}`, role: 'C' as const, club: 'Roma', quotation: 1, outOfList: false, teamName, price,
+  });
+
+  it('copia lo stato: chi entra, chi esce, chi cambia squadra, i costi e i crediti', () => {
+    const d = differenzeRose(
+      nostri,
+      [g('1', 'A', 10), g('2', 'A', 25), g('3', 'A', 30), g('4', 'B', 5), g('5', null, null)],
+      new Map([['A', 100], ['B', 50]]),
+      new Map([['A', 70], ['B', 50]]),
+    );
+    expect(d.costi).toEqual([{ contractId: 'c2', extId: '2', nome: 'DUE', teamName: 'A', da: 20, a: 25 }]);
+    // TRE passa da B ad A: esce da B ed entra in A
+    expect(d.escono.map((x) => x.extId)).toEqual(['3']);
+    expect(d.entrano.map((x) => `${x.extId}>${x.teamName}`).sort()).toEqual(['3>A', '4>B']);
+    expect(d.crediti).toEqual([{ teamName: 'A', da: 100, a: 70 }]);
+    expect(d.totale).toBe(5);
+  });
+
+  it('senza differenze non c\'è niente da fare', () => {
+    const d = differenzeRose(nostri, [g('1', 'A', 10), g('2', 'A', 20), g('3', 'B', 30)], new Map([['A', 9]]), new Map([['A', 9]]));
+    expect(d.totale).toBe(0);
   });
 });

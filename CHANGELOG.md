@@ -7,10 +7,11 @@ Listone e rose da Leghe Fantacalcio, senza più file.
 - **«Aggiorna listone e svincolati»** nel Pannello amministratore: il listone
   della lega (nomi, ruoli, club, quotazioni) letto dall'API di Leghe
   Fantacalcio, con il token già collegato.
-- **«Aggiorna le rose da Leghe Fantacalcio»**: il primo tocco mostra le
-  differenze (chi entra, chi esce col rimborso, cambi di squadra e di
-  prezzo), il secondo, con la conferma, le scrive. Stesse regole dell'import
-  da file: movimenti di credito e registro.
+- **«Aggiorna le rose da Leghe Fantacalcio»**: copia lo stato della lega —
+  chi c'è in ogni rosa, a che costo, e i crediti di ogni squadra. Non è
+  un'operazione di mercato: chi esce non restituisce crediti e non consuma
+  cambi. Il primo tocco mostra le differenze, il secondo, con la conferma,
+  le copia.
 - **Ogni mattina col cron**, dopo il calcolo e l'import della giornata. Le
   rose si copiano da sole solo se nessuna differenza riguarda un giocatore
   mosso nell'app nelle ultime tre settimane (asta flash, svincolo): se la

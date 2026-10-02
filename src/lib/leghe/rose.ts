@@ -35,6 +35,8 @@ export interface SquadraApi {
   n?: string;
   cal?: string | null;
   cs?: string | null;
+  /** crediti rimasti */
+  cr?: number | string | null;
 }
 
 /** Quello che sappiamo già di un giocatore: serve quando l'API tace. */
@@ -72,6 +74,8 @@ export interface Traduzione {
   squadreSconosciute: string[];
   /** quante squadre hanno una rosa (prima dell'asta nessuna) */
   conRosa: number;
+  /** i crediti rimasti di ogni nostra squadra secondo la lega, se li dice */
+  crediti: Map<string, number>;
   problemi: string[];
 }
 
@@ -105,6 +109,7 @@ export function traduciListoneERose(
   const nostraSquadra = new Map(squadre.map((s) => [chiaveSquadra(s), s]));
   const inRosa = new Map<string, { teamName: string; price: number }>();
   const squadreSconosciute: string[] = [];
+  const crediti = new Map<string, number>();
   let conRosa = 0;
   for (const t of teams) {
     const nomeLega = String(t.n ?? t.id ?? '').trim();
@@ -114,9 +119,11 @@ export function traduciListoneERose(
       problemi.push(`${nomeLega}: ${ids.length} giocatori ma ${costi.length} prezzi, rosa non leggibile`);
       continue;
     }
+    const teamName = nostraSquadra.get(chiaveSquadra(nomeLega));
+    const cr = intero(t.cr);
+    if (teamName && cr != null) crediti.set(teamName, cr);
     if (!ids.length) continue;
     conRosa++;
-    const teamName = nostraSquadra.get(chiaveSquadra(nomeLega));
     if (!teamName) { squadreSconosciute.push(nomeLega); continue; }
     ids.forEach((id, i) => inRosa.set(id, { teamName, price: Number(costi[i]) || 0 }));
   }
@@ -151,5 +158,69 @@ export function traduciListoneERose(
   if (giocatori.length < MINIMO_LISTONE) {
     problemi.push(`il listone della lega ha solo ${giocatori.length} giocatori: la risposta è incompleta o è cambiata`);
   }
-  return { giocatori, squadreSconosciute, conRosa, problemi };
+  return { giocatori, squadreSconosciute, conRosa, crediti, problemi };
+}
+
+// =====================================================================
+// la copia delle rose
+// =====================================================================
+
+/** Un contratto aperto da noi, nella forma che serve al confronto. */
+export interface ContrattoNostro {
+  contractId: string;
+  extId: string;
+  nome: string;
+  teamName: string;
+  price: number;
+}
+
+export interface Differenze {
+  /** in rosa nella lega, non da noi (o da noi in un'altra squadra: allora è anche in `escono`) */
+  entrano: { extId: string; nome: string; teamName: string; price: number }[];
+  /** in rosa da noi, non nella lega (o nella lega in un'altra squadra) */
+  escono: { contractId: string; extId: string; nome: string; teamName: string; price: number }[];
+  /** stessa squadra, costo diverso */
+  costi: { contractId: string; extId: string; nome: string; teamName: string; da: number; a: number }[];
+  /** crediti diversi da quelli della lega */
+  crediti: { teamName: string; da: number; a: number }[];
+  /** quante cose cambierebbero, in tutto */
+  totale: number;
+}
+
+/**
+ * Cosa cambiare perché le nostre rose siano quelle della lega: chi c'è, a
+ * che costo, con quanti crediti. Nessuna operazione di mercato: un giocatore
+ * che non è più in rosa esce senza rimborso e senza consumare un cambio,
+ * perché i crediti si copiano dalla lega così come sono.
+ */
+export function differenzeRose(
+  nostri: ContrattoNostro[],
+  lega: ListonePlayer[],
+  creditiNostri: Map<string, number>,
+  creditiLega: Map<string, number>,
+): Differenze {
+  const voluti = new Map(lega.filter((p) => p.teamName).map((p) => [p.extId, p]));
+  const attuali = new Map(nostri.map((c) => [c.extId, c]));
+  const d: Differenze = { entrano: [], escono: [], costi: [], crediti: [], totale: 0 };
+
+  for (const c of nostri) {
+    const v = voluti.get(c.extId);
+    if (!v || v.teamName !== c.teamName) {
+      d.escono.push({ contractId: c.contractId, extId: c.extId, nome: c.nome, teamName: c.teamName, price: c.price });
+    } else if ((v.price ?? 0) !== c.price) {
+      d.costi.push({ contractId: c.contractId, extId: c.extId, nome: c.nome, teamName: c.teamName, da: c.price, a: v.price ?? 0 });
+    }
+  }
+  for (const v of voluti.values()) {
+    const c = attuali.get(v.extId);
+    if (!c || c.teamName !== v.teamName) {
+      d.entrano.push({ extId: v.extId, nome: v.name, teamName: v.teamName!, price: v.price ?? 0 });
+    }
+  }
+  for (const [teamName, a] of creditiLega) {
+    const da = creditiNostri.get(teamName);
+    if (da != null && da !== a) d.crediti.push({ teamName, da, a });
+  }
+  d.totale = d.entrano.length + d.escono.length + d.costi.length + d.crediti.length;
+  return d;
 }

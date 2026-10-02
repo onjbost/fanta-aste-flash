@@ -76,10 +76,11 @@ export default async function PannelloPage() {
       <h2>Listone e rose</h2>
       <div className="panel" style={{ padding: 16 }}>
         <p className="sub" style={{ marginTop: 0 }}>
-          Da Leghe Fantacalcio, senza file: il listone con gli svincolati, e le rose con i prezzi
-          pagati. Ogni mattina li aggiorna il cron; le rose solo se nessuna differenza tocca un
-          giocatore mosso nell&apos;app nelle ultime tre settimane — in quel caso te lo dice e
-          decidi tu da qui, guardando le differenze.
+          Da Leghe Fantacalcio, senza file: il listone con gli svincolati, e le rose copiate così
+          come sono nella lega — giocatori, costi e crediti, senza rimborsi né cambi consumati.
+          Ogni mattina li aggiorna il cron; le rose solo se nessuna differenza tocca un giocatore
+          mosso nell&apos;app nelle ultime tre settimane — in quel caso te lo dice e decidi tu da
+          qui, guardando le differenze.
         </p>
         <p className="sub">
           Listone: {raccolte.listone ? `${quando(raccolte.listone.fetchedAt)} · ${raccolte.listone.righe} giocatori${raccolte.listone.nota ? ` (${raccolte.listone.nota})` : ''}` : 'mai letto dalla lega'}

@@ -22,12 +22,12 @@ export function AggiornaListone() {
 }
 
 /**
- * «Aggiorna le rose»: il primo invio mostra le differenze con la lega, il
- * secondo — con la conferma spuntata — le scrive.
+ * «Aggiorna le rose»: il primo invio mostra le differenze con la lega (rose,
+ * costi, crediti), il secondo — con la conferma spuntata — le copia.
  */
 export function AggiornaRose() {
   const [stato, azione, inCorso] = useActionState<StatoRose, FormData>(aggiornaRoseAction, null);
-  const r = stato?.preview?.rosters;
+  const d = stato?.differenze;
   const daConfermare = Boolean(stato?.ok && stato.cambi > 0 && !stato.applicate);
 
   return (
@@ -38,7 +38,7 @@ export function AggiornaRose() {
           textTransform: 'none', letterSpacing: 0, fontWeight: 400, fontSize: '.86rem',
         }}>
           <input type="checkbox" name="conferma" style={{ width: 'auto' }} />
-          <b>confermo, copia le rose della lega</b>
+          <b>confermo, copia rose, costi e crediti della lega</b>
         </label>
       )}
       <button type="submit" disabled={inCorso}>
@@ -73,44 +73,45 @@ export function AggiornaRose() {
         </div>
       )}
 
-      {r && stato?.cambi ? (
+      {d && stato?.cambi ? (
         <div className="tablewrap" style={{ marginTop: 10 }}>
           <table>
-            <thead><tr><th>Cambiamento</th><th>Giocatore</th><th>Dettaglio</th></tr></thead>
+            <thead><tr><th>Cosa</th><th>Chi</th><th>Nella lega</th></tr></thead>
             <tbody>
-              {r.repriced.map((x) => (
+              {d.crediti.map((x) => (
+                <tr key={`k${x.teamName}`}>
+                  <td><span className="tag warn">Crediti</span></td>
+                  <td><b>{x.teamName}</b></td>
+                  <td className="mono">{x.da} → {x.a}</td>
+                </tr>
+              ))}
+              {d.costi.map((x) => (
                 <tr key={`p${x.extId}`}>
-                  <td><span className="tag warn">Prezzo</span></td>
-                  <td><b>{x.name}</b> <span style={{ color: 'var(--muted)' }}>{x.teamName}</span></td>
-                  <td className="mono">{x.from} → {x.to} crediti</td>
+                  <td><span className="tag warn">Costo</span></td>
+                  <td><b>{x.nome}</b> <span style={{ color: 'var(--muted)' }}>{x.teamName}</span></td>
+                  <td className="mono">{x.da} → {x.a}</td>
                 </tr>
               ))}
-              {r.moved.map((x) => (
-                <tr key={`m${x.extId}`}>
-                  <td><span className="tag warn">Squadra</span></td>
-                  <td><b>{x.name}</b></td>
-                  <td>{x.from} → {x.to} · {x.price} crediti</td>
-                </tr>
-              ))}
-              {r.added.map((x) => (
+              {d.entrano.map((x) => (
                 <tr key={`a${x.extId}`}>
                   <td><span className="tag ok">Entra</span></td>
-                  <td><b>{x.name}</b></td>
-                  <td>in {x.teamName} per {x.price} crediti</td>
+                  <td><b>{x.nome}</b></td>
+                  <td>in {x.teamName}, costo {x.price}</td>
                 </tr>
               ))}
-              {r.removed.map((x) => (
+              {d.escono.map((x) => (
                 <tr key={`r${x.extId}`}>
                   <td><span className="tag crit">Esce</span></td>
-                  <td><b>{x.name}</b></td>
-                  <td>
-                    da {x.teamName} · pagato {x.price}, restituiti <b>{x.rimborso}</b>
-                    {x.tipoRimborso === 'free_100' ? ' (100%: fuori dalla Serie A o squalificato)' : ' (75%)'}
-                  </td>
+                  <td><b>{x.nome}</b></td>
+                  <td>non è più in {x.teamName}</td>
                 </tr>
               ))}
             </tbody>
           </table>
+          <p className="sub" style={{ margin: '8px 0 0' }}>
+            È una copia dello stato della lega, non un&apos;operazione di mercato: chi esce non
+            restituisce crediti e non consuma cambi, perché i crediti si prendono dalla lega così come sono.
+          </p>
         </div>
       ) : null}
     </form>

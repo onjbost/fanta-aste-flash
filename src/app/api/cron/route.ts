@@ -11,19 +11,23 @@ import {
 } from '@/lib/leghe/legheServer';
 import { liveGiornata } from '@/lib/live/liveServer';
 import { allineaCalendario } from '@/lib/live/calendarioServer';
+import { aggiornaListoneDallaLega, aggiornaRoseDallaLega } from '@/lib/leghe/roseServer';
 
-// le pagine di fantacalcio.it si leggono in fila: il tempo standard di una
-// funzione non basta quando c'è da recuperare qualche giornata di voti
-export const maxDuration = 60;
+// il giro legge in fila fantacalcio.it e Leghe Fantacalcio: cinque minuti,
+// il massimo del piano. Quasi tutto è attesa di rete, che non consuma CPU
+export const maxDuration = 300;
 
 /**
- * Cron giornaliero (Vercel). Fa cinque cose:
- *   1. allinea lo stato delle sessioni al calendario
- *   2. prepara i riepiloghi di T−5 e T−1 come bozze da controllare
- *   3. il mercoledì, raccoglie gli indisponibili di Serie A e le foto delle news
- *   4. ogni giorno, le quotazioni aggiornate, i voti dell'ultima giornata e le
- *      statistiche di stagione (fantamedia, presenze, bonus e malus)
- *   5. tocca il database, così il progetto Supabase gratuito non va in pausa
+ * Cron giornaliero (Vercel), alle 9. In ordine di importanza, così se il
+ * tempo finisse resterebbe indietro la cosa che conta meno:
+ *   1. allinea lo stato delle sessioni al calendario e prepara i riepiloghi
+ *   2. allinea il calendario di Serie A col live di fantacalcio.it
+ *   3. i voti di giornata, poi calcola e importa da Leghe Fantacalcio la
+ *      giornata conclusa (i voti servono a capire se è finita)
+ *   4. listone e rose da Leghe Fantacalcio
+ *   5. il mercoledì, gli indisponibili di Serie A e le foto delle news
+ *   6. quotazioni e statistiche di stagione da fantacalcio.it
+ * Tutto questo tocca il database, e il progetto Supabase gratuito non va in pausa.
  *
  * Le fasi vengono comunque ricalcolate dall'orologio a ogni pagina: se il cron
  * salta un giro, l'app resta corretta lo stesso.
@@ -62,6 +66,75 @@ export async function GET(request: NextRequest) {
     await notifyAdmin(tgPhaseChange(s?.number ?? 0, c.to, count ?? 0));
   }
 
+  // Il calendario di Serie A delle giornate vicine (quella appena giocata e
+  // le due che vengono), allineato col live di fantacalcio.it: anticipi,
+  // posticipi e rinvii arrivano qui prima che servano a quote e import.
+  const calendario: { serieA: number; esito: Awaited<ReturnType<typeof allineaCalendario>> }[] = [];
+  {
+    const da = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
+    const { data: vicine } = await db.from('matchdays').select('serie_a')
+      .gte('match_date', da).order('match_date').limit(3);
+    for (const m of vicine ?? []) {
+      const live = await liveGiornata(Number(m.serie_a));
+      if ('partite' in live) {
+        calendario.push({ serieA: Number(m.serie_a), esito: await allineaCalendario(Number(m.serie_a), live.partite, true).catch(() => null) });
+      }
+    }
+  }
+
+  // I voti prima dell'import: quando il live non risponde, è dalle pagelle
+  // complete di tutti i club che si capisce che la giornata è finita
+  const voti = await raccogliVoti();
+
+  // Le giornate concluse da Leghe Fantacalcio, senza preferito: si guardano
+  // ogni mattina, ma una giornata si legge solo dal giorno dopo la sua ultima
+  // partita di Serie A, col calendario aggiornato. Se la lega a quel punto non
+  // l'ha ancora calcolata, lo si dice e si riprova la mattina dopo. Il token
+  // che sta per scadere si dice per tempo.
+  let giornate: Awaited<ReturnType<typeof importaGiornateConcluse>> | null = null;
+  try {
+    // solo dal giorno dopo l'ultima partita di Serie A della giornata: prima
+    // la lega non può averla calcolata, e leggere non serve a niente
+    // e se a quel punto la lega non l'ha calcolata, la calcola l'app: solo a
+    // partite tutte finite secondo il live (LEGHE_CALCOLO_AUTOMATICO=no lo spegne)
+    giornate = await importaGiornateConcluse({ aspettaIlCalcolo: true, calcola: calcoloAutomaticoAcceso() });
+    for (const c of giornate.calcolate) {
+      await notifyAdminPlain(`🧮 Ho calcolato su Leghe Fantacalcio ${c.competizione === 'coppa' ? 'il turno di coppa' : 'la giornata'} ${c.giornata}.`);
+    }
+    for (const g of giornate.importate) {
+      await notifyAdminPlain(
+        `📥 Giornata ${g.giornata} di ${g.competizione} importata da Leghe Fantacalcio: `
+        + `${g.esito.sfideScritte}/${g.esito.sfideLette} sfide`
+        + (g.esito.problemi.length ? `\n${g.esito.problemi.join('\n')}` : ''),
+      );
+    }
+    if (giornate.problemi.length) await notifyAdminPlain(`Leghe Fantacalcio:\n${giornate.problemi.join('\n')}`);
+    const stato = await statoCollegamento();
+    const restano = stato?.scadeIl ? (Date.parse(stato.scadeIl) - Date.now()) / 86_400_000 : null;
+    if (restano != null && restano < 3) {
+      await notifyAdminPlain(`🔑 Il token di Leghe Fantacalcio scade fra ${Math.max(0, Math.floor(restano))} giorni: incollane uno nuovo in /admin/redazione.`);
+    }
+  } catch (e) {
+    if (!(e instanceof LegheNonCollegata)) await notifyAdminPlain(`Leghe Fantacalcio: ${(e as Error).message}`);
+  }
+
+  // Listone e rose da Leghe Fantacalcio. Il listone (svincolati compresi) è
+  // anagrafica e si scrive sempre; le rose solo se nessuna differenza tocca
+  // un giocatore mosso nell'app di recente — se la lega è indietro rispetto
+  // a un'asta flash, copiarla disferebbe il mercato. In quel caso si dice e
+  // decide l'admin dal Pannello.
+  let listone: Awaited<ReturnType<typeof aggiornaListoneDallaLega>> | null = null;
+  let rose: Awaited<ReturnType<typeof aggiornaRoseDallaLega>> | null = null;
+  try {
+    listone = await aggiornaListoneDallaLega(null);
+    if (!listone.ok) await notifyAdminPlain(`📋 ${listone.messaggio}`);
+    rose = await aggiornaRoseDallaLega({ actor: null, automatico: true });
+    if (rose.applicate) await notifyAdminPlain(`👥 ${rose.messaggio}`);
+    else if (rose.cambi > 0 || !rose.ok) await notifyAdminPlain(`👥 ${rose.messaggio}`);
+  } catch (e) {
+    if (!(e instanceof LegheNonCollegata)) await notifyAdminPlain(`Listone e rose da Leghe Fantacalcio: ${(e as Error).message}`);
+  }
+
   // Il mercoledì gli indisponibili. Dentro il cron che c'è già e non in uno
   // suo: il piano Hobby di Vercel ne concede pochissimi, e un `getDay()`
   // costa meno di uno slot. Il mercoledì è la scelta dell'admin — sappi però
@@ -96,7 +169,6 @@ export async function GET(request: NextRequest) {
   // volta a settimana, il mercoledì con gli indisponibili: un guasto della
   // pagina non deve diventare un messaggio ogni mattina.
   const quotazioni = await raccogliQuotazioni();
-  const voti = await raccogliVoti();
   const statistiche = await raccogliStatistiche();
   const guasti = [
     ...quotazioni.problemi.map((p) => `Quotazioni: ${p}`),
@@ -105,58 +177,12 @@ export async function GET(request: NextRequest) {
   ];
   if (guasti.length && new Date().getUTCDay() === 3) await notifyAdminPlain(guasti.join('\n'));
 
-  // Il calendario di Serie A delle giornate vicine (quella appena giocata e
-  // le due che vengono), allineato col live di fantacalcio.it: anticipi,
-  // posticipi e rinvii arrivano qui prima che servano a quote e import.
-  const calendario: { serieA: number; esito: Awaited<ReturnType<typeof allineaCalendario>> }[] = [];
-  {
-    const da = new Date(Date.now() - 7 * 86_400_000).toISOString().slice(0, 10);
-    const { data: vicine } = await db.from('matchdays').select('serie_a')
-      .gte('match_date', da).order('match_date').limit(3);
-    for (const m of vicine ?? []) {
-      const live = await liveGiornata(Number(m.serie_a));
-      if ('partite' in live) {
-        calendario.push({ serieA: Number(m.serie_a), esito: await allineaCalendario(Number(m.serie_a), live.partite, true).catch(() => null) });
-      }
-    }
-  }
-
-  // Le giornate concluse da Leghe Fantacalcio, senza preferito: si guardano
-  // ogni mattina, ma una giornata si legge solo dal giorno dopo la sua ultima
-  // partita di Serie A, col calendario aggiornato. Se la lega a quel punto non
-  // l'ha ancora calcolata, lo si dice e si riprova la mattina dopo. Il token
-  // che sta per scadere si dice per tempo.
-  let giornate: Awaited<ReturnType<typeof importaGiornateConcluse>> | null = null;
-  try {
-    // solo dal giorno dopo l'ultima partita di Serie A della giornata: prima
-    // la lega non può averla calcolata, e leggere non serve a niente
-    // e se a quel punto la lega non l'ha calcolata, la calcola l'app: solo a
-    // partite tutte finite secondo il live (LEGHE_CALCOLO_AUTOMATICO=no lo spegne)
-    giornate = await importaGiornateConcluse({ aspettaIlCalcolo: true, calcola: calcoloAutomaticoAcceso() });
-    for (const c of giornate.calcolate) {
-      await notifyAdminPlain(`🧮 Ho calcolato su Leghe Fantacalcio ${c.competizione === 'coppa' ? 'il turno di coppa' : 'la giornata'} ${c.giornata}.`);
-    }
-    for (const g of giornate.importate) {
-      await notifyAdminPlain(
-        `📥 Giornata ${g.giornata} di ${g.competizione} importata da Leghe Fantacalcio: `
-        + `${g.esito.sfideScritte}/${g.esito.sfideLette} sfide`
-        + (g.esito.problemi.length ? `\n${g.esito.problemi.join('\n')}` : ''),
-      );
-    }
-    if (giornate.problemi.length) await notifyAdminPlain(`Leghe Fantacalcio:\n${giornate.problemi.join('\n')}`);
-    const stato = await statoCollegamento();
-    const restano = stato?.scadeIl ? (Date.parse(stato.scadeIl) - Date.now()) / 86_400_000 : null;
-    if (restano != null && restano < 3) {
-      await notifyAdminPlain(`🔑 Il token di Leghe Fantacalcio scade fra ${Math.max(0, Math.floor(restano))} giorni: incollane uno nuovo in /admin/redazione.`);
-    }
-  } catch (e) {
-    if (!(e instanceof LegheNonCollegata)) await notifyAdminPlain(`Leghe Fantacalcio: ${(e as Error).message}`);
-  }
-
   const { count } = await db.from('players').select('id', { count: 'exact', head: true });
 
   return NextResponse.json({
     ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti, statistiche,
+    listone: listone ? { ok: listone.ok, messaggio: listone.messaggio } : null,
+    rose: rose ? { applicate: rose.applicate, cambi: rose.cambi, messaggio: rose.messaggio } : null,
     giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
     calendario,
     at: new Date().toISOString(),

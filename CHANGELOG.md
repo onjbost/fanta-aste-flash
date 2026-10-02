@@ -1,5 +1,26 @@
 # Aste Flash · Fanta Mansarda
 
+## v5.4 — 2 ottobre 2026
+
+Listone e rose da Leghe Fantacalcio, senza più file.
+
+- **«Aggiorna listone e svincolati»** nel Pannello amministratore: il listone
+  della lega (nomi, ruoli, club, quotazioni) letto dall'API di Leghe
+  Fantacalcio, con il token già collegato.
+- **«Aggiorna le rose da Leghe Fantacalcio»**: il primo tocco mostra le
+  differenze (chi entra, chi esce col rimborso, cambi di squadra e di
+  prezzo), il secondo, con la conferma, le scrive. Stesse regole dell'import
+  da file: movimenti di credito e registro.
+- **Ogni mattina col cron**, dopo il calcolo e l'import della giornata. Le
+  rose si copiano da sole solo se nessuna differenza riguarda un giocatore
+  mosso nell'app nelle ultime tre settimane (asta flash, svincolo): se la
+  lega è indietro, copiarla disferebbe il mercato. In quel caso arriva un
+  messaggio su Telegram e si decide dal Pannello.
+- **Gestione rose** non ha più il form «Aggiorna da file».
+- Il giro del mattino ha fino a cinque minuti, e fa le cose in ordine di
+  importanza: sessioni, calendario, voti e giornata, listone e rose, poi il
+  resto.
+
 ## v5.3 — 2 ottobre 2026
 
 - **Il logo dell'app**: un martello da banditore a contorno, verde notte su

@@ -38,7 +38,7 @@ const BASE = 'https://apileague.fantacalcio.it';
  * `LEGHE_APP_KEY` la sostituisce senza rilasciare l'app.
  */
 const APP_KEY_SITO = 'ICiELOObd5DF5uJEATi77CRvHiiRuMU0';
-/** Giornate concluse da importare per giro, al massimo: il cron ha un minuto. */
+/** Giornate concluse da importare per giro, al massimo: il resto al giro dopo. */
 const GIORNATE_PER_GIRO = 2;
 
 export class LegheNonCollegata extends Error {}
@@ -113,7 +113,7 @@ export async function salvaToken(grezzo: string): Promise<{ ok: true; info: Info
 // la rete
 // =====================================================================
 
-async function chiedi<T>(percorso: string, token?: string, invio?: { metodo: 'POST'; corpo: unknown }): Promise<T> {
+export async function chiedi<T>(percorso: string, token?: string, invio?: { metodo: 'POST'; corpo: unknown }): Promise<T> {
   const t = token ?? await tokenAttuale();
   let res: Response;
   try {
@@ -244,7 +244,7 @@ async function dettaglio(compId: number, mday: number, cmday: number, casa: numb
 
 const normalizza = (s: string) => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 
-async function lega(): Promise<string> {
+export async function lega(): Promise<string> {
   const { data } = await supabaseAdmin().from('leagues').select('id').limit(1).single();
   return data!.id as string;
 }

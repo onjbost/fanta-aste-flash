@@ -5,12 +5,13 @@ import { ultimeRaccolte } from '@/lib/fonti/fontiServer';
 import type { PassoGiro } from '@/lib/leghe/legheServer';
 import { TopBar } from '../../TopBar';
 import { AggiornaFonti, AggiornaIndisponibili, ImportaGiornata } from './Pannello';
+import { AggiornaListone, AggiornaRose } from './Rose';
 import { Passi, SEGNO } from './Passi';
 import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
-// calcolo sulla lega e import possono prendersi qualche decina di secondi
-export const maxDuration = 60;
+// calcolo sulla lega, import e rose possono prendersi qualche decina di secondi
+export const maxDuration = 300;
 
 const ORIGINE: Record<string, string> = { cron: 'cron del mattino', manuale: 'a mano', reimport: 'reimport' };
 
@@ -70,6 +71,24 @@ export default async function PannelloPage() {
           classifiche e schedine.
         </p>
         <ImportaGiornata prossima={fatte + 1} />
+      </div>
+
+      <h2>Listone e rose</h2>
+      <div className="panel" style={{ padding: 16 }}>
+        <p className="sub" style={{ marginTop: 0 }}>
+          Da Leghe Fantacalcio, senza file: il listone con gli svincolati, e le rose con i prezzi
+          pagati. Ogni mattina li aggiorna il cron; le rose solo se nessuna differenza tocca un
+          giocatore mosso nell&apos;app nelle ultime tre settimane — in quel caso te lo dice e
+          decidi tu da qui, guardando le differenze.
+        </p>
+        <p className="sub">
+          Listone: {raccolte.listone ? `${quando(raccolte.listone.fetchedAt)} · ${raccolte.listone.righe} giocatori${raccolte.listone.nota ? ` (${raccolte.listone.nota})` : ''}` : 'mai letto dalla lega'}
+        </p>
+        <AggiornaListone />
+        <p className="sub">
+          Rose: {raccolte.rose ? `${quando(raccolte.rose.fetchedAt)} · ${raccolte.rose.nota ?? ''}` : 'mai lette dalla lega'}
+        </p>
+        <AggiornaRose />
       </div>
 
       <h2>Fonti</h2>

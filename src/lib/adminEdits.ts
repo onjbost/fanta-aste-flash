@@ -251,7 +251,7 @@ export async function previewSync(leagueId: string, incoming: ListonePlayer[]): 
  * l'admin lo chiede esplicitamente, perché è lì che si può fare danno.
  */
 export async function applySync(
-  leagueId: string, incoming: ListonePlayer[], opts: { rosters: boolean; actor: string },
+  leagueId: string, incoming: ListonePlayer[], opts: { rosters: boolean; actor: string | null; fonte?: string },
 ): Promise<{ ok: boolean; message: string; details: string[] }> {
   const db = supabaseAdmin();
   const details: string[] = [];
@@ -411,11 +411,13 @@ export async function applySync(
    */
   if (details.length > 0) {
     await annota({
-      leagueId, azione: 'rose_importate', attore: await chiAgisce(opts.actor),
+      leagueId, azione: 'rose_importate',
+      // il cron non è nessuno: firma la fonte
+      attore: opts.actor ? await chiAgisce(opts.actor) : { nome: 'Aggiornamento automatico' },
       dati: {
         giocatori: incoming.length,
         squadre: new Set(incoming.map((p) => p.teamName).filter(Boolean)).size || undefined,
-        nota: details.join(' · ') || undefined,
+        nota: [opts.fonte, ...details].filter(Boolean).join(' · ') || undefined,
       },
     });
   }

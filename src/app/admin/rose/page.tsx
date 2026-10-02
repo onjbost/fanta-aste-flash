@@ -5,7 +5,6 @@ import { supabaseServer } from '@/lib/supabase';
 import { refundValue, ROLE_LABEL, type Role, type PlayerStatus } from '@/lib/rules';
 import { TopBar } from '../../TopBar';
 import { RosterEditor } from './RosterEditor';
-import { SyncForm } from './SyncForm';
 import { AzioniGruppo } from '../AzioniGruppo';
 
 export const dynamic = 'force-dynamic';
@@ -69,7 +68,7 @@ export default async function RosePage({
       <h1>Gestione rose</h1>
       <AzioniGruppo pagina="/admin/rose" />
       <p className="sub">
-        Correzioni a mano o ri-sincronizzazione da un nuovo export della lega.
+        Correzioni a mano alle rose.
         Ogni modifica genera il movimento di credito che la compensa e finisce nel registro.
       </p>
 
@@ -109,8 +108,10 @@ export default async function RosePage({
         }))}
       />
 
-      <h2>Aggiorna da file</h2>
-      <SyncForm />
+      <p className="sub">
+        Listone e rose si aggiornano da Leghe Fantacalcio: ogni mattina col cron, o subito dal{' '}
+        <Link href="/admin/pannello">Pannello amministratore</Link>.
+      </p>
 
       <div className="callout">
         Le correzioni sono visibili a tutta la lega nel registro: sei admin e allenatore

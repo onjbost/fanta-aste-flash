@@ -408,8 +408,8 @@ export interface UltimaRaccolta {
   nota: string | null;
 }
 
-/** Quando è stata letta l'ultima volta ciascuna pagina. */
-export async function ultimeRaccolte(): Promise<Record<'quotazioni' | 'voti' | 'statistiche', UltimaRaccolta | null>> {
+/** Quando è stata letta l'ultima volta ciascuna fonte (listone e rose della lega compresi). */
+export async function ultimeRaccolte(): Promise<Record<'quotazioni' | 'voti' | 'statistiche' | 'listone' | 'rose', UltimaRaccolta | null>> {
   const db = supabaseAdmin();
   const leggi = async (fonte: string) => {
     const { data } = await db.from('source_runs')
@@ -420,6 +420,8 @@ export async function ultimeRaccolte(): Promise<Record<'quotazioni' | 'voti' | '
       agganciate: Number(data.agganciate), nota: (data.nota as string | null) ?? null,
     } : null;
   };
-  const [quotazioni, voti, statistiche] = await Promise.all([leggi('quotazioni'), leggi('voti'), leggi('statistiche')]);
-  return { quotazioni, voti, statistiche };
+  const [quotazioni, voti, statistiche, listone, rose] = await Promise.all(
+    ['quotazioni', 'voti', 'statistiche', 'listone', 'rose'].map(leggi),
+  );
+  return { quotazioni, voti, statistiche, listone, rose };
 }

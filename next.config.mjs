@@ -1,6 +1,18 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   /*
+   * Le azioni del server accettano 1 MB per difetto, e oltre quella soglia
+   * Next non le fa nemmeno partire: risponde con una pagina d'errore. Lo
+   * stemma del Montester era più grosso, e l'admin si è trovato davanti
+   * «Application error» invece di un messaggio. Il browser adesso
+   * rimpicciolisce le immagini prima di mandarle; questo margine fa sì che un
+   * file sfuggito arrivi comunque all'azione, che lo rifiuta a parole.
+   */
+  experimental: {
+    serverActions: { bodySizeLimit: '4mb' },
+  },
+
+  /*
    * resvg è un modulo nativo: webpack prova a impacchettare il `.node` e si
    * ferma su «Unexpected character». Va lasciato fuori dal bundle e caricato
    * a runtime da Node, che è quello che `serverExternalPackages` fa.

@@ -1,4 +1,5 @@
 import 'server-only';
+import { popolaritaPerSfida, type CasellaPopolare } from './popolarita';
 import { nonSchierabili } from './infortuni/infortuniServer';
 import { supabaseAdmin } from './supabase';
 import {
@@ -532,4 +533,48 @@ export async function schedineDegliAltri(
     .sort((a, b) => b.serieA - a.serieA)
     .map((g) => ({ ...g, squadre: g.squadre.sort((a, b) => Number(b.punti ?? 0) - Number(a.punti ?? 0)) }));
   return { giornate, errore: null };
+}
+
+export interface SfidaPopolare {
+  id: string;
+  competizione: 'campionato' | 'coppa';
+  casa: string;
+  ospite: string;
+  caselle: (CasellaPopolare & { price: number })[];
+}
+
+/**
+ * «Cosa gioca la lega» su una giornata: tutte le giocate di tutte le squadre,
+ * contate per casella. Le schedine sono pubbliche da quando vengono giocate,
+ * quindi qui non c'è niente da nascondere.
+ */
+export async function cosaGiocaLaLega(
+  leagueId: string, giornata: Giornata,
+): Promise<{ sfide: SfidaPopolare[]; schedine: number; errore: string | null }> {
+  const db = supabaseAdmin();
+  const [sfide, { data, error }] = await Promise.all([
+    sfideDiGiornata(giornata.id),
+    db.from('picks')
+      .select('fixture_id, market, selection, price, slip_id, slips!inner(league_id, matchday_id)')
+      .eq('slips.league_id', leagueId).eq('slips.matchday_id', giornata.id),
+  ]);
+  if (error) return { sfide: [], schedine: 0, errore: error.message };
+
+  type Row = { fixture_id: string; market: string; selection: string; price: number; slip_id: string };
+  const righe = (data ?? []) as unknown as Row[];
+  const prezzo = new Map(righe.map((r) => [`${r.fixture_id}|${r.market}|${r.selection}`, Number(r.price)]));
+  const pop = popolaritaPerSfida(righe.map((r) => ({
+    fixtureId: r.fixture_id, market: r.market, selection: String(r.selection),
+  })));
+
+  return {
+    schedine: new Set(righe.map((r) => r.slip_id)).size,
+    errore: null,
+    sfide: sfide.filter((s) => pop.has(s.id)).map((s) => ({
+      id: s.id, competizione: s.competition, casa: s.homeName, ospite: s.awayName,
+      caselle: (pop.get(s.id) ?? []).map((c) => ({
+        ...c, price: prezzo.get(`${s.id}|${c.market}|${c.selection}`) ?? 0,
+      })),
+    })),
+  };
 }

@@ -56,35 +56,22 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
 
   return (
     <>
-      <p className="sub" style={{ marginTop: -8 }}>
-        <b>Giornata {giornata.fanta}</b>{chiusa ? ' · schedine chiuse' : ''} · 
-        {new Date(giornata.matchDate).toLocaleDateString('it-IT', {
-          weekday: 'long', day: 'numeric', month: 'long',
-        })}
-      </p>
-
-      <div className="stats">
-        <div className="stat">
-          <div className="k">{chiusa ? 'Chiuse il' : 'Si chiude tra'}</div>
-          <div className="v">
+      <div className="giornata-testa">
+        <div>
+          <p className="eyebrow">Giornata {giornata.fanta}</p>
+          <span className="sub">
+            {new Date(giornata.matchDate).toLocaleDateString('it-IT', {
+              weekday: 'long', day: 'numeric', month: 'long', timeZone: 'Europe/Rome',
+            })} · {ui.length} sfide
+          </span>
+        </div>
+        <div className={`chiusura${chiusa ? ' chiusa' : ''}`}>
+          <span className="k">{chiusa ? 'Chiuse' : 'Chiude tra'}</span>
+          <span className="v">
             {chiusa
-              ? new Date(giornata.lockAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'short' })
+              ? new Date(giornata.lockAt).toLocaleDateString('it-IT', { day: 'numeric', month: 'short', timeZone: 'Europe/Rome' })
               : <Countdown to={new Date(giornata.lockAt).toISOString()} />}
-          </div>
-          <div className="note">un'ora prima della prima partita</div>
-        </div>
-        <div className="stat">
-          <div className="k">Sfide</div>
-          <div className="v">{ui.length}</div>
-          <div className="note">
-            {ui.filter((s) => s.competition === 'campionato').length} di campionato
-            {ui.some((s) => s.competition === 'coppa') && ` · ${ui.filter((s) => s.competition === 'coppa').length} di coppa`}
-          </div>
-        </div>
-        <div className="stat">
-          <div className="k">Le tue giocate</div>
-          <div className="v">{iniziali.length}</div>
-          <div className="note">massimo {tetto} per sfida</div>
+          </span>
         </div>
       </div>
 
@@ -95,11 +82,14 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
         </div>
       ) : (
         <>
-          <div className="callout">
-            Ogni giocata azzeccata vale <b>{moltiplicatore} × la quota</b>. Se ne fai più d'una sulla
-            stessa sfida il moltiplicatore si divide: due giocate {moltiplicatore / 2} ciascuna,
-            tre {(moltiplicatore / 3).toFixed(2)}. La quota si congela quando salvi.
-          </div>
+          <details className="regola-breve">
+            <summary>Ogni giocata presa vale <b>{moltiplicatore} × la quota</b> · massimo {tetto} per sfida</summary>
+            <p>
+              Se ne fai più d'una sulla stessa sfida il moltiplicatore si divide: due giocate{' '}
+              {moltiplicatore / 2} ciascuna, tre {(moltiplicatore / 3).toFixed(2)}. La quota si
+              congela quando salvi. Le schedine chiudono un'ora prima della prima partita.
+            </p>
+          </details>
 
           <Schedina
             sfide={ui}

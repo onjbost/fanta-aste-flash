@@ -43,3 +43,20 @@ export function ElencoGiocate({ giocate }: { giocate: GiocataStorico[] }) {
   if (!giocate.length) return <div className="empty">Schedina vuota.</div>;
   return <>{giocate.map((g, i) => <Giocata key={i} g={g} />)}</>;
 }
+
+/**
+ * L'esito di una schedina in una pillola: in corso, oppure prese e punti.
+ * Verde solo se ha portato punti: una schedina a zero non è «presa».
+ */
+export function PillolaEsito({ conclusa, prese, totale, punti }: {
+  conclusa: boolean; prese: number; totale: number; punti: number | null;
+}) {
+  if (!conclusa) return <span className="pillola-esito">in corso</span>;
+  const p = punti ?? 0;
+  return (
+    <span className={`pillola-esito ${p > 0 ? 'presa' : 'persa'}`}>
+      <span className="num">{prese}/{totale}</span>
+      <b className="num">{p.toFixed(1)} pt</b>
+    </span>
+  );
+}

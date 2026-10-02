@@ -502,10 +502,14 @@ ol.rules li::before{
 /* =====================================================================
    Torneo dei tipster: la schedina e le righe operative dell'admin
    ===================================================================== */
-.sfida{padding:14px 16px;margin-bottom:12px}
-.sfida-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
-.sfida-nomi{font-weight:800;margin-top:5px;letter-spacing:-.01em}
-.sfida-nomi span{color:var(--muted);font-weight:400}
+.sfida{background:var(--surface);border-radius:var(--r);padding:12px 14px 14px;margin-bottom:10px}
+.sfida-head{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.sfida-nomi{
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;margin:8px 0 12px;
+  font-weight:700;font-size:1rem;
+}
+.sfida-nomi .casa{text-align:right}
+.sfida-nomi .vs{font-family:var(--font-display);font-size:.8rem;color:var(--muted);text-transform:uppercase}
 .sfida-n{font-family:var(--font-num);font-size:1.05rem;color:var(--muted)}
 .sfida-n small{font-size:.76rem}
 .sfida-n.vuota{color:var(--warn)}
@@ -1449,3 +1453,83 @@ button.pericolo-pieno:hover{color:#fff;filter:brightness(1.06)}
 .regia-comandi form:has(.largo){flex:1 1 100%}
 .regia-comandi .largo{margin-top:0}
 .regia-corpo .coda,.regia-corpo .coda-in-sala{margin-top:16px}
+
+/* =====================================================================
+   Schedine: palinsesto, barra in fondo, biglietti, «Cosa gioca la lega»
+   ===================================================================== */
+.titolo-riga{display:flex;justify-content:space-between;align-items:flex-end;gap:12px}
+.titolo-riga h1{margin:0}
+.titolo-riga .btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+.giornata-testa{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 12px}
+.giornata-testa .eyebrow{margin:0}
+.giornata-testa .sub{margin:0;font-size:.84rem}
+.chiusura{background:var(--surface);border-radius:var(--r-sm);padding:6px 12px;text-align:right}
+.chiusura .k{display:block;font-size:.66rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.chiusura .v{font-family:var(--font-num);font-weight:700;font-size:1.3rem;color:var(--accent);line-height:1.1}
+.chiusura .v .conto{font-size:inherit}
+.chiusura.chiusa .v{color:var(--muted)}
+
+.regola-breve{background:var(--accent-soft);border-radius:var(--r-sm);padding:10px 14px;margin:0 0 12px;font-size:.86rem}
+.regola-breve summary{cursor:pointer;list-style:none}
+.regola-breve summary::-webkit-details-marker{display:none}
+.regola-breve p{margin:8px 0 0;color:var(--muted)}
+
+.quote.griglia2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.quote.griglia2 .quota{min-width:0}
+.altri-mercati{margin-top:10px;border-top:1px solid var(--border)}
+.altri-mercati summary{
+  list-style:none;cursor:pointer;display:flex;align-items:center;gap:8px;
+  padding:10px 0 0;font-size:.82rem;font-weight:600;color:var(--muted);
+}
+.altri-mercati summary::-webkit-details-marker{display:none}
+.altri-mercati summary:hover{color:var(--ink)}
+.altri-mercati .pallino{background:var(--accent);color:var(--on-accent)}
+.giu{width:18px;height:18px;margin-left:auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease}
+details[open] > summary .giu{transform:rotate(180deg)}
+
+.barra-schedina{flex-wrap:nowrap;padding:10px 10px 10px 16px;border-radius:var(--pill);border-color:var(--surface-3)}
+.barra-dati{display:flex;flex-direction:column;min-width:0;font-size:.84rem;line-height:1.25}
+.barra-dati b{font-size:1.05rem}
+.barra-dati .potenziale{color:var(--accent)}
+.barra-dati .avviso{font-size:.74rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.barra-schedina .primary{min-height:44px;padding:8px 22px}
+
+/* biglietti: le schedine giocate, richiudibili */
+.biglietto{background:var(--surface);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.biglietto summary{list-style:none;cursor:pointer;padding:12px 14px}
+.biglietto summary::-webkit-details-marker{display:none}
+.biglietto summary:hover{background:var(--surface-2)}
+.biglietto-testa{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.biglietto-testa > div{display:flex;flex-direction:column;min-width:0}
+.biglietto-testa small{font-size:.78rem;color:var(--muted)}
+/* la linea tratteggiata del tagliando, fra testa e giocate */
+.biglietto[open] summary{border-bottom:2px dashed var(--bg)}
+.biglietto-corpo{padding:8px 10px 10px}
+.biglietto .gio{border-radius:8px}
+.pillola-esito{
+  display:inline-flex;align-items:center;gap:8px;flex:0 0 auto;
+  padding:4px 12px;border-radius:var(--pill);background:var(--surface-2);
+  font-size:.78rem;font-weight:600;color:var(--muted);
+}
+.pillola-esito b{font-size:1rem}
+.pillola-esito.presa{background:var(--ok-soft);color:var(--ok)}
+.pillola-esito.persa{background:var(--crit-soft);color:var(--crit)}
+
+.giornata-blocco{margin-bottom:12px}
+.giornata-blocco > summary{
+  list-style:none;cursor:pointer;display:flex;align-items:baseline;gap:10px;padding:8px 2px;
+}
+.giornata-blocco > summary::-webkit-details-marker{display:none}
+.giornata-blocco > summary .sub{margin:0;font-size:.82rem}
+.giornata-blocco > summary .giu{align-self:center}
+
+.lega-sfida .sfida-nomi{margin-top:0}
+.quota.popolare{
+  cursor:default;position:relative;
+  background:color-mix(in srgb,var(--accent) var(--pieno,20%),var(--surface-2));
+  color:var(--ink);
+}
+.quota.popolare.forte{color:var(--on-accent)}
+.quota.popolare .sel small{font-weight:400;opacity:.8}
+.quota.popolare .volte{font-size:.68rem;opacity:.8}

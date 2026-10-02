@@ -75,6 +75,11 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
 
   const scoperte = sfide.filter((s) => s.competition === 'campionato' && !perSfida.get(s.id)).length;
 
+  // quanto vale la schedina se le prende tutte: la cifra che chi gioca cerca
+  const prezzi = useMemo(() => new Map(sfide.flatMap((s) =>
+    s.quote.map((q) => [chiave(s.id, q.market, q.selection), q.price] as const))), [sfide]);
+  const potenziale = giocate.reduce((t, g) => t + punti(g.fixtureId, prezzi.get(chiave(g.fixtureId, g.market, g.selection)) ?? 0), 0);
+
   function tocca(fixtureId: string, market: string, selection: string) {
     if (chiusa) return;
     const k = chiave(fixtureId, market, selection);
@@ -95,66 +100,84 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
 
       {sfide.map((s) => {
         const n = perSfida.get(s.id) ?? 0;
-        const gruppi: [string, QuotaUI[]][] = [
-          ['Esito', inOrdine('1x2', s.quote.filter((q) => q.market === '1x2'))],
+        const esito = inOrdine('1x2', s.quote.filter((q) => q.market === '1x2'));
+        const altri: [string, QuotaUI[]][] = ([
           ['Gol totali', inOrdine('ou', s.quote.filter((q) => q.market === 'ou'))],
           ['Segnano entrambe', inOrdine('gg', s.quote.filter((q) => q.market === 'gg'))],
           ['Risultato esatto', inOrdine('exact', s.quote.filter((q) => q.market === 'exact'))],
-        ];
+        ] as [string, QuotaUI[]][]).filter(([, q]) => q.length > 0);
+        const sceltiAltrove = altri.reduce((t, [, q]) =>
+          t + q.filter((x) => scelte.has(chiave(s.id, x.market, x.selection))).length, 0);
+
+        const casella = (q: QuotaUI) => {
+          const attiva = scelte.has(chiave(s.id, q.market, q.selection));
+          return (
+            <button
+              type="button"
+              key={q.market + q.selection}
+              className={`quota${attiva ? ' on' : ''}`}
+              onClick={() => tocca(s.id, q.market, q.selection)}
+              disabled={chiusa || (!attiva && n >= tetto)}
+              aria-pressed={attiva}
+              title={attiva ? `vale ${punti(s.id, q.price).toFixed(1)} punti` : undefined}
+            >
+              <span className="sel">{etichetta(q.selection)}</span>
+              <span className="num">{q.price.toFixed(2)}</span>
+              {attiva && <span className="pt">{punti(s.id, q.price).toFixed(1)} pt</span>}
+            </button>
+          );
+        };
 
         return (
-          <div className="panel sfida" key={s.id}>
+          <div className="sfida" key={s.id}>
             <div className="sfida-head">
-              <div>
-                <span className={`tag ${s.competition === 'coppa' ? 'warn' : 'muted'}`}>
-                  {s.competition === 'coppa' ? `Coppa · ${s.fase}` : 'Campionato'}
-                </span>
-                <div className="sfida-nomi">{s.casa} <span>–</span> {s.ospite}</div>
-              </div>
-              <div className={`sfida-n ${n === 0 && s.competition === 'campionato' ? 'vuota' : ''}`}>
+              <span className={`tag ${s.competition === 'coppa' ? 'warn' : 'muted'}`}>
+                {s.competition === 'coppa' ? `Coppa · ${s.fase}` : 'Campionato'}
+              </span>
+              <span className={`sfida-n num${n === 0 && s.competition === 'campionato' ? ' vuota' : ''}`}>
                 {n}<small>/{tetto}</small>
-              </div>
+              </span>
+            </div>
+            <div className="sfida-nomi">
+              <span className="casa">{s.casa}</span>
+              <span className="vs">vs</span>
+              <span className="ospite">{s.ospite}</span>
             </div>
 
-            {gruppi.filter(([, q]) => q.length > 0).map(([titolo, quote]) => (
-              <div className="mercato" key={titolo}>
-                <div className="mercato-k">{titolo}</div>
-                <div className={titolo === 'Risultato esatto' ? 'quote griglia3'
-                  : titolo === 'Gol totali' ? 'quote griglia3' : 'quote'}>
-                  {quote.map((q) => {
-                    const attiva = scelte.has(chiave(s.id, q.market, q.selection));
-                    return (
-                      <button
-                        type="button"
-                        key={q.market + q.selection}
-                        className={`quota${attiva ? ' on' : ''}`}
-                        onClick={() => tocca(s.id, q.market, q.selection)}
-                        disabled={chiusa || (!attiva && n >= tetto)}
-                        title={attiva ? `vale ${punti(s.id, q.price).toFixed(1)} punti` : undefined}
-                      >
-                        <span className="sel">{etichetta(q.selection)}</span>
-                        <span className="num">{q.price.toFixed(2)}</span>
-                        {attiva && <span className="pt">{punti(s.id, q.price).toFixed(1)} pt</span>}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            ))}
+            {esito.length > 0 && <div className="quote griglia3">{esito.map(casella)}</div>}
+
+            {altri.length > 0 && (
+              <details className="altri-mercati" open={sceltiAltrove > 0 || undefined}>
+                <summary>
+                  Altri mercati
+                  {sceltiAltrove > 0 && <span className="pallino">{sceltiAltrove}</span>}
+                  <svg className="giu" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+                </summary>
+                {altri.map(([titolo, quote]) => (
+                  <div className="mercato" key={titolo}>
+                    <div className="mercato-k">{titolo}</div>
+                    <div className={titolo === 'Segnano entrambe' ? 'quote griglia2' : 'quote griglia3'}>
+                      {quote.map(casella)}
+                    </div>
+                  </div>
+                ))}
+              </details>
+            )}
           </div>
         );
       })}
 
       {!chiusa && (
         <div className="barra-schedina">
-          <div>
-            <b>{giocate.length}</b> {giocate.length === 1 ? 'giocata' : 'giocate'}
+          <div className="barra-dati">
+            <span><b className="num">{giocate.length}</b> {giocate.length === 1 ? 'giocata' : 'giocate'}</span>
+            {giocate.length > 0 && <span className="potenziale">fino a <b className="num">{potenziale.toFixed(1)}</b> pt</span>}
             {scoperte > 0 && (
-              <span className="avviso"> · {scoperte} {scoperte === 1 ? 'sfida' : 'sfide'} di campionato senza giocate</span>
+              <span className="avviso">{scoperte} {scoperte === 1 ? 'sfida' : 'sfide'} di campionato senza giocate</span>
             )}
           </div>
           <button className="primary" type="submit" disabled={pending}>
-            {pending ? 'Salvo…' : 'Salva schedina'}
+            {pending ? 'Salvo…' : 'Salva'}
           </button>
         </div>
       )}

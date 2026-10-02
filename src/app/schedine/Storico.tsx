@@ -1,5 +1,5 @@
 import { storicoSchedine } from '@/lib/tipsterServer';
-import { ElencoGiocate } from './giocate';
+import { ElencoGiocate, PillolaEsito } from './giocate';
 
 export async function Storico({ teamId }: { teamId: string }) {
   const { schedine, errore } = await storicoSchedine(teamId);
@@ -28,42 +28,28 @@ export async function Storico({ teamId }: { teamId: string }) {
     <>
       <p className="sub" style={{ marginBottom: 12 }}>
         {schedine.length} {schedine.length === 1 ? 'schedina giocata' : 'schedine giocate'}.
-        Tocca una riga per vedere cosa avevi giocato. Le schedine sono pubbliche:
-        appena la salvi, gli altri allenatori la vedono nella loro tab.
+        Le schedine sono pubbliche: appena la salvi, gli altri la vedono.
       </p>
 
-      {schedine.map((s) => {
+      {schedine.map((s, i) => {
         const prese = s.giocate.filter((g) => g.outcome === 'won').length;
         return (
-          <details className="panel storico" key={s.slipId}>
+          <details className="biglietto" key={s.slipId} open={i === 0 || undefined}>
             <summary>
-              <div className="storico-riga">
+              <div className="biglietto-testa">
                 <div>
                   <b>Giornata {s.giornata ?? '—'}</b>
-                  <span className="storico-data">
-                    {' · '}
+                  <small>
+                    {s.giocate.length} {s.giocate.length === 1 ? 'giocata' : 'giocate'} ·{' '}
                     {new Date(s.inviataIl).toLocaleDateString('it-IT', {
-                      day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit',
+                      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
                     })}
-                  </span>
+                  </small>
                 </div>
-                <div className="storico-esito">
-                  <span className="storico-n">
-                    {s.giocate.length} {s.giocate.length === 1 ? 'giocata' : 'giocate'}
-                  </span>
-                  {s.conclusa ? (
-                    <>
-                      <span className="tag ok">{prese} prese</span>
-                      <b className="num">{(s.punti ?? 0).toFixed(1)} pt</b>
-                    </>
-                  ) : (
-                    <span className="tag muted">in corso</span>
-                  )}
-                </div>
+                <PillolaEsito conclusa={s.conclusa} prese={prese} totale={s.giocate.length} punti={s.punti} />
               </div>
             </summary>
-
-            <div className="storico-corpo">
+            <div className="biglietto-corpo">
               <ElencoGiocate giocate={s.giocate} />
             </div>
           </details>

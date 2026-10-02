@@ -6,6 +6,9 @@
   fondo oro. È il marchio del login, la favicon della scheda del browser e
   l'icona che compare aggiungendo l'app alla schermata Home, su iPhone e su
   Android.
+- **Il giro del mattino passa alle 9** (ora italiana, d'estate e d'inverno):
+  sessioni, indisponibili del mercoledì, quotazioni, voti, statistiche e
+  giornate concluse da Leghe Fantacalcio.
 
 ## v5.2 — 2 ottobre 2026
 

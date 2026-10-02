@@ -1,8 +1,12 @@
 {
   "crons": [
     {
-      "path": "/api/cron",
-      "schedule": "0 6 * * *"
+      "path": "/api/cron?ora=9",
+      "schedule": "0 7 * * *"
+    },
+    {
+      "path": "/api/cron?ora=9",
+      "schedule": "0 8 * * *"
     }
   ],
   "regions": [

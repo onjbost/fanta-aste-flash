@@ -28,10 +28,24 @@ export const maxDuration = 60;
  * Le fasi vengono comunque ricalcolate dall'orologio a ogni pagina: se il cron
  * salta un giro, l'app resta corretta lo stesso.
  */
+/** L'ora di adesso a Roma, 0–23. */
+function oraRoma(adesso = new Date()): number {
+  return Number(new Intl.DateTimeFormat('it-IT', { hour: '2-digit', hour12: false, timeZone: 'Europe/Rome' }).format(adesso));
+}
+
 export async function GET(request: NextRequest) {
   const secret = process.env.CRON_SECRET;
   if (secret && request.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'non autorizzato' }, { status: 401 });
+  }
+
+  // Il giro è alle 9 italiane. Vercel ragiona in UTC e l'Italia cambia ora
+  // due volte l'anno: in vercel.json ci sono due esecuzioni (7 e 8 UTC) e
+  // lavora solo quella che cade alle 9 a Roma — d'estate la prima, d'inverno
+  // la seconda. Senza `ora` (una chiamata a mano) si lavora sempre.
+  const ora = request.nextUrl.searchParams.get('ora');
+  if (ora && oraRoma() !== Number(ora)) {
+    return NextResponse.json({ ok: true, saltato: `a Roma non sono le ${ora}` });
   }
 
   const changed = await advanceSessions();

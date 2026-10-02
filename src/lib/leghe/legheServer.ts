@@ -171,16 +171,45 @@ export async function calcolaGiornata(compId: number, giornata: number): Promise
  * di Serie A sono finite (le rinviate non si aspettano). Senza live non si
  * calcola: meglio un giorno di ritardo che una giornata calcolata a metà.
  */
-async function partiteFinite(serieA: number): Promise<{ ok: boolean; perche: string }> {
+async function partiteFinite(serieA: number): Promise<{ ok: boolean; perche: string; fonte: string }> {
   const live = await liveGiornata(serieA);
-  if (!('partite' in live) || !live.partite.length) {
-    return { ok: false, perche: 'non riesco a leggere il live per sapere se le partite sono finite' };
+  if ('partite' in live && live.partite.length) {
+    const aperte = live.partite.filter((p) => p.status !== 4 && p.status !== 6);
+    if (aperte.length) {
+      return {
+        ok: false, fonte: 'live',
+        perche: `ci sono ancora ${aperte.length} partite non finite (${aperte.map((p) => `${p.teamHome}-${p.teamAway}`).join(', ')})`,
+      };
+    }
+    return { ok: true, perche: '', fonte: 'live' };
   }
-  const aperte = live.partite.filter((p) => p.status !== 4 && p.status !== 6);
-  if (aperte.length) {
-    return { ok: false, perche: `ci sono ancora ${aperte.length} partite non finite (${aperte.map((p) => `${p.teamHome}-${p.teamAway}`).join(', ')})` };
-  }
-  return { ok: true, perche: '' };
+  // senza live, le pagelle: se ci sono i voti di tutte le squadre, si è giocato
+  const motivoLive = 'errore' in live ? live.errore : 'il live è vuoto';
+  const pag = await pagelleComplete(serieA);
+  if (pag.complete) return { ok: true, perche: '', fonte: `pagelle (${pag.club} squadre con i voti; live: ${motivoLive})` };
+  return {
+    ok: false, fonte: 'nessuna',
+    perche: `live non disponibile (${motivoLive}) e pagelle incomplete (${pag.club} squadre su ${pag.attese} con i voti)`,
+  };
+}
+
+/**
+ * Le pagelle di una giornata sono complete? Le raccoglie ogni mattina il
+ * cron, prima di guardare la lega: se ci sono i voti di tutte le squadre di
+ * Serie A (meno le due di ogni partita rinviata), la giornata è finita.
+ */
+async function pagelleComplete(serieA: number): Promise<{ complete: boolean; club: number; attese: number }> {
+  const db = supabaseAdmin();
+  const { data } = await db.from('player_votes')
+    .select('club_fonte, stagione').eq('giornata', serieA).not('voto', 'is', null)
+    .order('stagione', { ascending: false }).limit(2000);
+  const stagione = data?.[0]?.stagione;
+  const club = new Set((data ?? []).filter((r) => r.stagione === stagione).map((r) => String(r.club_fonte))).size;
+  const { count: rinviate } = await db.from('serie_a_fixtures')
+    .select('id, matchdays!inner(serie_a)', { count: 'exact', head: true })
+    .eq('matchdays.serie_a', serieA).eq('status', 'postponed');
+  const attese = 20 - 2 * (rinviate ?? 0);
+  return { complete: club >= attese, club, attese };
 }
 
 /** Il calcolo automatico si spegne con LEGHE_CALCOLO_AUTOMATICO=no. */
@@ -396,9 +425,11 @@ export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<
     if ((inizio.get(serieA) ?? Infinity) > Date.now()) return false;
     if (!pronte.has(serieA)) {
       const cal = await calendarioSerieA(serieA);
-      const ok = giornataPronta(cal, Date.now());
-      pronte.set(serieA, ok);
       const giorno = giornoDelCalcolo(cal);
+      // senza date nel calendario, decide la completezza delle pagelle:
+      // escono dopo l'ultima partita, quindi sono già «il giorno dopo»
+      const ok = giorno ? giornataPronta(cal, Date.now()) : (await pagelleComplete(serieA)).complete;
+      pronte.set(serieA, ok);
       if (!ok && giorno) esito.inAttesa.push({ serieA, giorno });
     }
     return pronte.get(serieA)!;
@@ -556,13 +587,15 @@ export async function provaCron(tipo: TipoCompetizione, giornata: number): Promi
 
     const cal = await calendarioSerieA(turno.championshipMatchDay);
     const giorno = giornoDelCalcolo(cal);
+    const pag = await pagelleComplete(turno.championshipMatchDay);
     passo('Quando la leggerebbe il cron', 'info', giorno
       ? `dal ${giorno} (giorno dopo l'ultima partita) · oggi ${giornataPronta(cal, Date.now()) ? 'il cron procederebbe' : 'il cron aspetterebbe'}`
-      : 'il calendario non ha date: il cron non procederebbe');
+      : `il calendario non ha date: decide la completezza delle pagelle (${pag.club} squadre su ${pag.attese}) · `
+        + (pag.complete ? 'il cron procederebbe' : 'il cron aspetterebbe'));
 
     const finite = await partiteFinite(turno.championshipMatchDay);
-    if (!finite.ok) { passo('Partite finite (live)', 'ko', finite.perche); return passi; }
-    passo('Partite finite (live)', 'ok', 'tutte le partite non rinviate risultano finite');
+    if (!finite.ok) { passo('Partite finite', 'ko', finite.perche); return passi; }
+    passo('Partite finite', 'ok', `tutte le partite non rinviate risultano finite · fonte: ${finite.fonte}`);
 
     if (turno.calculated) {
       passo('Calcolo su Leghe', 'info', 'già calcolata: il cron non la ricalcolerebbe. Annulla il calcolo sulla lega per provare anche questo passo.');

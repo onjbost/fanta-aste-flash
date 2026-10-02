@@ -17,6 +17,13 @@ Listone e rose da Leghe Fantacalcio, senza più file.
   mosso nell'app nelle ultime tre settimane (asta flash, svincolo): se la
   lega è indietro, copiarla disferebbe il mercato. In quel caso arriva un
   messaggio su Telegram e si decide dal Pannello.
+- **Le aste flash arrivano da sole su Leghe Fantacalcio.** Quando l'admin
+  chiude un'asta, l'app scrive sulla lega gli svincoli (con il rimborso
+  dell'app) e gli acquisti (con il prezzo battuto), come si faceva a mano
+  dal pannello admin del sito. Poi rilegge le rose della lega e controlla
+  che giocatori, costi e crediti tornino: com'è andata arriva su Telegram.
+  Se qualcosa va storto ci riprova il cron del mattino, e dal Pannello c'è
+  «Riporta l'ultima asta sulla lega».
 - **Gestione rose** non ha più il form «Aggiorna da file».
 - Il giro del mattino ha fino a cinque minuti, e fa le cose in ordine di
   importanza: sessioni, calendario, voti e giornata, listone e rose, poi il

@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import {
   loadMarketState, participationsByRole, committedReleaseIds, budgetForLot,
@@ -701,6 +702,16 @@ export async function adminCloseSession(_prev: ActionState, form: FormData): Pro
   const { count } = await db.from('lots')
     .select('id', { count: 'exact', head: true }).eq('session_id', sessionId).eq('status', 'assigned');
   await notifyAdmin(tgSessionClosed(s?.number ?? 0, count ?? 0));
+
+  // svincoli e acquisti della serata su Leghe Fantacalcio, al posto
+  // dell'admin: dopo la risposta, così chiudere l'asta resta immediato. Com'è
+  // andata arriva su Telegram; se va storta, ci riprova il cron del mattino
+  if (r.ok) {
+    after(async () => {
+      const { riportaAstaSullaLega } = await import('@/lib/leghe/mercatoServer');
+      await riportaAstaSullaLega(sessionId);
+    });
+  }
 
   revalidatePath('/asta/sala');
   revalidatePath('/admin');

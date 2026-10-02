@@ -87,3 +87,16 @@ export async function aggiornaRoseAction(_p: StatoRose, form: FormData): Promise
     return { ok: false, messaggio: (e as Error).message, conflitti: [], problemi: [], cambi: 0 };
   }
 }
+
+export type StatoRiporto = { ok: boolean; messaggio: string; passi: string[] } | null;
+
+/** Riporta sulla lega l'ultima asta chiusa (di nuovo, se serve). */
+export async function riportaAstaAction(_p: StatoRiporto, form: FormData): Promise<StatoRiporto> {
+  if (!await admin()) return { ok: false, messaggio: 'Serve essere admin.', passi: [] };
+  const sessionId = String(form.get('sessionId') ?? '');
+  if (!sessionId) return { ok: false, messaggio: 'Nessuna asta chiusa da riportare.', passi: [] };
+  const { riportaAstaSullaLega } = await import('@/lib/leghe/mercatoServer');
+  const r = await riportaAstaSullaLega(sessionId, { forza: true, avvisa: false });
+  aggiornaPagine();
+  return { ok: r.ok, messaggio: r.messaggio, passi: r.passi };
+}

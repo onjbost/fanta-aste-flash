@@ -5,7 +5,7 @@ import { ultimeRaccolte } from '@/lib/fonti/fontiServer';
 import type { PassoGiro } from '@/lib/leghe/legheServer';
 import { TopBar } from '../../TopBar';
 import { AggiornaFonti, AggiornaIndisponibili, ImportaGiornata } from './Pannello';
-import { AggiornaListone, AggiornaRose } from './Rose';
+import { AggiornaListone, AggiornaRose, RiportaAsta } from './Rose';
 import { Passi, SEGNO } from './Passi';
 import { AzioniGruppo } from '../AzioniGruppo';
 
@@ -31,13 +31,16 @@ export default async function PannelloPage() {
   if (!ctx.team.isAdmin) redirect('/');
 
   const db = supabaseAdmin();
-  const [{ data: righe }, raccolte, { data: indisp }, { data: ultimaFanta }] = await Promise.all([
+  const [{ data: righe }, raccolte, { data: indisp }, { data: ultimaFanta }, { data: ultimaAsta }] = await Promise.all([
     db.from('cron_log').select('id, creato_il, origine, competizione, giornata, serie_a, esito, passi')
       .order('creato_il', { ascending: false }).limit(200),
     ultimeRaccolte(),
     db.from('injury_reports').select('fetched_at, righe, agganciate').order('fetched_at', { ascending: false }).limit(1).maybeSingle(),
     db.from('fixtures').select('matchdays!inner(fanta)').eq('league_id', ctx.team.leagueId)
       .eq('competition', 'campionato').not('home_goals', 'is', null),
+    db.from('auction_sessions').select('id, number, leghe_riportata_il, leghe_esito')
+      .eq('league_id', ctx.team.leagueId).eq('status', 'closed')
+      .order('auction_at', { ascending: false }).limit(1).maybeSingle(),
   ]);
 
   // il registro, una scheda per giornata, dalla più recente
@@ -90,6 +93,20 @@ export default async function PannelloPage() {
           Rose: {raccolte.rose ? `${quando(raccolte.rose.fetchedAt)} · ${raccolte.rose.nota ?? ''}` : 'mai lette dalla lega'}
         </p>
         <AggiornaRose />
+
+        <p className="sub" style={{ marginTop: 16 }}>
+          <b>Le aste flash sulla lega.</b> Quando chiudi un&apos;asta, l&apos;app scrive da sola su Leghe
+          Fantacalcio gli svincoli (col rimborso) e gli acquisti (col prezzo), poi controlla che
+          rose e crediti tornino e te lo dice su Telegram. Se qualcosa va storto ci riprova il cron.
+          {ultimaAsta && (
+            <> Ultima asta, la #{ultimaAsta.number as number}:{' '}
+              {ultimaAsta.leghe_riportata_il
+                ? `riportata ${quando(ultimaAsta.leghe_riportata_il as string)}`
+                : 'non ancora riportata'}
+              {ultimaAsta.leghe_esito ? ` (${String(ultimaAsta.leghe_esito).slice(0, 200)})` : ''}.</>
+          )}
+        </p>
+        <RiportaAsta sessionId={(ultimaAsta?.id as string | undefined) ?? null} />
       </div>
 
       <h2>Fonti</h2>

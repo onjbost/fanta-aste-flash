@@ -12,6 +12,7 @@ import {
 import { liveGiornata } from '@/lib/live/liveServer';
 import { allineaCalendario } from '@/lib/live/calendarioServer';
 import { aggiornaListoneDallaLega, aggiornaRoseDallaLega } from '@/lib/leghe/roseServer';
+import { riportaAsteInSospeso } from '@/lib/leghe/mercatoServer';
 
 // il giro legge in fila fantacalcio.it e Leghe Fantacalcio: cinque minuti,
 // il massimo del piano. Quasi tutto è attesa di rete, che non consuma CPU
@@ -24,7 +25,8 @@ export const maxDuration = 300;
  *   2. allinea il calendario di Serie A col live di fantacalcio.it
  *   3. i voti di giornata, poi calcola e importa da Leghe Fantacalcio la
  *      giornata conclusa (i voti servono a capire se è finita)
- *   4. listone e rose da Leghe Fantacalcio
+ *   4. le aste flash chiuse non ancora riportate sulla lega, poi listone e
+ *      rose da Leghe Fantacalcio
  *   5. il mercoledì, gli indisponibili di Serie A e le foto delle news
  *   6. quotazioni e statistiche di stagione da fantacalcio.it
  * Tutto questo tocca il database, e il progetto Supabase gratuito non va in pausa.
@@ -125,6 +127,9 @@ export async function GET(request: NextRequest) {
   // decide l'admin dal Pannello.
   let listone: Awaited<ReturnType<typeof aggiornaListoneDallaLega>> | null = null;
   let rose: Awaited<ReturnType<typeof aggiornaRoseDallaLega>> | null = null;
+  // prima le aste chiuse che non sono ancora arrivate sulla lega: se ne resta
+  // una indietro, copiare le rose dalla lega la disferebbe
+  const aste = await riportaAsteInSospeso().catch(() => []);
   try {
     listone = await aggiornaListoneDallaLega(null);
     if (!listone.ok) await notifyAdminPlain(`📋 ${listone.messaggio}`);
@@ -182,6 +187,7 @@ export async function GET(request: NextRequest) {
   return NextResponse.json({
     ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti, statistiche,
     listone: listone ? { ok: listone.ok, messaggio: listone.messaggio } : null,
+    aste: aste.map((a) => a.messaggio),
     rose: rose ? { applicate: rose.applicate, cambi: rose.cambi, messaggio: rose.messaggio } : null,
     giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
     calendario,

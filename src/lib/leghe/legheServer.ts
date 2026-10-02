@@ -113,7 +113,7 @@ export async function salvaToken(grezzo: string): Promise<{ ok: true; info: Info
 // la rete
 // =====================================================================
 
-export async function chiedi<T>(percorso: string, token?: string, invio?: { metodo: 'POST'; corpo: unknown }): Promise<T> {
+export async function chiedi<T>(percorso: string, token?: string, invio?: { metodo: 'POST' | 'PUT'; corpo: unknown }): Promise<T> {
   const t = token ?? await tokenAttuale();
   let res: Response;
   try {

@@ -2,7 +2,8 @@
 
 import { useActionState } from 'react';
 import {
-  aggiornaListoneAction, aggiornaRoseAction, type StatoListone, type StatoRose,
+  aggiornaListoneAction, aggiornaRoseAction, riportaAstaAction,
+  type StatoListone, type StatoRiporto, type StatoRose,
 } from './actions';
 
 /** «Aggiorna listone e svincolati»: l'anagrafica dalla lega, senza toccare le rose. */
@@ -114,6 +115,25 @@ export function AggiornaRose() {
           </p>
         </div>
       ) : null}
+    </form>
+  );
+}
+
+/** Riporta sulla lega svincoli e acquisti dell'ultima asta chiusa. */
+export function RiportaAsta({ sessionId }: { sessionId: string | null }) {
+  const [stato, azione, inCorso] = useActionState<StatoRiporto, FormData>(riportaAstaAction, null);
+  return (
+    <form action={azione} style={{ marginTop: 12 }}>
+      <input type="hidden" name="sessionId" value={sessionId ?? ''} />
+      <button type="submit" disabled={inCorso || !sessionId}>
+        {inCorso ? 'Scrivo sulla lega…' : 'Riporta l\'ultima asta sulla lega'}
+      </button>
+      {stato && (
+        <div className={`callout${stato.ok ? '' : ' crit'}`} style={{ marginTop: 8, whiteSpace: 'pre-line' }}>
+          {stato.messaggio}
+          {stato.passi.length > 0 && <ul style={{ margin: '6px 0 0' }}>{stato.passi.map((p) => <li key={p}>{p}</li>)}</ul>}
+        </div>
+      )}
     </form>
   );
 }

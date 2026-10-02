@@ -36,21 +36,19 @@ export interface SlidePartita {
 function RigaStorico({ x }: { x: SlidePartita['storico'][number]['partite'][number] }) {
   const vince = x.golCasa > x.golOspite ? 'casa' : x.golCasa < x.golOspite ? 'ospite' : null;
   return (
-    <div className={`storico-riga${x.mia ? ' mia' : ''}`}>
+    <Link href={`/partita/${x.id}`} className={`storico-riga${x.mia ? ' mia' : ''}`} style={{ color: 'inherit', textDecoration: 'none' }}>
       <span className={vince === 'casa' ? 'vince' : undefined}>{x.casa}</span>
       <span className="ris num">{x.golCasa}–{x.golOspite}</span>
       <span className={vince === 'ospite' ? 'vince' : undefined}>{x.ospite}</span>
-    </div>
+    </Link>
   );
 }
 
 /**
- * La card della partita: a giornata cominciata è un link alla diretta, prima
- * è solo una card. Un link che porta a una pagina vuota sarebbe peggio di
- * nessun link.
+ * La card della partita apre la diretta: prima del calcio d'inizio come
+ * anteprima (formazioni probabili, tutti «da giocare»), poi dal vivo.
  */
-function CardPartita({ id, live, children }: { id: string; live: boolean; children: React.ReactNode }) {
-  if (!live) return <div className="banner">{children}</div>;
+function CardPartita({ id, children }: { id: string; live: boolean; children: React.ReactNode }) {
   return (
     <Link href={`/partita/${id}`} className="banner" style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}>
       {children}
@@ -128,7 +126,9 @@ export function BannerPartite({ slides }: { slides: SlidePartita[] }) {
                   </div>
                 </div>
                 {s.partita.nota && <div className="banner-nota">{s.partita.nota}</div>}
-                {s.partita.live && <div className="banner-nota"><b>In diretta · tocca per seguirla ›</b></div>}
+                <div className="banner-nota">
+                  <b>{s.partita.live ? 'In diretta · tocca per seguirla ›' : 'Anteprima della diretta ›'}</b>
+                </div>
               </CardPartita>
             ) : (
               <div className="banner vuoto">

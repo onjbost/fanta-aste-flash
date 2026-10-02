@@ -38,6 +38,13 @@ const UA = 'Mozilla/5.0 (compatible; FantaMansarda/1.0)';
  */
 const cache = new Map<number, { at: number; partite: PartitaLive[] }>();
 
+/**
+ * La formazione probabile costa la lettura di tutte le rose e della forma:
+ * si tiene dieci minuti, perché la diretta si rilegge ogni minuto e la
+ * probabile in dieci minuti non cambia.
+ */
+const cacheProbabili = new Map<number, { at: number; valore: Awaited<ReturnType<typeof formazioniProbabili>> }>();
+
 export async function liveGiornata(serieA: number): Promise<{ partite: PartitaLive[] } | { errore: string }> {
   const c = cache.get(serieA);
   if (c && Date.now() - c.at < 50_000) return { partite: c.partite };
@@ -153,16 +160,40 @@ export async function diretta(fixtureId: string, leagueId: string): Promise<Dire
   const casaT = f.casa as unknown as { name: string; logo_url: string | null };
   const ospiteT = f.ospite as unknown as { name: string; logo_url: string | null };
 
-  const [live, fCasa, fOspite] = await Promise.all([
-    liveGiornata(md.serie_a),
+  const leggiFormazioni = () => Promise.all([
     formazioneDellaLega(fixtureId, f.matchday_id as string, f.home_team_id as string),
     formazioneDellaLega(fixtureId, f.matchday_id as string, f.away_team_id as string),
   ]);
+  const [live, prime] = await Promise.all([liveGiornata(md.serie_a), leggiFormazioni()]);
+  let [fCasa, fOspite] = prime;
+
+  /*
+   * Le formazioni vere, se mancano, si vanno a prendere su Leghe Fantacalcio
+   * adesso: a giornata cominciata sono visibili a tutti i membri della lega.
+   * Al massimo una volta ogni tre minuti, chiunque apra la pagina; e se la
+   * lega non è collegata o non risponde, si resta sulla probabile.
+   */
+  if ((!fCasa || !fOspite) && Date.parse(md.first_kickoff_at) <= Date.now()) {
+    try {
+      const { formazioniLetteDaPoco, importaFormazioni } = await import('@/lib/leghe/legheServer');
+      if (!await formazioniLetteDaPoco()) {
+        await importaFormazioni(md.serie_a);
+        [fCasa, fOspite] = await leggiFormazioni();
+      }
+    } catch { /* niente collegamento: resta la formazione probabile */ }
+  }
 
   // la formazione probabile solo se serve: costa la lettura di tutte le rose
   let probabili: Awaited<ReturnType<typeof formazioniProbabili>> | null = null;
   const probabile = async (teamId: string): Promise<Schierato[]> => {
-    probabili ??= await formazioniProbabili(leagueId, md.serie_a);
+    if (!probabili) {
+      const c = cacheProbabili.get(md.serie_a);
+      if (c && Date.now() - c.at < 10 * 60_000) probabili = c.valore;
+      else {
+        probabili = await formazioniProbabili(leagueId, md.serie_a);
+        cacheProbabili.set(md.serie_a, { at: Date.now(), valore: probabili });
+      }
+    }
     const lista = probabili.get(teamId) ?? [];
     const { data: anag } = await db.from('players')
       .select('id, name, ext_id').in('id', lista.map((p) => p.playerId));

@@ -59,6 +59,26 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
 - Il tabellino della lega ora salva anche il **vicecapitano** (migrazione
   0031); finché la migrazione non c'è, l'import va avanti senza.
 
+### Leghe Fantacalcio senza preferito
+- **L'app legge da sola** da Leghe Fantacalcio, con il token di sessione
+  incollato una volta in /admin/redazione (c'è il comando da copiare nella
+  console del browser): le **formazioni** della giornata in corso quando si
+  apre una diretta, la **giornata conclusa** e le **classifiche** ogni
+  mattina, appena la lega l'ha calcolata.
+- La giornata letta dall'API passa dallo **stesso import del preferito**:
+  stessa verifica dei conti, stesso tabellino, stessa chiusura delle
+  schedine. Se i conti non tornano non scrive niente e lo dice su Telegram.
+- Telegram avvisa tre giorni prima che il token scada. Il preferito resta
+  come ripiego (migrazione 0032).
+
+### La diretta
+- **Anteprima**: la card della partita nel banner apre la diretta anche prima
+  del calcio d'inizio, con le formazioni probabili. Dagli «Ultimi incontri»
+  si riapre la diretta di ogni partita già giocata.
+- **Si rilegge ogni minuto** mentre c'è una partita in campo, ogni cinque fra
+  una partita e l'altra di una giornata lunga, e subito quando si torna
+  sulla scheda.
+
 ## v5.0 — 2 ottobre 2026
 
 L'app cambia faccia: «Coppa sotto i fari». Le regole restano quelle di prima,

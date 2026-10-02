@@ -238,3 +238,52 @@ export async function salvaImpostazioniAction(_p: ActionState, form: FormData): 
     return { ok: true, message: 'Impostazioni salvate.' };
   } catch (e) { return esito(e); }
 }
+
+// =====================================================================
+// Leghe Fantacalcio senza preferito
+// =====================================================================
+
+/** Salva il token incollato, dopo averlo provato con una lettura vera. */
+export async function salvaTokenLegheAction(_p: ActionState, form: FormData): Promise<ActionState> {
+  try {
+    await requireAdmin();
+    const { salvaToken } = await import('@/lib/leghe/legheServer');
+    const r = await salvaToken(String(form.get('token') ?? ''));
+    revalidatePath('/admin/redazione');
+    if (!r.ok) return { ok: false, message: `Non salvato: ${r.errore}` };
+    return {
+      ok: true,
+      message: `Collegata${r.info.legaId ? ` alla lega ${r.info.legaId}` : ''}`
+        + (r.info.scadeIl ? `, il token scade il ${new Date(r.info.scadeIl).toLocaleDateString('it-IT')}` : '')
+        + `. Competizioni viste: ${r.competizioni.join(', ') || 'nessuna'}.`,
+    };
+  } catch (e) { return esito(e); }
+}
+
+/**
+ * Legge adesso quello che il cron leggerebbe domattina: le giornate concluse
+ * che mancano, con le classifiche, e le formazioni della giornata in corso.
+ */
+export async function importaDaLegheAction(): Promise<ActionState> {
+  try {
+    const { leagueId } = await requireAdmin();
+    const { importaGiornateConcluse, importaFormazioni } = await import('@/lib/leghe/legheServer');
+    const g = await importaGiornateConcluse();
+
+    // la giornata in corso: la prima di oggi o di domani, se c'è
+    const oggi = new Date().toISOString().slice(0, 10);
+    const { data: md } = await supabaseAdmin().from('matchdays').select('serie_a')
+      .eq('league_id', leagueId).gte('match_date', oggi).order('match_date').limit(1).maybeSingle();
+    const f = md ? await importaFormazioni(Number(md.serie_a)) : null;
+
+    revalidatePath('/admin/redazione');
+    const fatte = g.importate.map((x) => `${x.competizione} ${x.giornata}`).join(', ');
+    const problemi = [...g.problemi, ...(f?.problemi ?? [])];
+    return {
+      ok: problemi.length === 0 || g.importate.length > 0 || (f?.sfide ?? 0) > 0,
+      message: (fatte ? `Giornate importate: ${fatte}.` : 'Nessuna giornata conclusa da importare.')
+        + (f ? ` Formazioni della ${md!.serie_a}ª di Serie A: ${f.sfide} sfide.` : '')
+        + (problemi.length ? ` — ${problemi.join(' · ')}` : ''),
+    };
+  } catch (e) { return esito(e); }
+}

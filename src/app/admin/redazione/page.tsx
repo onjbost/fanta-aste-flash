@@ -2,7 +2,9 @@ import { redirect } from 'next/navigation';
 import { requireTeamContext } from '@/lib/queries';
 import { costruisciMateriale } from '@/lib/redazione/redazioneServer';
 import { supabaseAdmin } from '@/lib/supabase';
+import { statoCollegamento } from '@/lib/leghe/legheServer';
 import { TopBar } from '../../TopBar';
+import { CollegamentoLeghe } from './CollegamentoLeghe';
 import {
   AzioniImport, Giornata, Impostazioni, Preferito, SchedaFlavour,
   type ArticoloVista, type GiornataVista, type ImportVista, type SfidaVista,
@@ -150,6 +152,7 @@ export default async function AdminRedazionePage() {
     }
   }
 
+  const leghe = await statoCollegamento().catch(() => null);
   const sito = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ?? '';
   const segreto = process.env.REDAZIONE_IMPORT_SECRET ?? null;
   const modello = process.env.GEMINI_API_KEY ? (process.env.GEMINI_MODEL || 'gemini-flash-latest') : null;
@@ -180,10 +183,20 @@ export default async function AdminRedazionePage() {
         </div>
       )}
 
+      <details className="panel giornata" style={{ marginBottom: 16 }} open={!leghe}>
+        <summary>
+          <div className="giornata-riga">
+            <span className="giornata-n">Leghe Fantacalcio</span>
+            <span className="giornata-meta">{leghe ? 'collegata: niente preferito' : 'da collegare'}</span>
+          </div>
+        </summary>
+        <div className="giornata-corpo"><CollegamentoLeghe stato={leghe} /></div>
+      </details>
+
       <details className="panel giornata" style={{ marginBottom: 16 }}>
         <summary>
           <div className="giornata-riga">
-            <span className="giornata-n">Il preferito</span>
+            <span className="giornata-n">Il preferito{leghe ? ' (ripiego)' : ''}</span>
             <span className="giornata-meta">
               {segreto ? 'pronto da trascinare nella barra' : 'manca la parola d’ordine'}
             </span>

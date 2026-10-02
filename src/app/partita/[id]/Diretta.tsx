@@ -6,8 +6,15 @@ import type { Diretta as DatiDiretta, LatoDiretta } from '@/lib/live/liveServer'
 import type { BonusSquadra, RigaLive } from '@/lib/live/calcolo';
 import { Stemma } from '../../Stemma';
 
-/** Ogni quanto si rilegge il live mentre si gioca: il sito aggiorna al minuto. */
-const OGNI_MS = 60_000;
+/**
+ * Ogni quanto si rilegge il live. Mentre si gioca, ogni minuto: il sito
+ * aggiorna al minuto e i voti cambiano spesso. Fra una partita e l'altra di
+ * una giornata lunga (il venerdì sera e la domenica, per dire) basta ogni
+ * cinque minuti. A giornata finita, mai.
+ */
+const IN_CAMPO_MS = 60_000;
+const IN_ATTESA_MS = 5 * 60_000;
+const IN_CAMPO = new Set(['1° tempo', 'intervallo', '2° tempo', 'sospesa']);
 
 const STATO: Record<RigaLive['stato'], string> = {
   voto: '',
@@ -105,12 +112,17 @@ export function Diretta({ d }: { d: DatiDiretta }) {
   const [simula, setSimula] = useState(false);
 
   // si rilegge da sola finché c'è una partita di Serie A ancora da finire
-  const inCorso = d.serieAPartite.some((p) => p.stato !== 'finita' && p.stato !== 'rinviata');
+  const inCampo = d.serieAPartite.some((p) => IN_CAMPO.has(p.stato));
+  const daGiocare = d.serieAPartite.some((p) => p.stato === 'da giocare');
+  const ogni = inCampo ? IN_CAMPO_MS : daGiocare ? IN_ATTESA_MS : null;
   useEffect(() => {
-    if (!inCorso) return;
-    const t = setInterval(() => router.refresh(), OGNI_MS);
-    return () => clearInterval(t);
-  }, [inCorso, router]);
+    if (!ogni) return;
+    const t = setInterval(() => router.refresh(), ogni);
+    // tornando sulla scheda dopo un po', si rilegge subito invece di aspettare il giro
+    const torna = () => { if (document.visibilityState === 'visible') router.refresh(); };
+    document.addEventListener('visibilitychange', torna);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', torna); };
+  }, [ogni, router]);
 
   const c = d.casa.live;
   const o = d.ospite.live;

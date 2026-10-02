@@ -6,6 +6,7 @@ import { notifyAdmin, notifyAdminPlain, tgPhaseChange } from '@/lib/telegram';
 import { raccogliIndisponibili } from '@/lib/infortuni/infortuniServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
 import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
+import { importaGiornateConcluse, LegheNonCollegata, statoCollegamento } from '@/lib/leghe/legheServer';
 
 // le pagine di fantacalcio.it si leggono in fila: il tempo standard di una
 // funzione non basta quando c'è da recuperare qualche giornata di voti
@@ -83,10 +84,35 @@ export async function GET(request: NextRequest) {
   ];
   if (guasti.length && new Date().getUTCDay() === 3) await notifyAdminPlain(guasti.join('\n'));
 
+  // Le giornate concluse da Leghe Fantacalcio, senza preferito: quelle che
+  // la lega ha calcolato e noi non abbiamo ancora. Ogni mattina, così il
+  // lunedì o il martedì il tabellino arriva da solo. Il token che sta per
+  // scadere si dice per tempo.
+  let giornate: Awaited<ReturnType<typeof importaGiornateConcluse>> | null = null;
+  try {
+    giornate = await importaGiornateConcluse();
+    for (const g of giornate.importate) {
+      await notifyAdminPlain(
+        `📥 Giornata ${g.giornata} di ${g.competizione} importata da Leghe Fantacalcio: `
+        + `${g.esito.sfideScritte}/${g.esito.sfideLette} sfide`
+        + (g.esito.problemi.length ? `\n${g.esito.problemi.join('\n')}` : ''),
+      );
+    }
+    if (giornate.problemi.length) await notifyAdminPlain(`Leghe Fantacalcio:\n${giornate.problemi.join('\n')}`);
+    const stato = await statoCollegamento();
+    const restano = stato?.scadeIl ? (Date.parse(stato.scadeIl) - Date.now()) / 86_400_000 : null;
+    if (restano != null && restano < 3) {
+      await notifyAdminPlain(`🔑 Il token di Leghe Fantacalcio scade fra ${Math.max(0, Math.floor(restano))} giorni: incollane uno nuovo in /admin/redazione.`);
+    }
+  } catch (e) {
+    if (!(e instanceof LegheNonCollegata)) await notifyAdminPlain(`Leghe Fantacalcio: ${(e as Error).message}`);
+  }
+
   const { count } = await db.from('players').select('id', { count: 'exact', head: true });
 
   return NextResponse.json({
     ok: true, changed, players: count ?? 0, indisponibili, foto, quotazioni, voti,
+    giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
     at: new Date().toISOString(),
   });
 }

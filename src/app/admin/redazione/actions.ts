@@ -300,13 +300,15 @@ export async function reimportaGiornataAction(_p: ActionState, form: FormData): 
     const giornata = Number(form.get('giornata'));
     if (!Number.isInteger(giornata) || giornata < 1) return { ok: false, message: 'Scrivi il numero della giornata.' };
     const { importaGiornateConcluse } = await import('@/lib/leghe/legheServer');
-    const g = await importaGiornateConcluse({ forza: { tipo, giornata } });
+    const ricalcola = form.get('ricalcola') === 'on';
+    const g = await importaGiornateConcluse({ forza: { tipo, giornata }, calcola: ricalcola });
     revalidatePath('/admin/redazione');
     const fatta = g.importate[0];
     if (!fatta) return { ok: false, message: g.problemi.join(' · ') || 'Non importata.' };
     return {
       ok: true,
-      message: `${tipo === 'coppa' ? 'Turno di coppa' : 'Giornata'} ${giornata} riletta: `
+      message: `${tipo === 'coppa' ? 'Turno di coppa' : 'Giornata'} ${giornata} `
+        + `${g.calcolate.length ? 'ricalcolata su Leghe Fantacalcio e ' : ''}riletta: `
         + `${fatta.esito.sfideScritte}/${fatta.esito.sfideLette} sfide scritte${classifiche(fatta.esito.classificheScritte)}`
         + (fatta.esito.problemi.length ? ` — ${fatta.esito.problemi.join(' · ')}` : '.'),
     };

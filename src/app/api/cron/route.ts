@@ -6,7 +6,9 @@ import { notifyAdmin, notifyAdminPlain, tgPhaseChange } from '@/lib/telegram';
 import { raccogliIndisponibili } from '@/lib/infortuni/infortuniServer';
 import { raccogliFoto } from '@/lib/gazzetta/newsServer';
 import { raccogliQuotazioni, raccogliVoti } from '@/lib/fonti/fontiServer';
-import { importaGiornateConcluse, LegheNonCollegata, statoCollegamento } from '@/lib/leghe/legheServer';
+import {
+  calcoloAutomaticoAcceso, importaGiornateConcluse, LegheNonCollegata, statoCollegamento,
+} from '@/lib/leghe/legheServer';
 import { liveGiornata } from '@/lib/live/liveServer';
 import { allineaCalendario } from '@/lib/live/calendarioServer';
 
@@ -111,7 +113,12 @@ export async function GET(request: NextRequest) {
   try {
     // solo dal giorno dopo l'ultima partita di Serie A della giornata: prima
     // la lega non può averla calcolata, e leggere non serve a niente
-    giornate = await importaGiornateConcluse({ aspettaIlCalcolo: true });
+    // e se a quel punto la lega non l'ha calcolata, la calcola l'app: solo a
+    // partite tutte finite secondo il live (LEGHE_CALCOLO_AUTOMATICO=no lo spegne)
+    giornate = await importaGiornateConcluse({ aspettaIlCalcolo: true, calcola: calcoloAutomaticoAcceso() });
+    for (const c of giornate.calcolate) {
+      await notifyAdminPlain(`🧮 Ho calcolato su Leghe Fantacalcio ${c.competizione === 'coppa' ? 'il turno di coppa' : 'la giornata'} ${c.giornata}.`);
+    }
     for (const g of giornate.importate) {
       await notifyAdminPlain(
         `📥 Giornata ${g.giornata} di ${g.competizione} importata da Leghe Fantacalcio: `

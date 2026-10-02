@@ -40,7 +40,8 @@ export function CollegamentoLeghe({ stato }: { stato: StatoLeghe | null }) {
         giornata in corso (quando si apre una partita in diretta), la <b>giornata conclusa</b> e
         le <b>classifiche</b> il mattino del <b>giorno dopo l&apos;ultima partita di Serie A</b> della
         giornata, col calendario aggiornato (anticipi, posticipi, rinvii). Se la lega a quel punto
-        non ha ancora calcolato, te lo dice su Telegram e riprova la mattina dopo. Passa dagli stessi
+        non ha ancora calcolato, <b>calcola lei la giornata</b> su Leghe Fantacalcio — solo se il live
+        dice che le partite sono tutte finite — e te lo dice su Telegram. Passa dagli stessi
         controlli del preferito: se i conti non tornano, non scrive niente e te lo dice.
       </p>
 
@@ -109,6 +110,13 @@ export function CollegamentoLeghe({ stato }: { stato: StatoLeghe | null }) {
               </div>
               <button type="submit" disabled={pRe}>{pRe ? 'Rileggo…' : 'Reimporta'}</button>
             </div>
+            <label style={{
+              display: 'flex', gap: 8, alignItems: 'center', marginTop: 8,
+              textTransform: 'none', letterSpacing: 0, fontWeight: 400, fontSize: '.86rem',
+            }}>
+              <input type="checkbox" name="ricalcola" style={{ width: 'auto' }} />
+              Prima premi «Calcola giornata» su Leghe Fantacalcio (solo se le partite sono tutte finite)
+            </label>
             {sRe && <div className={`callout${sRe.ok ? '' : ' crit'}`} style={{ marginTop: 10 }}>{sRe.message}</div>}
           </form>
         </>

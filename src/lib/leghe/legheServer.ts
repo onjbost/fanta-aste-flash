@@ -113,17 +113,21 @@ export async function salvaToken(grezzo: string): Promise<{ ok: true; info: Info
 // la rete
 // =====================================================================
 
-async function chiedi<T>(percorso: string, token?: string): Promise<T> {
+async function chiedi<T>(percorso: string, token?: string, invio?: { metodo: 'POST'; corpo: unknown }): Promise<T> {
   const t = token ?? await tokenAttuale();
   let res: Response;
   try {
     res = await fetch(`${BASE}${percorso}`, {
+      method: invio?.metodo ?? 'GET',
       headers: {
         app_key: process.env.LEGHE_APP_KEY || APP_KEY_SITO,
         authorization: `Bearer ${t}`,
         accept: 'application/json',
+        ...(invio ? { 'content-type': 'application/json' } : {}),
       },
-      signal: AbortSignal.timeout(15_000),
+      body: invio ? JSON.stringify(invio.corpo) : undefined,
+      // il calcolo di una giornata può prendersi qualche secondo in più
+      signal: AbortSignal.timeout(invio ? 40_000 : 15_000),
       cache: 'no-store',
     });
   } catch (e) {
@@ -137,6 +141,51 @@ async function chiedi<T>(percorso: string, token?: string): Promise<T> {
   }
   if (!res.ok) throw new Error(`Leghe Fantacalcio ha risposto ${res.status} a ${percorso.split('/').slice(0, 4).join('/')}`);
   return await res.json() as T;
+}
+
+// =====================================================================
+// il calcolo della giornata
+// =====================================================================
+
+/**
+ * Preme «Calcola giornata» su Leghe Fantacalcio, come fa il sito:
+ * `POST /gaming/v1/calcola` con la competizione e la giornata della lega.
+ * Serve il token di un amministratore della lega.
+ *
+ * La lega risponde `CALOK` quando ha finito. Se un giorno rispondesse in
+ * modo asincrono (`asyn` con un `jobId`) lo si dice: la giornata si leggerà
+ * al giro dopo, quando risulterà calcolata.
+ */
+export async function calcolaGiornata(compId: number, giornata: number): Promise<{ ok: boolean; messaggio: string }> {
+  const r = await chiedi<{ asyn?: boolean; jobId?: unknown; res?: { code?: string; message?: string } }>(
+    '/gaming/v1/calcola', undefined,
+    { metodo: 'POST', corpo: { idcomp: compId, mday: giornata, tmids: [], bonus: [] } },
+  );
+  if (r.res?.code === 'CALOK') return { ok: true, messaggio: 'calcolata' };
+  if (r.asyn) return { ok: false, messaggio: 'il calcolo è partito in differita: la leggo al prossimo giro' };
+  return { ok: false, messaggio: `la lega ha risposto ${r.res?.code ?? '?'}: ${r.res?.message ?? 'senza spiegazioni'}` };
+}
+
+/**
+ * Si può calcolare? Solo se il live dice che tutte le partite della giornata
+ * di Serie A sono finite (le rinviate non si aspettano). Senza live non si
+ * calcola: meglio un giorno di ritardo che una giornata calcolata a metà.
+ */
+async function partiteFinite(serieA: number): Promise<{ ok: boolean; perche: string }> {
+  const live = await liveGiornata(serieA);
+  if (!('partite' in live) || !live.partite.length) {
+    return { ok: false, perche: 'non riesco a leggere il live per sapere se le partite sono finite' };
+  }
+  const aperte = live.partite.filter((p) => p.status !== 4 && p.status !== 6);
+  if (aperte.length) {
+    return { ok: false, perche: `ci sono ancora ${aperte.length} partite non finite (${aperte.map((p) => `${p.teamHome}-${p.teamAway}`).join(', ')})` };
+  }
+  return { ok: true, perche: '' };
+}
+
+/** Il calcolo automatico si spegne con LEGHE_CALCOLO_AUTOMATICO=no. */
+export function calcoloAutomaticoAcceso(): boolean {
+  return !/^(no|off|false|0)$/i.test(process.env.LEGHE_CALCOLO_AUTOMATICO ?? '');
 }
 
 interface SquadraLega { id: number; n?: string; nu?: string }
@@ -283,6 +332,8 @@ export interface EsitoGiornate {
   problemi: string[];
   /** giornate ancora da aspettare, con il giorno in cui si leggeranno */
   inAttesa: { serieA: number; giorno: string }[];
+  /** giornate che l'app ha calcolato su Leghe Fantacalcio */
+  calcolate: { competizione: TipoCompetizione; giornata: number }[];
 }
 
 /**
@@ -317,6 +368,12 @@ export interface OpzioniImport {
    * dalla lega in un secondo momento.
    */
   forza?: { tipo: TipoCompetizione; giornata: number };
+  /**
+   * Se la giornata non è ancora calcolata, premi tu «Calcola giornata» su
+   * Leghe Fantacalcio (solo a partite finite). Con `forza`, ricalcola anche
+   * una giornata già calcolata.
+   */
+  calcola?: boolean;
 }
 
 /**
@@ -330,7 +387,7 @@ export interface OpzioniImport {
 export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<EsitoGiornate> {
   const db = supabaseAdmin();
   const leagueId = await lega();
-  const esito: EsitoGiornate = { importate: [], problemi: [], inAttesa: [] };
+  const esito: EsitoGiornate = { importate: [], problemi: [], inAttesa: [], calcolate: [] };
   const pronte = new Map<number, boolean>();
   // le giornate non ancora cominciate non sono pronte: niente rete per saperlo
   const { data: inizi } = await db.from('matchdays').select('serie_a, first_kickoff_at').eq('league_id', leagueId);
@@ -372,11 +429,12 @@ export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<
     try { turni = await calendario(c.id); }
     catch (e) { esito.problemi.push((e as Error).message); continue; }
 
-    const classifiche = c.tipo === 'coppa' && perGruppo.size
+    // dal calendario di adesso: dopo un calcolo fatto qui, i punti sono cambiati
+    const classifiche = () => (c.tipo === 'coppa' && perGruppo.size
       ? [...perGruppo].map(([nome, sq]) => classificaApi(turni, nomi, { id: c.id, nome: c.name, tipo: c.tipo }, { nome, squadre: sq }))
-      : [classificaApi(turni, nomi, { id: c.id, nome: c.name, tipo: c.tipo })];
+      : [classificaApi(turni, nomi, { id: c.id, nome: c.name, tipo: c.tipo })]);
 
-    for (const t of turni) {
+    for (let t of [...turni]) {
       const forzata = opt.forza?.tipo === c.tipo && opt.forza.giornata === t.matchDay;
       if (opt.forza && !forzata) continue;
       if (!forzata) {
@@ -384,10 +442,25 @@ export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<
         if (await giaNostra(leagueId, c.tipo, t)) continue;
         if (opt.aspettaIlCalcolo && !await pronta(t.championshipMatchDay)) continue;
       }
-      if (!t.calculated) {
+      const quale = c.tipo === 'coppa' ? `il ${t.matchDay}° turno di coppa` : `la giornata ${t.matchDay}`;
+      const daCalcolare = opt.calcola && (!t.calculated || forzata);
+      if (daCalcolare) {
+        // «Calcola giornata» su Leghe Fantacalcio, ma solo a partite finite
+        const finite = await partiteFinite(t.championshipMatchDay);
+        if (!finite.ok) { esito.problemi.push(`${quale}: non la calcolo, ${finite.perche}`); continue; }
+        let calcolo: { ok: boolean; messaggio: string };
+        try { calcolo = await calcolaGiornata(c.id, t.matchDay); }
+        catch (e) { esito.problemi.push(`${quale}: calcolo non riuscito, ${(e as Error).message}`); continue; }
+        if (!calcolo.ok) { esito.problemi.push(`${quale}: ${calcolo.messaggio}`); continue; }
+        esito.calcolate.push({ competizione: c.tipo, giornata: t.matchDay });
+        // si rilegge il calendario: i punti e i risultati sono cambiati
+        const nuovo = (await calendario(c.id)).find((x) => x.matchDay === t.matchDay);
+        if (!nuovo?.calculated) { esito.problemi.push(`${quale}: calcolata, ma la lega non la dà ancora per calcolata`); continue; }
+        t = nuovo;
+        turni = turni.map((x) => (x.matchDay === nuovo.matchDay ? nuovo : x));
+      } else if (!t.calculated) {
         // il giorno è arrivato (o l'hai chiesta tu) ma la lega non ha ancora
         // calcolato: lo si dice, e si riprova al giro dopo
-        const quale = c.tipo === 'coppa' ? `il ${t.matchDay}° turno di coppa` : `la giornata ${t.matchDay}`;
         if (forzata || opt.aspettaIlCalcolo) {
           esito.problemi.push(`${quale} (Serie A ${t.championshipMatchDay}) è finita ma su Leghe Fantacalcio non risulta ancora calcolata`);
         }
@@ -421,7 +494,7 @@ export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<
         raccoltoIl: new Date().toISOString(),
         // sopra le versioni del preferito: nell'archivio si distingue da dove viene
         versioneEstrattore: 100,
-        classifiche,
+        classifiche: classifiche(),
         sfide,
       };
       try {

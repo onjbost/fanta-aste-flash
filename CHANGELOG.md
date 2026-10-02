@@ -91,9 +91,15 @@ aggiornate e i voti di giornata, che entrano anche nelle quote.
   d'inizio della giornata — da cui si ricalcola la chiusura delle schedine.
   Un rinvio che compare o sparisce arriva su Telegram: la scelta fra 6
   politico e recupero resta all'admin.
+- **La giornata la calcola l'app**: se il giorno dopo l'ultima partita su
+  Leghe Fantacalcio non risulta ancora calcolata, il cron preme «Calcola
+  giornata» al posto tuo — solo se il live dice che tutte le partite sono
+  finite — e poi la importa. Telegram lo dice. Si spegne con
+  `LEGHE_CALCOLO_AUTOMATICO=no`.
 - **Reimporta una giornata** in /admin/redazione: per un ricalcolo fatto dopo,
   o un calcolo arrivato tardi. Riscrive tabellino, risultati e classifiche e
-  richiude le schedine con i punti nuovi.
+  richiude le schedine con i punti nuovi. Con la casella, prima ricalcola la
+  giornata su Leghe Fantacalcio.
 
 ## v5.0 — 2 ottobre 2026
 

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { supabaseAdmin } from '@/lib/supabase';
-import { ICONE } from '../BottomNav';
+import { Logo } from '../Logo';
 import { LoginForm } from './LoginForm';
 
 export const dynamic = 'force-dynamic';
@@ -36,7 +36,7 @@ export default async function LoginPage() {
   return (
     <main className="login">
       <div className="login-marchio">
-        <span className="login-logo">{ICONE.asta}</span>
+        <span className="login-logo"><Logo /></span>
         <span>Aste <b>Flash</b></span>
       </div>
 

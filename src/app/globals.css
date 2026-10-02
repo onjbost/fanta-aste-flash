@@ -1076,10 +1076,10 @@ th.ordinabile .livello{
 }
 .login-marchio b{color:var(--accent);font-weight:700}
 .login-logo{
-  width:36px;height:36px;border-radius:11px;display:grid;place-items:center;
-  background:var(--accent);color:var(--on-accent);
+  width:40px;height:40px;border-radius:9px;display:grid;place-items:center;
+  background:var(--accent);color:var(--bg);
 }
-.login-logo svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.login-logo svg{width:36px;height:36px}
 .login-titolo{font-size:2.6rem;margin:40px 0 0;line-height:1}
 .login-titolo span{color:var(--accent);display:block}
 .login-numeri{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:22px}

@@ -89,29 +89,98 @@ export interface Esito {
 export const SOGLIE_OU = [1.5, 2.5, 3.5] as const;
 
 /**
- * La lavagna dei risultati esatti è **fissa**: sempre gli stessi sedici
- * punteggi, più «altro» che raccoglie tutto il resto.
+ * La lavagna dei risultati esatti è **fissa**: sempre gli stessi punteggi,
+ * più «altro» che raccoglie tutto il resto.
  *
- * Due motivi. Uno di sostanza: così ogni risultato possibile è giocabile e la
- * somma delle probabilità fa esattamente 1, quindi il valore atteso resta
- * dieci punti anche per chi punta sul 5-2. Uno pratico: la lavagna non cambia
- * forma da una sfida all'altra, e l'occhio trova sempre la casella dov'era.
+ * Fino a quattro gol per parte, come le lavagne dei bookmaker: in questa lega
+ * se ne segnano quasi quattro a partita, e una lavagna che si fermava al 3-3
+ * lasciava ad «altro» anche un terzo delle probabilità. Così ogni risultato
+ * possibile è giocabile, e la lavagna non cambia forma da una sfida all'altra.
  */
 export const ESATTI_FISSI = [
-  '1-0', '2-0', '3-0',
-  '2-1', '3-1', '3-2',
-  '0-1', '0-2', '0-3',
-  '1-3', '1-2', '2-3',
-  '0-0', '1-1', '2-2', '3-3',
+  '1-0', '2-0', '3-0', '4-0',
+  '2-1', '3-1', '4-1',
+  '3-2', '4-2', '4-3',
+  '0-1', '0-2', '0-3', '0-4',
+  '1-2', '1-3', '1-4',
+  '2-3', '2-4', '3-4',
+  '0-0', '1-1', '2-2', '3-3', '4-4',
 ] as const;
-export const ALTRO = 'altro';
+/**
+ * «Altro» della lavagna di adesso. Si chiama diversamente da quello della
+ * lavagna a sedici caselle (`altro`), che resta valido per le giocate fatte
+ * prima: le due cose vincono con risultati diversi, e una giocata si risolve
+ * con le regole con cui è stata fatta.
+ */
+export const ALTRO = 'altri';
+/** «Altro» della vecchia lavagna, fino al 3-3: solo per risolvere le giocate di allora. */
+export const ALTRO_FINO_AL_TRE = 'altro';
+const ESATTI_FINO_AL_TRE = [
+  '1-0', '2-0', '3-0', '2-1', '3-1', '3-2',
+  '0-1', '0-2', '0-3', '1-3', '1-2', '2-3',
+  '0-0', '1-1', '2-2', '3-3',
+];
 
 export interface OpzioniQuote {
   /** soglie Over/Under da quotare */
   soglie?: readonly number[];
+  /** il margine del banco per mercato; senza, quello dei bookmaker (`AGGIO`) */
+  aggio?: Partial<Record<Mercato, number>>;
 }
 
-/** Quota equa, senza margine: nessun banco deve guadagnarci. */
+/**
+ * Il margine del banco, come nei bookmaker veri: le probabilità di un mercato
+ * sommano a 1 più questo. Sui mercati principali intorno al 6%, sui risultati
+ * esatti molto di più — è lì che i bookmaker guadagnano, ed è il motivo per
+ * cui un 3-0 non si paga mai cento volte la posta.
+ *
+ * Toglie qualcosa a tutti allo stesso modo: il valore atteso di una giocata
+ * scende un po' sotto i dieci punti per chiunque, e la gara resta pari.
+ */
+export const AGGIO: Record<Mercato, number> = { '1x2': 0.06, ou: 0.06, gg: 0.06, exact: 0.22 };
+
+/** La quota più alta che si paga, per mercato: oltre, il banco non si espone. */
+export const QUOTA_MASSIMA: Record<Mercato, number> = { '1x2': 25, ou: 20, gg: 20, exact: 100 };
+
+/**
+ * Il margine distribuito come lo fanno i bookmaker («metodo della potenza»):
+ * q = p^k con k < 1 scelto perché le q sommino a 1 + aggio. Pesa di più sugli
+ * esiti improbabili — il favorito si paga quasi giusto, la sorpresa molto
+ * meno di quanto varrebbe — che è il segno di ogni lavagna vera.
+ */
+export function conAggio(ps: number[], aggio: number): number[] {
+  if (aggio <= 0 || ps.length < 2) return ps;
+  const obiettivo = 1 + aggio;
+  const somma = (k: number) => ps.reduce((s, p) => s + (p > 0 ? p ** k : 0), 0);
+  if (somma(0.0001) < obiettivo) return ps.map((p) => p * obiettivo);
+  let basso = 0.0001, alto = 1;
+  for (let i = 0; i < 60; i++) {
+    const k = (basso + alto) / 2;
+    if (somma(k) > obiettivo) basso = k; else alto = k;
+  }
+  const k = (basso + alto) / 2;
+  return ps.map((p) => (p > 0 ? p ** k : 0));
+}
+
+/**
+ * La scala delle quote dei bookmaker: al centesimo fino a 2, poi passi sempre
+ * più larghi. Si arrotonda per difetto, come fa il banco.
+ */
+const SCALA: [number, number][] = [
+  [2, 0.01], [3, 0.02], [4, 0.05], [6, 0.1], [10, 0.25], [20, 0.5], [50, 1], [Infinity, 5],
+];
+
+export function arrotondaQuota(q: number): number {
+  for (const [fino, passo] of SCALA) {
+    if (q < fino) {
+      const r = Math.floor(q / passo + 1e-9) * passo;
+      return Math.max(1.01, Math.round(r * 100) / 100);
+    }
+  }
+  return q;
+}
+
+/** Quota equa, senza margine: il valore di riferimento, prima del banco. */
 export function quotaDaProbabilita(p: number): number {
   if (p <= 0) throw new Error('probabilità nulla: esito non quotabile');
   return Math.max(1.01, Math.round((1 / p) * 100) / 100);
@@ -119,6 +188,7 @@ export function quotaDaProbabilita(p: number): number {
 
 export function mercatiDaGriglia(g: number[][], opt: OpzioniQuote = {}): Esito[] {
   const soglie = opt.soglie ?? SOGLIE_OU;
+  const aggio = { ...AGGIO, ...opt.aggio };
 
   const somma = (test: (c: number, o: number) => boolean) => {
     let s = 0;
@@ -129,33 +199,42 @@ export function mercatiDaGriglia(g: number[][], opt: OpzioniQuote = {}): Esito[]
   };
 
   const esiti: Esito[] = [];
-  const aggiungi = (market: Mercato, selection: string, p: number) => {
-    if (p <= 0 || p >= 1) return;
-    esiti.push({ market, selection, probability: p, price: quotaDaProbabilita(p) });
+  /**
+   * Un mercato intero: le probabilità vere restano in `probability`, la
+   * quota è quella col margine, arrotondata alla scala e mai oltre il tetto.
+   */
+  const mercato = (market: Mercato, voci: [string, number][]) => {
+    const valide = voci.filter(([, p]) => p > 0 && p < 1);
+    const q = conAggio(valide.map(([, p]) => p), aggio[market] ?? 0);
+    valide.forEach(([selection, p], i) => {
+      const price = Math.min(QUOTA_MASSIMA[market], arrotondaQuota(1 / q[i]));
+      esiti.push({ market, selection, probability: p, price });
+    });
   };
 
-  aggiungi('1x2', '1', somma((c, o) => c > o));
-  aggiungi('1x2', 'X', somma((c, o) => c === o));
-  aggiungi('1x2', '2', somma((c, o) => c < o));
+  mercato('1x2', [
+    ['1', somma((c, o) => c > o)],
+    ['X', somma((c, o) => c === o)],
+    ['2', somma((c, o) => c < o)],
+  ]);
 
+  // ogni soglia è un mercato a sé, con il suo margine
   for (const s of soglie) {
     const over = somma((c, o) => c + o > s);
-    aggiungi('ou', `over_${s}`, over);
-    aggiungi('ou', `under_${s}`, 1 - over);
+    mercato('ou', [[`over_${s}`, over], [`under_${s}`, 1 - over]]);
   }
 
   const gg = somma((c, o) => c > 0 && o > 0);
-  aggiungi('gg', 'gg', gg);
-  aggiungi('gg', 'ng', 1 - gg);
+  mercato('gg', [['gg', gg], ['ng', 1 - gg]]);
 
   let coperto = 0;
-  for (const sel of ESATTI_FISSI) {
+  const esatti: [string, number][] = ESATTI_FISSI.map((sel) => {
     const [c, o] = sel.split('-').map(Number);
     const p = g[c]?.[o] ?? 0;
     coperto += p;
-    aggiungi('exact', sel, p);
-  }
-  aggiungi('exact', ALTRO, 1 - coperto);
+    return [sel, p];
+  });
+  mercato('exact', [...esatti, [ALTRO, 1 - coperto]]);
 
   return esiti;
 }
@@ -189,10 +268,12 @@ export function risolvi(market: Mercato, selection: string, golCasa: number, gol
       if (selection === 'ng') return golCasa === 0 || golOspite === 0;
       throw new Error(`esito goal/nogoal sconosciuto: ${selection}`);
     case 'exact': {
-      // «altro» vince quando il risultato non è nessuno dei sedici in lavagna
+      // «altro» vince quando il risultato non è nessuno di quelli in lavagna:
+      // quella di adesso, o quella a sedici caselle per le giocate di allora
       if (selection === ALTRO) {
         return !(ESATTI_FISSI as readonly string[]).includes(`${golCasa}-${golOspite}`);
       }
+      if (selection === ALTRO_FINO_AL_TRE) return !ESATTI_FINO_AL_TRE.includes(`${golCasa}-${golOspite}`);
       const m = /^(\d+)-(\d+)$/.exec(selection);
       if (!m) throw new Error(`risultato esatto malformato: ${selection}`);
       return Number(m[1]) === golCasa && Number(m[2]) === golOspite;
@@ -206,8 +287,9 @@ export const MOLTIPLICATORE = 10;
  * Punti di una giocata azzeccata: moltiplicatore diviso il numero di giocate
  * fatte su quella sfida, per la quota congelata al momento della giocata.
  *
- * Con quote eque il valore atteso è sempre il moltiplicatore, qualunque sia
- * `n`: è la proprietà che tiene in piedi il torneo, ed è verificata nei test.
+ * Il valore atteso non dipende da `n`: è la proprietà che tiene in piedi il
+ * torneo, ed è verificata nei test. Con il margine del banco è un po' sotto il
+ * moltiplicatore, uguale per tutti.
  */
 export function puntiGiocata(price: number, giocateSullaSfida: number, moltiplicatore = MOLTIPLICATORE): number {
   if (giocateSullaSfida < 1) throw new Error('n deve essere almeno 1');

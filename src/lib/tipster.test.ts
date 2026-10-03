@@ -3,7 +3,7 @@ import {
   golDaFantapunti, distribuzioneGol, griglia, mercatiDaGriglia, quoteSfida,
   quotaDaProbabilita, risolvi, puntiGiocata, risolviSchedina,
   fantamediaAttesa, forzaClub, stimaSquadra, fondiConLoStorico,
-  MOLTIPLICATORE, ESATTI_FISSI, ALTRO, conAggio, arrotondaQuota, PESO_LISTONE, DECADIMENTO,
+  MOLTIPLICATORE, ESATTI_FISSI, ALTRO, PESO_LISTONE, DECADIMENTO,
   type GiocatoreTipster, type ContestoClub, type GiornataGiocata,
 } from './tipster';
 
@@ -146,11 +146,10 @@ describe('punteggio', () => {
     expect(puntiGiocata(4.5, 3)).toBe(15);
   });
 
-  it('il valore atteso non dipende da quante giocate si fanno sulla sfida', () => {
-    // è la proprietà che tiene in piedi il torneo: dividere i punti per le
-    // giocate rende inutile coprirsi, cambia solo la varianza. Col margine del
-    // banco resta un po' sotto i dieci punti, ma uguale per tutte le strategie
-    const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 71, sd: 9 }, { aggio: { '1x2': 0 } });
+  it('il valore atteso è dieci qualunque sia la strategia', () => {
+    // è la proprietà che tiene in piedi il torneo: con quote eque nessuna
+    // combinazione di giocate è furba, cambia solo la varianza
+    const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 71, sd: 9 });
     const q = (sel: string) => esiti.find((e) => e.market === '1x2' && e.selection === sel)!;
 
     const secca = q('1').probability * puntiGiocata(q('1').price, 1);
@@ -159,27 +158,15 @@ describe('punteggio', () => {
     const tripla = ['1', 'X', '2']
       .reduce((s, sel) => s + q(sel).probability * puntiGiocata(q(sel).price, 3), 0);
 
-    // senza margine restano a un passo da dieci (la scala delle quote arrotonda per difetto)
-    for (const v of [secca, doppia, tripla]) {
-      expect(v).toBeGreaterThan(MOLTIPLICATORE - 0.3);
-      expect(v).toBeLessThanOrEqual(MOLTIPLICATORE + 0.01);
-    }
+    expect(secca).toBeCloseTo(MOLTIPLICATORE, 1);
+    expect(doppia).toBeCloseTo(MOLTIPLICATORE, 1);
+    expect(tripla).toBeCloseTo(MOLTIPLICATORE, 1);
   });
 
-  it('senza margine anche il risultato esatto vale dieci, in media', () => {
-    const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 71, sd: 9 }, { aggio: { exact: 0 } });
-    const e = esiti.filter((x) => x.market === 'exact')[0];
-    expect(e.probability * puntiGiocata(e.price, 1)).toBeCloseTo(MOLTIPLICATORE, 0);
-  });
-
-  it('col margine del banco il valore atteso scende poco sui mercati principali, di più sugli esatti', () => {
+  it('anche il risultato esatto vale dieci, in media', () => {
     const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 71, sd: 9 });
-    const atteso = (e: { probability: number; price: number }) => e.probability * puntiGiocata(e.price, 1);
-    const uno = esiti.find((e) => e.market === '1x2' && e.selection === '1')!;
-    expect(atteso(uno)).toBeGreaterThan(9);
-    expect(atteso(uno)).toBeLessThan(10);
-    const esatto = esiti.find((e) => e.market === 'exact' && e.selection === '1-1')!;
-    expect(atteso(esatto)).toBeLessThan(atteso(uno));
+    const e = esiti.filter((x) => x.market === 'exact')[0];
+    expect(e.probability * puntiGiocata(e.price, 1)).toBeCloseTo(MOLTIPLICATORE, 1);
   });
 });
 
@@ -355,7 +342,7 @@ describe('lavagna fissa dei risultati esatti', () => {
   const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 71, sd: 9 });
   const esatti = esiti.filter((e) => e.market === 'exact');
 
-  it('ci sono sempre gli stessi punteggi, fino al 4-4, più «altro»', () => {
+  it('ci sono sempre gli stessi sedici punteggi, più «altro»', () => {
     expect(esatti.map((e) => e.selection)).toEqual([...ESATTI_FISSI, ALTRO]);
   });
 
@@ -376,10 +363,9 @@ describe('lavagna fissa dei risultati esatti', () => {
     expect(risolvi('exact', 'altro', 3, 3)).toBe(false);
   });
 
-  it('le giocate su «altro» della vecchia lavagna si risolvono con le regole di allora', () => {
-    expect(risolvi('exact', 'altro', 4, 1)).toBe(true);
-    expect(risolvi('exact', 'altri', 4, 1)).toBe(false);
-    expect(risolvi('exact', 'altri', 5, 1)).toBe(true);
+  it('anche «altro» vale dieci punti attesi', () => {
+    const a = esatti.find((e) => e.selection === ALTRO)!;
+    expect(a.probability * puntiGiocata(a.price, 1)).toBeCloseTo(MOLTIPLICATORE, 1);
   });
 });
 
@@ -578,39 +564,5 @@ describe('stimaSquadra con la forma dei giocatori', () => {
       att('a2', 20), att('a3', 15), att('a4', 12, { fantamedia: 7, peso: 2, titolarita: 1 })], {});
     expect(s.undici.map((p) => p.playerId)).not.toContain('a1');
     expect(s.undici.map((p) => p.playerId)).toContain('a4');
-  });
-});
-
-describe('quote come i bookmaker', () => {
-  it('il margine sta sul mercato: le probabilità del banco sommano a 1 più l\'aggio', () => {
-    const q = conAggio([0.4, 0.25, 0.35], 0.06);
-    expect(q.reduce((s, x) => s + x, 0)).toBeCloseTo(1.06, 6);
-  });
-
-  it('pesa di più sulle sorprese che sul favorito', () => {
-    const p = [0.7, 0.2, 0.1];
-    const q = conAggio(p, 0.06);
-    // quanto si toglie a ogni esito, in proporzione
-    const taglio = q.map((x, i) => x / p[i]);
-    expect(taglio[2]).toBeGreaterThan(taglio[0]);
-  });
-
-  it('arrotonda per difetto alla scala delle quote', () => {
-    expect(arrotondaQuota(1.876)).toBe(1.87);
-    expect(arrotondaQuota(2.519)).toBe(2.5);
-    expect(arrotondaQuota(3.48)).toBe(3.45);
-    expect(arrotondaQuota(5.57)).toBe(5.5);
-    expect(arrotondaQuota(13.8)).toBe(13.5);
-    expect(arrotondaQuota(37.4)).toBe(37);
-  });
-
-  it('una sfida equilibrata ha quote da sfida equilibrata, e i risultati improbabili hanno un tetto', () => {
-    const esiti = quoteSfida({ mu: 72, sd: 9 }, { mu: 72, sd: 9 });
-    const q = (m: string, s: string) => esiti.find((e) => e.market === m && e.selection === s)!.price;
-    expect(q('1x2', '1')).toBeLessThan(2.8);
-    expect(q('1x2', 'X')).toBeLessThan(4.5);
-    const somma = 1 / q('1x2', '1') + 1 / q('1x2', 'X') + 1 / q('1x2', '2');
-    expect(somma).toBeGreaterThan(1.05);
-    expect(Math.max(...esiti.filter((e) => e.market === 'exact').map((e) => e.price))).toBeLessThanOrEqual(100);
   });
 });

@@ -62,7 +62,7 @@ describe('simulaGiornata e quote', () => {
 
   it('tutti i risultati della lavagna restano quotabili', () => {
     const { esiti } = sfida(rosa('a', 'Inter', 30), rosa('b', 'Milan', 30));
-    expect(esiti.filter((e) => e.market === 'exact')).toHaveLength(26);
+    expect(esiti.filter((e) => e.market === 'exact')).toHaveLength(17);
   });
 
   it('due squadre uguali hanno quasi le stesse quote', () => {

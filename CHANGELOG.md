@@ -1,24 +1,5 @@
 # Aste Flash · Fanta Mansarda
 
-## v5.5 — 3 ottobre 2026
-
-Le quote del Torneo dei Tipster, fatte come quelle dei bookmaker.
-
-- **C'è il margine del banco.** Prima le quote erano «eque», cioè l'inverso
-  esatto della probabilità: più alte di quelle di qualsiasi bookmaker. Adesso
-  ogni mercato ha il suo aggio — il 6% su 1X2, Under/Over e Goal/NoGoal, il
-  22% sui risultati esatti — distribuito come fanno i bookmaker: pesa poco sul
-  favorito e molto sulle sorprese. Il valore atteso di una giocata scende un
-  po' sotto i dieci punti, uguale per tutti.
-- **La scala delle quote dei bookmaker**: al centesimo fino a 2, poi 2,02 · 2,04,
-  3,05 · 3,10, 4,20 · 4,30, 6,25 · 6,50, 12,50 · 13… arrotondate per difetto.
-  Con un tetto: 25 sull'1X2, 20 su Under/Over e Goal/NoGoal, 100 sugli esatti.
-- **Risultati esatti fino al 4-4**, come sulle lavagne vere, in tre colonne:
-  vince la casa, pareggio, vince l'ospite, più «Altro». In questa lega si
-  segnano quasi quattro gol a partita: la vecchia lavagna si fermava al 3-3 e
-  lasciava ad «Altro» fino a un terzo delle probabilità. Le giocate già fatte
-  su «Altro» si risolvono con la lavagna di allora.
-
 ## v5.4 — 2 ottobre 2026
 
 Listone e rose da Leghe Fantacalcio, senza più file.

@@ -1649,8 +1649,3 @@ button.ghost,.btn.ghost{background:transparent;border-color:var(--surface-3)}
 .numeri-piega summary{cursor:pointer;font-size:.82rem;color:var(--muted)}
 .lotto-nota{padding:0 0 4px 44px}
 .lotto-nota .numeri-brevi{display:block;margin-top:2px}
-
-/* risultati esatti come sulle lavagne dei bookmaker: casa, pareggio, ospite */
-.esatti{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:start}
-.esatti-col{display:flex;flex-direction:column;gap:8px}
-.esatti-col .quota{min-width:0;width:100%}

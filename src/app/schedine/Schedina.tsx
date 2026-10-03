@@ -2,7 +2,7 @@
 
 import { useActionState, useMemo, useState } from 'react';
 import { salvaSchedina, type ActionState } from './actions';
-import { ESATTI_FISSI, ALTRO, ALTRO_FINO_AL_TRE, type Mercato } from '@/lib/tipster';
+import { ESATTI_FISSI, ALTRO, type Mercato } from '@/lib/tipster';
 
 export interface QuotaUI { market: Mercato; selection: string; price: number }
 export interface SfidaUI {
@@ -22,7 +22,7 @@ const ORDINE: Record<Mercato, readonly string[]> = {
   '1x2': ['1', 'X', '2'],
   ou: ['over_1.5', 'over_2.5', 'over_3.5', 'under_1.5', 'under_2.5', 'under_3.5'],
   gg: ['gg', 'ng'],
-  exact: [...ESATTI_FISSI, ALTRO, ALTRO_FINO_AL_TRE],
+  exact: [...ESATTI_FISSI, ALTRO],
 };
 
 function inOrdine(mercato: Mercato, quote: QuotaUI[]): QuotaUI[] {
@@ -31,34 +31,13 @@ function inOrdine(mercato: Mercato, quote: QuotaUI[]): QuotaUI[] {
 }
 
 const ETICHETTA: Record<string, string> = {
-  '1': '1', X: 'X', '2': '2', altro: 'Altro', altri: 'Altro',
+  '1': '1', X: 'X', '2': '2', altro: 'Altro',
   'over_1.5': 'Over 1.5', 'under_1.5': 'Under 1.5',
   'over_2.5': 'Over 2.5', 'under_2.5': 'Under 2.5',
   'over_3.5': 'Over 3.5', 'under_3.5': 'Under 3.5',
   gg: 'Goal', ng: 'NoGoal',
 };
 const etichetta = (s: string) => ETICHETTA[s] ?? s;
-
-/**
- * I risultati esatti in tre colonne, come sulle lavagne dei bookmaker: vince
- * la casa, pareggio, vince l'ospite, ognuna dal punteggio più basso.
- */
-function colonneEsatti(quote: QuotaUI[]): { colonne: QuotaUI[][]; altro: QuotaUI[] } {
-  const gol = (q: QuotaUI) => q.selection.split('-').map(Number);
-  const punteggi = quote.filter((q) => /^\d+-\d+$/.test(q.selection));
-  const ordina = (l: QuotaUI[]) => l.sort((a, b) => {
-    const [ac, ao] = gol(a); const [bc, bo] = gol(b);
-    return Math.max(ac, ao) - Math.max(bc, bo) || Math.min(ac, ao) - Math.min(bc, bo);
-  });
-  return {
-    colonne: [
-      ordina(punteggi.filter((q) => gol(q)[0] > gol(q)[1])),
-      ordina(punteggi.filter((q) => gol(q)[0] === gol(q)[1])),
-      ordina(punteggi.filter((q) => gol(q)[0] < gol(q)[1])),
-    ],
-    altro: quote.filter((q) => !/^\d+-\d+$/.test(q.selection)),
-  };
-}
 
 const chiave = (fixtureId: string, market: string, selection: string) =>
   `${fixtureId}|${market}|${selection}`;
@@ -174,28 +153,14 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
                   {sceltiAltrove > 0 && <span className="pallino">{sceltiAltrove}</span>}
                   <svg className="giu" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
                 </summary>
-                {altri.map(([titolo, quote]) => {
-                  if (titolo === 'Risultato esatto') {
-                    const { colonne, altro } = colonneEsatti(quote);
-                    return (
-                      <div className="mercato" key={titolo}>
-                        <div className="mercato-k">{titolo}</div>
-                        <div className="esatti">
-                          {colonne.map((c, i) => <div className="esatti-col" key={i}>{c.map(casella)}</div>)}
-                        </div>
-                        {altro.length > 0 && <div className="quote" style={{ marginTop: 6 }}>{altro.map(casella)}</div>}
-                      </div>
-                    );
-                  }
-                  return (
-                    <div className="mercato" key={titolo}>
-                      <div className="mercato-k">{titolo}</div>
-                      <div className={titolo === 'Segnano entrambe' ? 'quote griglia2' : 'quote griglia3'}>
-                        {quote.map(casella)}
-                      </div>
+                {altri.map(([titolo, quote]) => (
+                  <div className="mercato" key={titolo}>
+                    <div className="mercato-k">{titolo}</div>
+                    <div className={titolo === 'Segnano entrambe' ? 'quote griglia2' : 'quote griglia3'}>
+                      {quote.map(casella)}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </details>
             )}
           </div>

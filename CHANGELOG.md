@@ -1,5 +1,13 @@
 # Aste Flash · Fanta Mansarda
 
+## v5.5 — 5 ottobre 2026
+
+- **iPhone, app aperta dall'icona:** scorrendo verso l'alto la barra in basso
+  non si stacca più dal fondo per finire a metà schermo. Quando l'app è
+  aperta dalla schermata Home scorre la pagina dentro l'app, non la finestra
+  intera, e il rimbalzo di iOS non sposta più la barra. Nel browser non cambia
+  niente.
+
 ## v5.4 — 2 ottobre 2026
 
 Listone e rose da Leghe Fantacalcio, senza più file.

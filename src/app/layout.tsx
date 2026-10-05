@@ -42,7 +42,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@600;700&display=swap"
         />
       </head>
-      <body>{children}</body>
+      {/* il contenitore che scorre quando l'app è aperta dall'icona: vedi
+          `.app-scorre` in globals.css. Nel browser è un div qualunque */}
+      <body><div className="app-scorre">{children}</div></body>
     </html>
   );
 }

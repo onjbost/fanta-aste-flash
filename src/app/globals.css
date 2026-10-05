@@ -1649,3 +1649,21 @@ button.ghost,.btn.ghost{background:transparent;border-color:var(--surface-3)}
 .numeri-piega summary{cursor:pointer;font-size:.82rem;color:var(--muted)}
 .lotto-nota{padding:0 0 4px 44px}
 .lotto-nota .numeri-brevi{display:block;margin-top:2px}
+
+/*
+ * L'app aperta dall'icona della schermata Home, su iPhone.
+ *
+ * Lì a scorrere era la finestra intera: trascinando oltre il bordo (il
+ * rimbalzo di iOS) si spostava tutto il viewport, e la barra in basso,
+ * fissata a lui, si fermava a metà schermo coprendo la pagina. Qui la
+ * finestra sta ferma e scorre un contenitore dentro: la barra resta al suo
+ * posto. Nel browser non cambia niente, così Safari può ancora nascondere
+ * la barra dell'indirizzo scorrendo.
+ */
+@media (display-mode: standalone){
+  html,body{height:100%;overflow:hidden;overscroll-behavior:none}
+  .app-scorre{
+    height:100%;overflow-y:auto;overflow-x:hidden;
+    -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
+  }
+}

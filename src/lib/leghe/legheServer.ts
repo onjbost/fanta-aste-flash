@@ -26,7 +26,10 @@ import { importaGiornata, type EsitoImport } from '@/lib/redazione/importaServer
 import type { PayloadImport, SfidaGrezza, TipoCompetizione } from '@/lib/redazione/tabellino';
 import { liveGiornata } from '@/lib/live/liveServer';
 import { allineaCalendario } from '@/lib/live/calendarioServer';
-import { giornataPronta, giornoDelCalcolo, type PartitaCalendario } from './quando';
+import { stessoClub } from '@/lib/fonti/pagine';
+import {
+  giornataPronta, giornoDelCalcolo, partiteAperte, unisciCalendario, type PartitaCalendario,
+} from './quando';
 import {
   capitaniApi, classificaApi, risultatoApi, squadraApi, tipoApi, votoApi,
   type Anagrafica, type CompetizioneApi, type DettaglioApi, type TurnoApi,
@@ -167,29 +170,30 @@ export async function calcolaGiornata(compId: number, giornata: number): Promise
 }
 
 /**
- * Si può calcolare? Solo se il live dice che tutte le partite della giornata
- * di Serie A sono finite (le rinviate non si aspettano). Senza live non si
- * calcola: meglio un giorno di ritardo che una giornata calcolata a metà.
+ * Si può calcolare? Solo se tutte le partite della giornata di Serie A sono
+ * finite (le rinviate non si aspettano). Il calendario è quello intero, il
+ * nostro con sopra il live: il live elenca solo le partite già cominciate, e
+ * da solo farebbe sembrare finita una giornata che ha ancora i posticipi.
+ * Senza live, o se il live non torna, decidono le pagelle: se ci sono i voti
+ * di tutte le squadre, si è giocato. Meglio un giorno di ritardo che una
+ * giornata calcolata a metà.
  */
 async function partiteFinite(serieA: number): Promise<{ ok: boolean; perche: string; fonte: string }> {
   const live = await liveGiornata(serieA);
-  if ('partite' in live && live.partite.length) {
-    const aperte = live.partite.filter((p) => p.status !== 4 && p.status !== 6);
-    if (aperte.length) {
-      return {
-        ok: false, fonte: 'live',
-        perche: `ci sono ancora ${aperte.length} partite non finite (${aperte.map((p) => `${p.teamHome}-${p.teamAway}`).join(', ')})`,
-      };
-    }
-    return { ok: true, perche: '', fonte: 'live' };
-  }
-  // senza live, le pagelle: se ci sono i voti di tutte le squadre, si è giocato
   const motivoLive = 'errore' in live ? live.errore : 'il live è vuoto';
+  let perche = '';
+  if ('partite' in live && live.partite.length) {
+    const aperte = partiteAperte(await calendarioSerieA(serieA));
+    if (!aperte.length) return { ok: true, perche: '', fonte: 'live + calendario' };
+    perche = `ci sono ancora ${aperte.length} partite non finite (${aperte.map((p) => p.nome).join(', ')})`;
+  }
   const pag = await pagelleComplete(serieA);
-  if (pag.complete) return { ok: true, perche: '', fonte: `pagelle (${pag.club} squadre con i voti; live: ${motivoLive})` };
+  if (pag.complete) {
+    return { ok: true, perche: '', fonte: `pagelle (${pag.club} squadre con i voti${perche ? `; il calendario diceva: ${perche}` : `; live: ${motivoLive}`})` };
+  }
   return {
-    ok: false, fonte: 'nessuna',
-    perche: `live non disponibile (${motivoLive}) e pagelle incomplete (${pag.club} squadre su ${pag.attese} con i voti)`,
+    ok: false, fonte: perche ? 'live + calendario' : 'nessuna',
+    perche: perche || `live non disponibile (${motivoLive}) e pagelle incomplete (${pag.club} squadre su ${pag.attese} con i voti)`,
   };
 }
 
@@ -368,24 +372,27 @@ export interface EsitoGiornate {
 }
 
 /**
- * Le partite di una giornata di Serie A con le date di adesso.
+ * Le partite di una giornata di Serie A con le date di adesso: tutte e dieci.
  *
- * Prima il live di fantacalcio.it, che ha il calendario aggiornato (anticipi,
- * posticipi, rinvii); se non risponde, il nostro `serie_a_fixtures`.
+ * La base è il nostro `serie_a_fixtures`; sopra ci va il live di
+ * fantacalcio.it, che ha orari, partite finite e rinvii aggiornati ma elenca
+ * **solo le partite già cominciate**. Una partita che il live non ha resta
+ * come la sappiamo noi: di solito ancora da giocare.
  */
 export async function calendarioSerieA(serieA: number): Promise<PartitaCalendario[]> {
   const live = await liveGiornata(serieA);
-  if ('partite' in live && live.partite.length) {
-    await allineaCalendario(serieA, live.partite).catch(() => null);
-    return live.partite.map((p) => ({ kickoff: p.matchDate || null, rinviata: p.status === 6 }));
-  }
+  const partiteLive = 'partite' in live ? live.partite : [];
+  if (partiteLive.length) await allineaCalendario(serieA, partiteLive).catch(() => null);
   const db = supabaseAdmin();
   const { data } = await db.from('serie_a_fixtures')
-    .select('kickoff_at, status, matchdays!inner(serie_a)').eq('matchdays.serie_a', serieA);
-  return (data ?? []).map((r) => ({
+    .select('home_club, away_club, kickoff_at, status, matchdays!inner(serie_a)').eq('matchdays.serie_a', serieA);
+  const nostre = (data ?? []).map((r) => ({
+    casa: String(r.home_club),
+    ospite: String(r.away_club),
     kickoff: r.kickoff_at ? Date.parse(r.kickoff_at as string) : null,
-    rinviata: r.status === 'postponed',
+    stato: String(r.status),
   }));
+  return unisciCalendario(nostre, partiteLive, (a, b) => stessoClub(a, b));
 }
 
 export interface OpzioniImport {
@@ -450,9 +457,10 @@ export async function importaGiornateConcluse(opt: OpzioniImport = {}): Promise<
     if (!pronte.has(serieA)) {
       const cal = await calendarioSerieA(serieA);
       const giorno = giornoDelCalcolo(cal);
-      // senza date nel calendario, decide la completezza delle pagelle:
-      // escono dopo l'ultima partita, quindi sono già «il giorno dopo»
-      const ok = giorno ? giornataPronta(cal, Date.now()) : (await pagelleComplete(serieA)).complete;
+      // pronta dal mattino dopo l'ultima partita. Se il calendario non lo dice
+      // (un posticipo senza orario) o non torna, decide la completezza delle
+      // pagelle: escono dopo l'ultima partita, quindi sono già «il giorno dopo»
+      const ok = giornataPronta(cal, Date.now()) || (await pagelleComplete(serieA)).complete;
       pronte.set(serieA, ok);
       if (!ok && giorno) esito.inAttesa.push({ serieA, giorno });
     }

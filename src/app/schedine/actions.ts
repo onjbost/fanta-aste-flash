@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { annota, dimentica } from '@/lib/registroServer';
+import { annota } from '@/lib/registroServer';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
 import { giornataCorrente, sfideDiGiornata } from '@/lib/tipsterServer';
 import type { Mercato } from '@/lib/tipster';
@@ -22,15 +22,25 @@ async function me() {
 
 interface GiocataInviata { fixtureId: string; market: Mercato; selection: string }
 
+type Controllate =
+  | { ok: false; message: string }
+  | {
+    ok: true;
+    team: NonNullable<Awaited<ReturnType<typeof me>>>;
+    giornata: NonNullable<Awaited<ReturnType<typeof giornataCorrente>>>;
+    giocate: GiocataInviata[];
+    prezzo: Map<string, number>;
+  };
+
 /**
- * Salva la schedina della giornata: arriva l'elenco completo delle giocate e
- * sostituisce quello di prima.
+ * I controlli comuni a «Salva» e «Gioca»: chi sei, se la giornata è aperta,
+ * se le giocate sono di questa giornata e nel tetto per sfida.
  *
  * Due cose che il server non si fida a prendere dal client: la **quota**, che
  * rilegge dal listino delle quote pubblicate, e la **chiusura**, che ricontrolla
  * sull'orologio. Il resto lo impone comunque il database.
  */
-export async function salvaSchedina(_prev: ActionState, form: FormData): Promise<ActionState> {
+async function controlla(form: FormData): Promise<Controllate> {
   const team = await me();
   if (!team) return { ok: false, message: 'Non risulti collegato a nessuna squadra.' };
 
@@ -68,73 +78,90 @@ export async function salvaSchedina(_prev: ActionState, form: FormData): Promise
     .select('fixture_id, market, selection, price').in('fixture_id', [...valide]);
   const prezzo = new Map((quote ?? []).map((q) =>
     [`${q.fixture_id}|${q.market}|${q.selection}`, Number(q.price)]));
+  for (const g of giocate) {
+    if (!prezzo.has(`${g.fixtureId}|${g.market}|${g.selection}`)) {
+      return { ok: false, message: `Quota non trovata per ${g.market} ${g.selection}: ricarica la pagina.` };
+    }
+  }
+  return { ok: true, team, giornata, giocate, prezzo };
+}
+
+/**
+ * «Salva»: tiene le scelte senza giocarle. Solo quali esiti, nessun prezzo —
+ * una schedina non giocata segue le quote di adesso, che il giro delle 15
+ * aggiorna fino alla chiusura.
+ */
+export async function salvaBozza(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const c = await controlla(form);
+  if (!c.ok) return c;
+  const { error } = await supabaseAdmin().from('slip_drafts').upsert({
+    team_id: c.team.id, matchday_id: c.giornata.id,
+    picks: c.giocate.map((g) => ({ fixtureId: g.fixtureId, market: g.market, selection: g.selection })),
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'team_id,matchday_id' });
+  if (error) return { ok: false, message: error.message };
+  revalidatePath('/schedine');
+  return {
+    ok: true,
+    message: c.giocate.length
+      ? 'Bozza salvata: non è ancora giocata, le quote restano quelle di adesso.'
+      : 'Bozza svuotata.',
+  };
+}
+
+/**
+ * «Gioca schedina»: gioca le scelte alle quote di adesso e le congela. Se per
+ * la giornata c'era già una schedina giocata la sostituisce tutta — la
+ * conferma la chiede la pagina, prima — e la bozza non serve più.
+ */
+export async function giocaSchedina(_prev: ActionState, form: FormData): Promise<ActionState> {
+  const c = await controlla(form);
+  if (!c.ok) return c;
+  const { team, giornata, giocate, prezzo } = c;
+  if (!giocate.length) return { ok: false, message: 'Scegli almeno una giocata.' };
+
+  const righe = giocate.map((g) => ({
+    fixture_id: g.fixtureId, market: g.market, selection: g.selection,
+    price: prezzo.get(`${g.fixtureId}|${g.market}|${g.selection}`) as number,
+  }));
 
   const db = await supabaseServer();
   const { data: slip, error: eS } = await db.from('slips')
-    .upsert({ league_id: team.league_id, matchday_id: giornata.id, team_id: team.id },
-            { onConflict: 'matchday_id,team_id' })
+    .upsert({
+      league_id: team.league_id, matchday_id: giornata.id, team_id: team.id,
+      submitted_at: new Date().toISOString(),
+    }, { onConflict: 'matchday_id,team_id' })
     .select('id').single();
   if (eS || !slip) return { ok: false, message: eS?.message ?? 'Non sono riuscito ad aprire la schedina.' };
-
-  /*
-   * Una giocata già fatta tiene il prezzo a cui è stata giocata: le quote si
-   * aggiornano ogni pomeriggio fino alla chiusura, e chi aggiunge una giocata
-   * il giovedì non deve vedersi ripagare quelle del lunedì alla quota nuova.
-   * Solo le giocate nuove prendono la quota di adesso.
-   */
-  const { data: giaFatte } = await admin.from('picks')
-    .select('fixture_id, market, selection, price').eq('slip_id', slip.id);
-  const prezzoFatto = new Map((giaFatte ?? []).map((q) =>
-    [`${q.fixture_id}|${q.market}|${q.selection}`, Number(q.price)]));
-
-  let righe: { fixture_id: string; market: Mercato; selection: string; price: number }[];
-  try {
-    righe = giocate.map((g) => {
-      const k = `${g.fixtureId}|${g.market}|${g.selection}`;
-      const p = prezzoFatto.get(k) ?? prezzo.get(k);
-      if (p == null) throw new Error(`Quota non trovata per ${g.market} ${g.selection}`);
-      return { fixture_id: g.fixtureId, market: g.market, selection: g.selection, price: p };
-    });
-  } catch (e) {
-    return { ok: false, message: (e as Error).message };
-  }
 
   const { error: eD } = await db.from('picks').delete().eq('slip_id', slip.id);
   if (eD) return { ok: false, message: eD.message };
 
-  if (righe.length) {
-    const { error: eI } = await db.from('picks')
-      .insert(righe.map((r) => ({ ...r, slip_id: slip.id })));
-    if (eI) return { ok: false, message: eI.message };
-  }
+  const { error: eI } = await db.from('picks')
+    .insert(righe.map((r) => ({ ...r, slip_id: slip.id })));
+  if (eI) return { ok: false, message: eI.message };
+
+  await supabaseAdmin().from('slip_drafts').delete()
+    .eq('team_id', team.id).eq('matchday_id', giornata.id);
 
   /*
    * Nel registro una schedina è una riga sola per giornata, non una per
-   * salvataggio: si può cambiare fino alla chiusura, e dieci ripensamenti
+   * giocata: si può rigiocare fino alla chiusura, e dieci ripensamenti
    * sarebbero dieci righe che dicono la stessa cosa. L'impronta tiene ferma
    * la riga, e `aggiorna` la riscrive coi numeri di adesso.
-   *
-   * Svuotata, la riga se ne va: una schedina senza pronostici non è una
-   * schedina giocata, e lasciarla lì vorrebbe dire raccontare una cosa che
-   * non c'è più.
    */
   const quante = righe.length;
-  const impronta = `schedina:${slip.id}`;
-  if (quante > 0) {
-    await annota({
-      leagueId: team.league_id, azione: 'schedina', impronta, aggiorna: true,
-      attore: { userId: team.userId, teamId: team.id, nome: team.name },
-      dati: { giornata: giornata.fanta ?? giornata.serieA, giocate: quante },
-    });
-  } else {
-    await dimentica(impronta);
-  }
+  await annota({
+    leagueId: team.league_id, azione: 'schedina', impronta: `schedina:${slip.id}`, aggiorna: true,
+    attore: { userId: team.userId, teamId: team.id, nome: team.name },
+    dati: { giornata: giornata.fanta ?? giornata.serieA, giocate: quante },
+  });
 
   revalidatePath('/schedine');
+  revalidatePath('/');
   return {
     ok: true,
-    message: quante === 0
-      ? 'Schedina svuotata.'
-      : `Schedina salvata: ${quante} ${quante === 1 ? 'giocata' : 'giocate'}. Puoi cambiarla fino alla chiusura.`,
+    message: `Schedina giocata: ${quante} ${quante === 1 ? 'giocata' : 'giocate'}, quote congelate. `
+      + 'Puoi rigiocarla fino alla chiusura.',
   };
 }

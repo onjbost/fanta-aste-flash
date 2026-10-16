@@ -1,8 +1,9 @@
 import { supabaseAdmin } from '@/lib/supabase';
-import { giornataCorrente, sfideDiGiornata } from '@/lib/tipsterServer';
+import { giornataCorrente, schedinaGiocata, sfideDiGiornata } from '@/lib/tipsterServer';
 import type { Mercato } from '@/lib/tipster';
 import { Countdown } from '../asta/Countdown';
 import { Schedina, type SfidaUI } from './Schedina';
+import { TendinaSchedina } from './giocate';
 
 const FASE: Record<string, string> = {
   regular: 'campionato', gruppi: 'gironi', semifinale: 'semifinale', finale: 'finale',
@@ -19,18 +20,16 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
   // Tutto quello che serve in una sola andata: le quote se le porta dietro la
   // sfida, le giocate se le porta dietro la schedina. Prima erano quattro
   // interrogazioni in fila, e in fila si sommano le attese.
-  const [sfide, { data: quote }, { data: lega }, { data: mieSlip }] = await Promise.all([
+  const [sfide, { data: quote }, { data: lega }, giocata, { data: bozza }] = await Promise.all([
     sfideDiGiornata(giornata.id),
     db.from('odds').select('fixture_id, market, selection, price, fixtures!inner(matchday_id)')
       .eq('fixtures.matchday_id', giornata.id),
     db.from('leagues').select('tipster_multiplier, tipster_max_picks').eq('id', leagueId).single(),
-    db.from('slips')
-      .select('id, picks(fixture_id, market, selection, price, outcome, points)')
-      .eq('matchday_id', giornata.id).eq('team_id', teamId).maybeSingle(),
+    schedinaGiocata(teamId, giornata.id),
+    db.from('slip_drafts').select('picks').eq('matchday_id', giornata.id).eq('team_id', teamId).maybeSingle(),
   ]);
 
   const conSquadre = sfide.filter((s) => s.homeTeamId && s.awayTeamId);
-  const miePicks = ((mieSlip as { picks?: Record<string, unknown>[] } | null)?.picks ?? []);
 
   const moltiplicatore = Number(lega?.tipster_multiplier ?? 10);
   const tetto = Number(lega?.tipster_max_picks ?? 3);
@@ -50,9 +49,10 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
     quote: perSfida.get(s.id) ?? [],
   }));
 
-  const iniziali = miePicks.map((p) => ({
-    fixtureId: String(p.fixture_id), market: p.market as Mercato, selection: String(p.selection),
-  }));
+  // la bozza, senza le scelte che nel listino di adesso non ci sono più
+  const quotate = new Set((quote ?? []).map((q) => `${q.fixture_id}|${q.market}|${q.selection}`));
+  const iniziali = chiusa ? [] : ((bozza?.picks ?? []) as { fixtureId: string; market: Mercato; selection: string }[])
+    .filter((p) => quotate.has(`${p.fixtureId}|${p.market}|${p.selection}`));
 
   return (
     <>
@@ -75,6 +75,10 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
         </div>
       </div>
 
+      {giocata && (
+        <TendinaSchedina giornata={giornata.fanta} moltiplicatore={moltiplicatore} {...giocata} />
+      )}
+
       {!pubblicate ? (
         <div className="callout">
           Le quote di questa giornata non sono ancora pubblicate. Appena l'admin le mette in
@@ -86,8 +90,9 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
             <summary>Ogni giocata presa vale <b>{moltiplicatore} × la quota</b> · massimo {tetto} per sfida</summary>
             <p>
               Se ne fai più d'una sulla stessa sfida il moltiplicatore si divide: due giocate{' '}
-              {moltiplicatore / 2} ciascuna, tre {(moltiplicatore / 3).toFixed(2)}. La quota si
-              congela quando salvi. Le schedine chiudono un'ora prima della prima partita.
+              {moltiplicatore / 2} ciascuna, tre {(moltiplicatore / 3).toFixed(2)}. «Salva» tiene le
+              scelte senza giocarle, alle quote di adesso; «Gioca schedina» la gioca e congela le
+              quote. Le schedine chiudono un'ora prima della prima partita.
             </p>
           </details>
 
@@ -97,6 +102,8 @@ export async function Gioca({ teamId, leagueId }: { teamId: string; leagueId: st
             moltiplicatore={moltiplicatore}
             tetto={tetto}
             chiusa={chiusa}
+            giornata={giornata.fanta}
+            giocata={giocata && { giornata: giornata.fanta, ...giocata }}
           />
         </>
       )}

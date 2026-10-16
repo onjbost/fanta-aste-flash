@@ -529,6 +529,20 @@ function giocateDaRighe(picks: PickRow[] | null | undefined): GiocataStorico[] {
 }
 
 /**
+ * La schedina giocata di una squadra in una giornata, null se non c'è (o se
+ * non ha giocate). È quella della tendina in cima a «Gioca» e in home.
+ */
+export async function schedinaGiocata(
+  teamId: string, matchdayId: string,
+): Promise<{ inviataIl: string; giocate: GiocataStorico[] } | null> {
+  const { data } = await supabaseAdmin().from('slips')
+    .select(SELECT_SCHEDINA).eq('team_id', teamId).eq('matchday_id', matchdayId).maybeSingle();
+  const s = data as unknown as { submitted_at: string; picks: PickRow[] | null } | null;
+  if (!s || !s.picks?.length) return null;
+  return { inviataIl: s.submitted_at, giocate: giocateDaRighe(s.picks) };
+}
+
+/**
  * Tutte le schedine di una squadra, dalla più recente, con dentro le giocate.
  *
  * Se la lettura fallisce lo dice, invece di restituire una lista vuota: una

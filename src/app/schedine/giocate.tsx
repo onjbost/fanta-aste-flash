@@ -60,3 +60,51 @@ export function PillolaEsito({ conclusa, prese, totale, punti }: {
     </span>
   );
 }
+
+/**
+ * La schedina giocata della giornata, a tendina: chiusa dice «Schedina ·
+ * giornata N», aperta le giocate coi prezzi a cui sono state giocate. Sta in
+ * cima a «Gioca», in home e nella conferma prima di sovrascriverla.
+ */
+export function TendinaSchedina({ giornata, inviataIl, giocate, moltiplicatore, aperta = false }: {
+  giornata: number | null;
+  inviataIl: string;
+  giocate: GiocataStorico[];
+  moltiplicatore: number;
+  aperta?: boolean;
+}) {
+  // il moltiplicatore si divide fra le giocate della stessa sfida
+  const perSfida = new Map<string, number>();
+  giocate.forEach((g) => perSfida.set(g.sfida, (perSfida.get(g.sfida) ?? 0) + 1));
+  const concluse = giocate.every((g) => g.outcome != null);
+  const fino = giocate.reduce((t, g) => t + (moltiplicatore / (perSfida.get(g.sfida) ?? 1)) * g.price, 0);
+  const presi = giocate.reduce((t, g) => t + (g.points ?? 0), 0);
+
+  return (
+    <details className="biglietto" open={aperta || undefined}>
+      <summary>
+        <div className="biglietto-testa">
+          <div>
+            <b>Schedina · giornata {giornata ?? '—'}</b>
+            <small>
+              {giocate.length} {giocate.length === 1 ? 'giocata' : 'giocate'} · giocata{' '}
+              {new Date(inviataIl).toLocaleString('it-IT', {
+                weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome',
+              })}
+            </small>
+          </div>
+          {concluse
+            ? <PillolaEsito conclusa prese={giocate.filter((g) => g.outcome === 'won').length} totale={giocate.length} punti={presi} />
+            : <span className="pillola-esito">fino a <b className="num">{fino.toFixed(1)}</b> pt</span>}
+          <svg className="giu" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" /></svg>
+        </div>
+      </summary>
+      <div className="biglietto-corpo">
+        <ElencoGiocate giocate={giocate} />
+        <p className="foglio-nota" style={{ margin: '8px 4px 2px' }}>
+          Quote congelate quando l&apos;hai giocata: non cambiano più.
+        </p>
+      </div>
+    </details>
+  );
+}

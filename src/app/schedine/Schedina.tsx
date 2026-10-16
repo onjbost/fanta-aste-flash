@@ -1,8 +1,11 @@
 'use client';
 
-import { useActionState, useMemo, useState } from 'react';
-import { salvaSchedina, type ActionState } from './actions';
+import { startTransition, useActionState, useEffect, useMemo, useRef, useState } from 'react';
+import { giocaSchedina, salvaBozza, type ActionState } from './actions';
 import { ESATTI_FISSI, ALTRO, type Mercato } from '@/lib/tipster';
+import type { GiocataStorico } from '@/lib/tipsterServer';
+import { Foglio } from '../Foglio';
+import { Giocata, TendinaSchedina } from './giocate';
 
 export interface QuotaUI { market: Mercato; selection: string; price: number }
 export interface SfidaUI {
@@ -42,17 +45,50 @@ const etichetta = (s: string) => ETICHETTA[s] ?? s;
 const chiave = (fixtureId: string, market: string, selection: string) =>
   `${fixtureId}|${market}|${selection}`;
 
-export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
+export interface SchedinaGiocataUI {
+  giornata: number | null;
+  inviataIl: string;
+  giocate: GiocataStorico[];
+}
+
+/**
+ * La lavagna della giornata. Le caselle accese sono la **bozza** — le scelte
+ * salvate e non giocate, alle quote di adesso — mai la schedina giocata, che
+ * sta a parte nella tendina in cima.
+ *
+ * «Salva» tiene le scelte; «Gioca schedina» le gioca e congela le quote. Se
+ * per la giornata c'è già una schedina giocata, prima di sovrascriverla si
+ * chiede conferma mostrandole tutte e due.
+ */
+export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa, giornata, giocata }: {
   sfide: SfidaUI[];
+  /** la bozza salvata */
   iniziali: { fixtureId: string; market: Mercato; selection: string }[];
   moltiplicatore: number;
   tetto: number;
   chiusa: boolean;
+  giornata: number | null;
+  giocata: SchedinaGiocataUI | null;
 }) {
-  const [state, action, pending] = useActionState<ActionState, FormData>(salvaSchedina, null);
+  const [statoBozza, salva, inSalva] = useActionState<ActionState, FormData>(salvaBozza, null);
+  const [statoGioca, gioca, inGioco] = useActionState<ActionState, FormData>(giocaSchedina, null);
+  const [ultimo, setUltimo] = useState<'bozza' | 'gioca' | null>(null);
+  const [conferma, setConferma] = useState(false);
   const [scelte, setScelte] = useState<Set<string>>(
     () => new Set(iniziali.map((g) => chiave(g.fixtureId, g.market, g.selection))),
   );
+  // quello che c'è nella bozza sul server: le scelte diverse sono «non salvate»
+  const [salvate, setSalvate] = useState<Set<string>>(() => new Set(scelte));
+  const inviate = useRef<Set<string>>(new Set());
+  const pending = inSalva || inGioco;
+
+  useEffect(() => { if (statoBozza?.ok) setSalvate(new Set(inviate.current)); }, [statoBozza]);
+  useEffect(() => {
+    // giocata: la lavagna riparte vuota, la schedina ora sta nella tendina
+    if (statoGioca?.ok) { setScelte(new Set()); setSalvate(new Set()); setConferma(false); }
+  }, [statoGioca]);
+
+  const sporca = scelte.size !== salvate.size || [...scelte].some((k) => !salvate.has(k));
 
   const perSfida = useMemo(() => {
     const m = new Map<string, number>();
@@ -80,6 +116,14 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
     s.quote.map((q) => [chiave(s.id, q.market, q.selection), q.price] as const))), [sfide]);
   const potenziale = giocate.reduce((t, g) => t + punti(g.fixtureId, prezzi.get(chiave(g.fixtureId, g.market, g.selection)) ?? 0), 0);
 
+  function invia(quale: 'bozza' | 'gioca') {
+    const fd = new FormData();
+    fd.set('giocate', JSON.stringify(giocate));
+    inviate.current = new Set(scelte);
+    setUltimo(quale);
+    startTransition(() => (quale === 'bozza' ? salva : gioca)(fd));
+  }
+
   function tocca(fixtureId: string, market: string, selection: string) {
     if (chiusa) return;
     const k = chiave(fixtureId, market, selection);
@@ -95,8 +139,7 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
   }
 
   return (
-    <form action={action}>
-      <input type="hidden" name="giocate" value={JSON.stringify(giocate)} />
+    <div>
 
       {sfide.map((s) => {
         const n = perSfida.get(s.id) ?? 0;
@@ -176,15 +219,65 @@ export function Schedina({ sfide, iniziali, moltiplicatore, tetto, chiusa }: {
               <span className="avviso">{scoperte} {scoperte === 1 ? 'sfida' : 'sfide'} di campionato senza giocate</span>
             )}
           </div>
-          <button className="primary" type="submit" disabled={pending}>
-            {pending ? 'Salvo…' : 'Salva'}
-          </button>
+          <div className="barra-bottoni">
+            <button type="button" disabled={pending || !sporca} onClick={() => invia('bozza')}>
+              {inSalva ? 'Salvo…' : 'Salva'}
+            </button>
+            <button className="primary" type="button" disabled={pending || giocate.length === 0}
+                    onClick={() => (giocata ? setConferma(true) : invia('gioca'))}>
+              {inGioco ? 'Gioco…' : 'Gioca schedina'}
+            </button>
+          </div>
         </div>
       )}
 
-      {state && (
-        <div className={`callout${state.ok ? '' : ' crit'}`} style={{ marginTop: 12 }}>{state.message}</div>
+      {!chiusa && (
+        <p className={`bozza-nota${sporca ? ' sporca' : ''}`}>
+          {sporca
+            ? 'Modifiche non salvate.'
+            : salvate.size
+              ? 'Bozza salvata: non è ancora giocata, le quote restano quelle di adesso.'
+              : 'Nessuna bozza salvata.'}
+        </p>
       )}
-    </form>
+
+      {ultimo && (ultimo === 'bozza' ? statoBozza : statoGioca) && (() => {
+        const st = (ultimo === 'bozza' ? statoBozza : statoGioca) as NonNullable<ActionState>;
+        return <div className={`callout${st.ok ? '' : ' crit'}`} style={{ marginTop: 12 }}>{st.message}</div>;
+      })()}
+
+      {giocata && (
+        <Foglio aperto={conferma} onChiudi={() => setConferma(false)} titolo="Sostituire la schedina?">
+          <div>
+            <p style={{ fontSize: '.9rem', margin: '10px 0 0' }}>
+              Per la giornata {giornata ?? '—'} hai già giocato una schedina. Se giochi questa,{' '}
+              <b>la precedente viene sovrascritta</b>: le sue giocate e le sue quote non valgono più.
+            </p>
+            <div className="foglio-k">La schedina che verrà sovrascritta</div>
+            <TendinaSchedina {...giocata} moltiplicatore={moltiplicatore} />
+            <div className="foglio-k">La nuova, alle quote di adesso</div>
+            {giocate.map((g) => {
+              const s = sfide.find((x) => x.id === g.fixtureId);
+              return (
+                <Giocata key={chiave(g.fixtureId, g.market, g.selection)} g={{
+                  sfida: s ? `${s.casa} – ${s.ospite}` : '?',
+                  competizione: s?.competition ?? 'campionato',
+                  market: g.market, selection: g.selection,
+                  price: prezzi.get(chiave(g.fixtureId, g.market, g.selection)) ?? 0,
+                  outcome: null, points: null, risultato: null,
+                }} />
+              );
+            })}
+            {statoGioca && !statoGioca.ok && <div className="callout crit" style={{ marginTop: 10 }}>{statoGioca.message}</div>}
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
+              <button type="button" onClick={() => setConferma(false)} disabled={inGioco}>Annulla</button>
+              <button type="button" className="primary" onClick={() => invia('gioca')} disabled={inGioco}>
+                {inGioco ? 'Gioco…' : 'Sì, gioca e sovrascrivi'}
+              </button>
+            </div>
+          </div>
+        </Foglio>
+      )}
+    </div>
   );
 }

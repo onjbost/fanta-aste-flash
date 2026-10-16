@@ -10,6 +10,27 @@ import {
 import { TopBar } from './TopBar';
 import { BannerPartite, type SlidePartita } from './home/BannerPartite';
 import { Scadenze, type TesseraScadenza } from './home/Scadenze';
+import { TendinaSchedina } from './schedine/giocate';
+import Link from 'next/link';
+import { supabaseAdmin } from '@/lib/supabase';
+import { giornataCorrente, schedinaGiocata } from '@/lib/tipsterServer';
+
+/**
+ * La schedina della giornata per la home: quella giocata, a tendina, oppure
+ * l'invito a giocarla. Niente finché le quote non sono pubblicate.
+ */
+async function schedinaDellaHome(leagueId: string, teamId: string) {
+  const g = await giornataCorrente(leagueId);
+  if (!g?.oddsPublishedAt) return null;
+  const [giocata, { data: lega }] = await Promise.all([
+    schedinaGiocata(teamId, g.id),
+    supabaseAdmin().from('leagues').select('tipster_multiplier').eq('id', leagueId).single(),
+  ]);
+  return {
+    giornata: g.fanta, giocata, chiusa: new Date() >= new Date(g.lockAt),
+    moltiplicatore: Number(lega?.tipster_multiplier ?? 10),
+  };
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -91,8 +112,9 @@ function slide(
 export default async function Home() {
   const ctx = await requireTeamContext();
   const lega = ctx.team.leagueId;
-  const [sfide, squadre, giornate, cl] = await Promise.all([
+  const [sfide, squadre, giornate, cl, schedina] = await Promise.all([
     sfideDellaLega(lega), squadreDellaLega(lega), giornatePerScadenze(lega), ultimeClassifiche(lega),
+    schedinaDellaHome(lega, ctx.team.id),
   ]);
 
   const slides = [
@@ -125,6 +147,20 @@ export default async function Home() {
       <h1 className="sr-only">Home · {ctx.team.name}</h1>
 
       <BannerPartite slides={slides} />
+
+      {schedina && (schedina.giocata || !schedina.chiusa) && (
+        <>
+          <h2 className="titoletto">La tua schedina</h2>
+          {schedina.giocata ? (
+            <TendinaSchedina giornata={schedina.giornata} moltiplicatore={schedina.moltiplicatore} {...schedina.giocata} />
+          ) : (
+            <div className="vuota-sch">
+              <span>Nessuna schedina giocata per la giornata {schedina.giornata ?? '—'}.</span>
+              <Link href="/schedine" className="btn piccolo">Gioca</Link>
+            </div>
+          )}
+        </>
+      )}
 
       <h2 className="titoletto">Prossime scadenze</h2>
       <Scadenze tessere={tessere} />

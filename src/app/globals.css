@@ -1667,3 +1667,13 @@ button.ghost,.btn.ghost{background:transparent;border-color:var(--surface-3)}
     -webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;
   }
 }
+
+/* la schedina giocata a tendina, la bozza, la home senza schedina */
+.biglietto summary .giu{margin-left:6px;flex:0 0 auto}
+.bozza-nota{font-size:.78rem;margin:8px 4px 0;color:var(--muted)}
+.bozza-nota.sporca{color:var(--warn)}
+.vuota-sch{
+  background:var(--surface);border-radius:var(--r);padding:14px;color:var(--muted);font-size:.88rem;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+}
+.barra-bottoni{display:flex;gap:8px;flex:0 0 auto}

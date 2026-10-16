@@ -41,6 +41,9 @@ const BASE = 'https://apileague.fantacalcio.it';
  * `LEGHE_APP_KEY` la sostituisce senza rilasciare l'app.
  */
 const APP_KEY_SITO = 'ICiELOObd5DF5uJEATi77CRvHiiRuMU0';
+/** Da dove parte la richiesta, per l'API: il sito della lega. */
+const SITO = 'https://leghe.fantacalcio.it';
+const UA_BROWSER = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36';
 /** Giornate concluse da importare per giro, al massimo: il resto al giro dopo. */
 const GIORNATE_PER_GIRO = 2;
 
@@ -126,6 +129,11 @@ export async function chiedi<T>(percorso: string, token?: string, invio?: { meto
         app_key: process.env.LEGHE_APP_KEY || APP_KEY_SITO,
         authorization: `Bearer ${t}`,
         accept: 'application/json',
+        // come il sito: senza, la protezione davanti all'API rifiuta con 403
+        origin: SITO,
+        referer: `${SITO}/`,
+        'user-agent': UA_BROWSER,
+        'accept-language': 'it-IT,it;q=0.9',
         ...(invio ? { 'content-type': 'application/json' } : {}),
       },
       body: invio ? JSON.stringify(invio.corpo) : undefined,
@@ -141,6 +149,17 @@ export async function chiedi<T>(percorso: string, token?: string, invio?: { meto
     throw new Error(codice === 'ATH007'
       ? 'Leghe Fantacalcio ha rifiutato la app_key: è cambiata, va aggiornata (LEGHE_APP_KEY)'
       : 'Leghe Fantacalcio ha rifiutato il token: è scaduto o non è più valido, incollane uno nuovo in /admin/redazione');
+  }
+  if (res.status === 403) {
+    // il token qui è buono (lo stesso funziona dal browser): o un firewall
+    // davanti all'API, che risponde con una pagina, o l'API con un suo codice
+    const corpo = await res.text().catch(() => '');
+    const codice = /^\s*\{/.test(corpo)
+      ? (() => { try { return (JSON.parse(corpo) as { code?: string })?.code; } catch { return undefined; } })()
+      : undefined;
+    throw new Error(codice
+      ? `Leghe Fantacalcio ha risposto 403 (${codice}) a ${percorso.split('/').slice(0, 4).join('/')}`
+      : `Leghe Fantacalcio ha bloccato la richiesta del server (403${res.headers.get('server') ? `, ${res.headers.get('server')}` : ''}): dal browser funziona, è un filtro sulle richieste che arrivano dall'app`);
   }
   if (!res.ok) throw new Error(`Leghe Fantacalcio ha risposto ${res.status} a ${percorso.split('/').slice(0, 4).join('/')}`);
   return await res.json() as T;

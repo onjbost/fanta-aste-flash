@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabase';
 import { ultimeRaccolte } from '@/lib/fonti/fontiServer';
 import type { PassoGiro } from '@/lib/leghe/legheServer';
 import { TopBar } from '../../TopBar';
-import { AggiornaFonti, AggiornaIndisponibili, ImportaGiornata } from './Pannello';
+import { AggiornaCalendario, AggiornaFonti, AggiornaIndisponibili, ImportaGiornata } from './Pannello';
 import { AggiornaListone, AggiornaRose, RiportaAsta } from './Rose';
 import { Passi, SEGNO } from './Passi';
 import { AzioniGruppo } from '../AzioniGruppo';
@@ -74,6 +74,14 @@ export default async function PannelloPage() {
           classifiche e schedine.
         </p>
         <ImportaGiornata prossima={fatte + 1} />
+
+        <p className="sub" style={{ marginTop: 16 }}>
+          <b>Il calendario di Serie A.</b> Gli orari veri delle prossime giornate, da fantacalcio.it:
+          la prima partita decide quando chiudono schedine e formazioni, l&apos;ultima il giorno in cui
+          si calcola la giornata (quello dopo). Il cron lo legge da solo ogni mercoledì; usalo qui per
+          un anticipo, un posticipo o un rinvio dell&apos;ultimo minuto.
+        </p>
+        <AggiornaCalendario />
       </div>
 
       <h2>Listone e rose</h2>

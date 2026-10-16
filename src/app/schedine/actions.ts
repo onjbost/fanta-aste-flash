@@ -69,18 +69,35 @@ export async function salvaSchedina(_prev: ActionState, form: FormData): Promise
   const prezzo = new Map((quote ?? []).map((q) =>
     [`${q.fixture_id}|${q.market}|${q.selection}`, Number(q.price)]));
 
-  const righe = giocate.map((g) => {
-    const p = prezzo.get(`${g.fixtureId}|${g.market}|${g.selection}`);
-    if (p == null) throw new Error(`Quota non trovata per ${g.market} ${g.selection}`);
-    return { fixture_id: g.fixtureId, market: g.market, selection: g.selection, price: p };
-  });
-
   const db = await supabaseServer();
   const { data: slip, error: eS } = await db.from('slips')
     .upsert({ league_id: team.league_id, matchday_id: giornata.id, team_id: team.id },
             { onConflict: 'matchday_id,team_id' })
     .select('id').single();
   if (eS || !slip) return { ok: false, message: eS?.message ?? 'Non sono riuscito ad aprire la schedina.' };
+
+  /*
+   * Una giocata già fatta tiene il prezzo a cui è stata giocata: le quote si
+   * aggiornano ogni pomeriggio fino alla chiusura, e chi aggiunge una giocata
+   * il giovedì non deve vedersi ripagare quelle del lunedì alla quota nuova.
+   * Solo le giocate nuove prendono la quota di adesso.
+   */
+  const { data: giaFatte } = await admin.from('picks')
+    .select('fixture_id, market, selection, price').eq('slip_id', slip.id);
+  const prezzoFatto = new Map((giaFatte ?? []).map((q) =>
+    [`${q.fixture_id}|${q.market}|${q.selection}`, Number(q.price)]));
+
+  let righe: { fixture_id: string; market: Mercato; selection: string; price: number }[];
+  try {
+    righe = giocate.map((g) => {
+      const k = `${g.fixtureId}|${g.market}|${g.selection}`;
+      const p = prezzoFatto.get(k) ?? prezzo.get(k);
+      if (p == null) throw new Error(`Quota non trovata per ${g.market} ${g.selection}`);
+      return { fixture_id: g.fixtureId, market: g.market, selection: g.selection, price: p };
+    });
+  } catch (e) {
+    return { ok: false, message: (e as Error).message };
+  }
 
   const { error: eD } = await db.from('picks').delete().eq('slip_id', slip.id);
   if (eD) return { ok: false, message: eD.message };

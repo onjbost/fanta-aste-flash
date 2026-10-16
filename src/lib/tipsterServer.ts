@@ -275,6 +275,8 @@ export interface StimaPubblicata {
 export interface QuoteGenerate {
   sfide: number;
   esiti: number;
+  /** esiti con un prezzo diverso da prima, nuovi o spariti; 0 alla prima generazione */
+  cambiate: number;
   stime: StimaPubblicata[];
   /** quante giornate ha giocato il Monte Carlo */
   simulazioni: number;
@@ -355,17 +357,35 @@ export async function generaQuote(leagueId: string, matchdayId: string): Promise
     }
   }
 
-  // le quote di questa giornata si rifanno da zero: le vecchie non servono più
+  /*
+   * Le quote si riscrivono sul posto e si tolgono solo quelle che non
+   * esistono più: si rigenerano anche a quote pubblicate (il giro delle 15),
+   * e cancellare tutto prima di reinserire lascerebbe la lavagna vuota a chi
+   * sta giocando in quel momento. Le giocate fatte non cambiano: ognuna tiene
+   * il prezzo a cui è stata giocata.
+   */
   const ids = sfide.map((s) => s.id);
-  if (ids.length) await db.from('odds').delete().in('fixture_id', ids);
+  const chiave = (r: Record<string, unknown>) =>
+    `${r.fixture_id}|${r.market}|${r.selection}`;
+  const { data: prima } = ids.length
+    ? await db.from('odds').select('id, fixture_id, market, selection, price').in('fixture_id', ids)
+    : { data: [] as { id: string; fixture_id: string; market: string; selection: string; price: number }[] };
+  const vecchie = new Map((prima ?? []).map((r) => [chiave(r), r]));
+  const nuove = new Set(righe.map(chiave));
+  const centesimi = (x: unknown) => Math.round(Number(x) * 100);
+  const cambiate = righe.filter((r) => centesimi(vecchie.get(chiave(r))?.price) !== centesimi(r.price)).length;
+  const sparite = (prima ?? []).filter((r) => !nuove.has(chiave(r))).map((r) => r.id as string);
+
   if (righe.length) {
-    const { error } = await db.from('odds').insert(righe);
+    const { error } = await db.from('odds').upsert(righe, { onConflict: 'fixture_id,market,selection' });
     if (error) throw new Error(error.message);
   }
+  if (sparite.length) await db.from('odds').delete().in('id', sparite);
 
   return {
     sfide: quotate,
     esiti: righe.length,
+    cambiate: (prima ?? []).length ? cambiate + sparite.length : 0,
     simulazioni: SIMULAZIONI,
     stime: [...stime].map(([teamId, s]) => ({
       teamId,

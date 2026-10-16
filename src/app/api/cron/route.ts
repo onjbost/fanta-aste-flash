@@ -13,6 +13,7 @@ import { liveGiornata } from '@/lib/live/liveServer';
 import { aggiornaCalendarioDallaPagina, allineaCalendario, descriviGiornata } from '@/lib/live/calendarioServer';
 import { aggiornaListoneDallaLega, aggiornaRoseDallaLega } from '@/lib/leghe/roseServer';
 import { riportaAsteInSospeso } from '@/lib/leghe/mercatoServer';
+import { aggiornaQuoteProssima } from '@/lib/schedineAuto';
 
 // il giro legge in fila fantacalcio.it e Leghe Fantacalcio: cinque minuti,
 // il massimo del piano. Quasi tutto è attesa di rete, che non consuma CPU
@@ -26,6 +27,8 @@ export const maxDuration = 300;
  *      mercoledì, prima, quello delle giornate che vengono dalla pagina del calendario)
  *   3. i voti di giornata, poi calcola e importa da Leghe Fantacalcio la
  *      giornata conclusa (i voti servono a capire se è finita)
+ *   3b. le quote della giornata dopo, se nessuna è in corso e non sono
+ *      ancora pubblicate (le aggiorna ogni giorno il giro delle 15, /api/cron/quote)
  *   4. le aste flash chiuse non ancora riportate sulla lega, poi listone e
  *      rose da Leghe Fantacalcio
  *   5. il mercoledì, gli indisponibili di Serie A e le foto delle news
@@ -136,6 +139,18 @@ export async function GET(request: NextRequest) {
     if (!(e instanceof LegheNonCollegata)) await notifyAdminPlain(`Leghe Fantacalcio: ${(e as Error).message}`);
   }
 
+  // Le quote della giornata dopo, appena quella giocata è calcolata: si
+  // generano e si pubblicano, con l'anteprima su Telegram. Solo se non lo
+  // sono già — rigenerarle ogni giorno è il lavoro del giro delle 15 — e solo
+  // se nessuna giornata è in corso.
+  let quote: Awaited<ReturnType<typeof aggiornaQuoteProssima>> | null = null;
+  try {
+    quote = await aggiornaQuoteProssima({ soloSeNonPubblicate: true });
+    if (quote.fatto === 'errore') await notifyAdminPlain(`🎟️ ${quote.messaggio}`);
+  } catch (e) {
+    await notifyAdminPlain(`🎟️ Quote della prossima giornata: ${(e as Error).message}`);
+  }
+
   // Listone e rose da Leghe Fantacalcio. Il listone (svincolati compresi) è
   // anagrafica e si scrive sempre; le rose solo se nessuna differenza tocca
   // un giocatore mosso nell'app di recente — se la lega è indietro rispetto
@@ -208,6 +223,7 @@ export async function GET(request: NextRequest) {
     giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
     calendario,
     calendarioPagina: calendarioPagina?.map(descriviGiornata) ?? null,
+    quote: quote?.messaggio ?? null,
     at: new Date().toISOString(),
   });
 }

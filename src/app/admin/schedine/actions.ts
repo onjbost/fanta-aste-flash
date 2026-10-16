@@ -2,10 +2,9 @@
 
 import { revalidatePath } from 'next/cache';
 import { supabaseServer, supabaseAdmin } from '@/lib/supabase';
-import { generaQuote, chiudiGiornata, giornataDaRiga } from '@/lib/tipsterServer';
+import { generaQuote, chiudiGiornata } from '@/lib/tipsterServer';
+import { pubblicaQuoteGiornata } from '@/lib/schedineAuto';
 import { supabaseAdmin as admin } from '@/lib/supabase';
-import { notifyAdminPlain } from '@/lib/telegram';
-import { generaAnteprima } from '@/lib/redazione/anteprimaServer';
 
 export type ActionState = {
   ok: boolean;
@@ -71,61 +70,10 @@ export async function generaQuoteAction(_p: ActionState, form: FormData): Promis
 export async function pubblicaQuote(_p: ActionState, form: FormData): Promise<ActionState> {
   try {
     await requireAdmin();
-    const matchdayId = String(form.get('matchdayId'));
-    const db = supabaseAdmin();
-    const { data: md } = await db.from('matchdays').select('*').eq('id', matchdayId).single();
-    if (!md) return { ok: false, message: 'Giornata inesistente.' };
-
-    const { count } = await db.from('odds').select('id', { count: 'exact', head: true })
-      .in('fixture_id', (await db.from('fixtures').select('id').eq('matchday_id', matchdayId))
-        .data?.map((f) => f.id) ?? []);
-    if (!count) return { ok: false, message: 'Genera prima le quote.' };
-
-    await db.from('matchdays')
-      .update({ odds_published_at: new Date().toISOString(), status: 'open' })
-      .eq('id', matchdayId);
-
+    const r = await pubblicaQuoteGiornata(String(form.get('matchdayId')));
     revalidatePath('/admin/schedine');
     revalidatePath('/schedine');
-
-    /*
-     * Pubblicare e annunciare sono due cose.
-     *
-     * Le quote a questo punto sono già in lavagna e la lega può giocare: se
-     * l'anteprima non si genera — il modello non risponde, Telegram è giù —
-     * si dice com'è andata, ma non si annulla la pubblicazione. Il contrario
-     * sarebbe la cosa peggiore: quote pubblicate e admin convinto di no.
-     */
-    const g = giornataDaRiga(md);
-    try {
-      const a = await generaAnteprima(matchdayId);
-      const r = await notifyAdminPlain(a.testo);
-      if (!r.sent) {
-        return {
-          ok: true,
-          message: `Quote pubblicate: in lega si può giocare. L'anteprima però non è partita `
-            + `su Telegram (${r.reason}): rigenerala da lì o scrivila a mano.`,
-        };
-      }
-      const come = a.provider === 'gemini'
-        ? 'scritta dal modello'
-        : `a template${a.problemi.length ? ` (${a.problemi[0]})` : ''}`;
-      return {
-        ok: true,
-        message: `Quote pubblicate: in lega si può giocare. Anteprima ${come} mandata su `
-          + 'Telegram: copiala nel gruppo.',
-      };
-    } catch (e) {
-      await notifyAdminPlain(
-        `📋 QUOTE PUBBLICATE\n\nGiornata ${g.fanta} (Serie A ${g.serieA}).\n`
-        + `Si gioca fino a ${new Date(g.lockAt).toLocaleString('it-IT')}.`,
-      );
-      return {
-        ok: true,
-        message: 'Quote pubblicate: in lega si può giocare. L\'anteprima non è venuta ('
-          + (e as Error).message + '): su Telegram è partito l\'avviso secco.',
-      };
-    }
+    return r;
   } catch (e) { return esito(e); }
 }
 

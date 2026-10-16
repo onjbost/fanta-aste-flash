@@ -3,7 +3,32 @@
 import { useActionState } from 'react';
 import { Passi } from './Passi';
 import { aggiornaFonti, aggiornaIndisponibili, type InfState } from '../infortuni/actions';
-import { importaGiornataAction, type StatoGiro } from './actions';
+import {
+  aggiornaCalendarioAction, importaGiornataAction, type StatoCalendario, type StatoGiro,
+} from './actions';
+
+/** «Aggiorna calendario»: orari, anticipi, posticipi e rinvii da fantacalcio.it. */
+export function AggiornaCalendario() {
+  const [stato, azione, inCorso] = useActionState<StatoCalendario, FormData>(aggiornaCalendarioAction, null);
+  return (
+    <form action={azione}>
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        <div className="field" style={{ marginBottom: 0 }}>
+          <label htmlFor="giornata-calendario">Giornata di Serie A</label>
+          <input id="giornata-calendario" name="giornata" inputMode="numeric" placeholder="le prossime" style={{ width: 120 }} />
+        </div>
+        <button type="submit" disabled={inCorso}>
+          {inCorso ? 'Leggo il calendario…' : 'Aggiorna calendario da fantacalcio.it'}
+        </button>
+      </div>
+      {stato && (
+        <div className={`callout${stato.ok ? '' : ' crit'}`} role="status" style={{ marginTop: 10 }}>
+          <ul style={{ margin: 0, paddingLeft: 18 }}>{stato.righe.map((r) => <li key={r}>{r}</li>)}</ul>
+        </div>
+      )}
+    </form>
+  );
+}
 
 export function ImportaGiornata({ prossima }: { prossima: number }) {
   const [stato, azione, inCorso] = useActionState<StatoGiro, FormData>(importaGiornataAction, null);

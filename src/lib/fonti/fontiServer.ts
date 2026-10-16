@@ -39,7 +39,7 @@ export interface EsitoFonte {
  * giorno la raccolta dei voti torna vuota, si copia il cookie di una
  * sessione del browser in quella variabile e si riprova.
  */
-async function scarica(url: string): Promise<{ html: string } | { errore: string }> {
+export async function scarica(url: string): Promise<{ html: string } | { errore: string }> {
   try {
     const headers: Record<string, string> = {
       'user-agent': 'Mozilla/5.0 (compatible; FantaMansarda/1.0)',

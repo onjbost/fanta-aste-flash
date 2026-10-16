@@ -100,3 +100,28 @@ export async function riportaAstaAction(_p: StatoRiporto, form: FormData): Promi
   aggiornaPagine();
   return { ok: r.ok, messaggio: r.messaggio, passi: r.passi };
 }
+
+export type StatoCalendario = { ok: boolean; righe: string[] } | null;
+
+/**
+ * Il calendario delle prossime giornate (o di quella scritta), letto adesso
+ * da fantacalcio.it: per un anticipo, un posticipo o un rinvio dell'ultimo
+ * minuto, senza aspettare il mercoledì.
+ */
+export async function aggiornaCalendarioAction(_p: StatoCalendario, form: FormData): Promise<StatoCalendario> {
+  if (!await admin()) return { ok: false, righe: ['Serve essere admin.'] };
+  const scritta = String(form.get('giornata') ?? '').trim();
+  const giornata = scritta ? Number(scritta) : null;
+  if (giornata != null && !(Number.isInteger(giornata) && giornata >= 1 && giornata <= 38)) {
+    return { ok: false, righe: ['La giornata va da 1 a 38, o lascia vuoto per le prossime.'] };
+  }
+  const { aggiornaCalendarioDallaPagina, descriviGiornata } = await import('@/lib/live/calendarioServer');
+  try {
+    const g = await aggiornaCalendarioDallaPagina(giornata ? [giornata] : undefined);
+    for (const p of ['/admin/pannello', '/admin/schedine', '/schedine', '/']) revalidatePath(p);
+    if (!g.length) return { ok: false, righe: ['Nessuna giornata da aggiornare: sono tutte chiuse.'] };
+    return { ok: g.every((x) => !x.errore), righe: g.map(descriviGiornata) };
+  } catch (e) {
+    return { ok: false, righe: [(e as Error).message] };
+  }
+}

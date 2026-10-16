@@ -10,7 +10,7 @@ import {
   calcoloAutomaticoAcceso, importaGiornateConcluse, LegheNonCollegata, statoCollegamento,
 } from '@/lib/leghe/legheServer';
 import { liveGiornata } from '@/lib/live/liveServer';
-import { allineaCalendario } from '@/lib/live/calendarioServer';
+import { aggiornaCalendarioDallaPagina, allineaCalendario, descriviGiornata } from '@/lib/live/calendarioServer';
 import { aggiornaListoneDallaLega, aggiornaRoseDallaLega } from '@/lib/leghe/roseServer';
 import { riportaAsteInSospeso } from '@/lib/leghe/mercatoServer';
 
@@ -22,7 +22,8 @@ export const maxDuration = 300;
  * Cron giornaliero (Vercel), alle 9. In ordine di importanza, così se il
  * tempo finisse resterebbe indietro la cosa che conta meno:
  *   1. allinea lo stato delle sessioni al calendario e prepara i riepiloghi
- *   2. allinea il calendario di Serie A col live di fantacalcio.it
+ *   2. allinea il calendario di Serie A col live di fantacalcio.it (il
+ *      mercoledì, prima, quello delle giornate che vengono dalla pagina del calendario)
  *   3. i voti di giornata, poi calcola e importa da Leghe Fantacalcio la
  *      giornata conclusa (i voti servono a capire se è finita)
  *   4. le aste flash chiuse non ancora riportate sulla lega, poi listone e
@@ -66,6 +67,21 @@ export async function GET(request: NextRequest) {
     const { count } = await db.from('lots')
       .select('id', { count: 'exact', head: true }).eq('session_id', c.id).neq('status', 'cancelled');
     await notifyAdmin(tgPhaseChange(s?.number ?? 0, c.to, count ?? 0));
+  }
+
+  // Il mercoledì, il calendario delle giornate che vengono dalla pagina di
+  // fantacalcio.it: il live conosce solo le partite cominciate, e senza gli
+  // orari veri schedine e formazioni chiuderebbero all'ora stimata d'estate.
+  // La prima partita sposta le chiusure, l'ultima il giorno del calcolo. Per
+  // un rinvio dell'ultimo minuto c'è il pulsante nel Pannello.
+  let calendarioPagina: Awaited<ReturnType<typeof aggiornaCalendarioDallaPagina>> | null = null;
+  if (new Date().getUTCDay() === 3) {
+    try {
+      calendarioPagina = await aggiornaCalendarioDallaPagina();
+      await notifyAdminPlain(`📅 Calendario da fantacalcio.it\n${calendarioPagina.map(descriviGiornata).join('\n')}`);
+    } catch (e) {
+      await notifyAdminPlain(`📅 Calendario da fantacalcio.it: ${(e as Error).message}`);
+    }
   }
 
   // Il calendario di Serie A delle giornate vicine (quella appena giocata e
@@ -191,6 +207,7 @@ export async function GET(request: NextRequest) {
     rose: rose ? { applicate: rose.applicate, cambi: rose.cambi, messaggio: rose.messaggio } : null,
     giornate: giornate ? { importate: giornate.importate.length, problemi: giornate.problemi } : null,
     calendario,
+    calendarioPagina: calendarioPagina?.map(descriviGiornata) ?? null,
     at: new Date().toISOString(),
   });
 }
